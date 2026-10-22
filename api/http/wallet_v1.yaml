@@ -1,0 +1,345 @@
+openapi: 3.0.3
+info:
+  title: Private OTC Desk — wallet API
+  version: 1.0.0
+  description: |
+    Holdings, deposits, withdrawals and the sign queue, served by the ledger service.
+    Every ledger action of an external party is an interactive submission: the desk prepares
+    it, the owner signs the returned `hash` (raw bytes, Ed25519) and posts the signature to
+    `/tx/{id}/execute`. For a party the desk hosts, the action list is empty because the desk
+    already submitted. Every route needs a caller: the gateway forwards it in `X-User-Id`,
+    `X-Party-Id` and `X-Party-Hint`.
+servers:
+  - url: /api/v1
+tags:
+  - name: Wallet
+  - name: Signing
+paths:
+  /instruments:
+    get:
+      tags: [Wallet]
+      operationId: listInstruments
+      summary: Tradable instruments
+      responses:
+        '200':
+          description: Instruments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Instrument'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /wallet/balances:
+    get:
+      tags: [Wallet]
+      operationId: getBalances
+      summary: The caller's balances, every instrument included
+      responses:
+        '200':
+          description: Balances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Balance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /wallet/incoming:
+    get:
+      tags: [Wallet]
+      operationId: listIncoming
+      summary: Transfers to the caller waiting for acceptance
+      responses:
+        '200':
+          description: Pending incoming transfers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IncomingTransfer'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /wallet/incoming/{contractId}/accept:
+    parameters:
+      - name: contractId
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      tags: [Wallet]
+      operationId: acceptIncoming
+      summary: Accept an incoming transfer
+      responses:
+        '202':
+          description: Accept queued for signature (or submitted for a hosted party)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Actions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /wallet/withdraw:
+    post:
+      tags: [Wallet]
+      operationId: withdraw
+      summary: Send holdings to any Canton party (it receives a transfer offer to accept)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WithdrawInput'
+      responses:
+        '202':
+          description: Transfer queued for signature (or submitted for a hosted party)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Actions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /wallet/faucet:
+    post:
+      tags: [Wallet]
+      operationId: faucet
+      summary: Mint test tokens to the caller (local sandbox only)
+      responses:
+        '202':
+          description: Mint offers created; their accepts are queued for signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Actions'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tx/pending:
+    get:
+      tags: [Signing]
+      operationId: listPendingActions
+      summary: Actions waiting for the caller's signature
+      responses:
+        '200':
+          description: Pending actions, oldest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SignAction'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /tx/{id}/execute:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags: [Signing]
+      operationId: executeAction
+      summary: Submit a pending action with the owner's signature over its hash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteInput'
+      responses:
+        '204':
+          description: Submitted to the ledger
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflict; `code` is INSUFFICIENT_FUNDS or ACTION_NOT_PENDING
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: The ledger failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Decimal:
+      type: string
+      description: Decimal with at most 10 fraction digits
+      pattern: '^\d{1,28}(\.\d{1,10})?$'
+      example: '1.5'
+    Instrument:
+      type: object
+      required: [symbol, name, decimals]
+      properties:
+        symbol:
+          type: string
+          example: CBTC
+        name:
+          type: string
+          example: Bitcoin
+        decimals:
+          type: integer
+          description: Digits to show in the UI
+          example: 8
+    Balance:
+      type: object
+      required: [symbol, available, locked]
+      properties:
+        symbol:
+          type: string
+        available:
+          $ref: '#/components/schemas/Decimal'
+        locked:
+          $ref: '#/components/schemas/Decimal'
+    IncomingTransfer:
+      type: object
+      required: [contractId, sender, symbol, amount]
+      properties:
+        contractId:
+          type: string
+        sender:
+          type: string
+          description: Sender's party hint
+        symbol:
+          type: string
+        amount:
+          $ref: '#/components/schemas/Decimal'
+    WithdrawInput:
+      type: object
+      additionalProperties: false
+      required: [symbol, amount, receiver]
+      properties:
+        symbol:
+          type: string
+          example: CBTC
+        amount:
+          $ref: '#/components/schemas/Decimal'
+        receiver:
+          type: string
+          description: Full party id of the receiver
+          pattern: '^.+::.+$'
+          example: makerB::122096feab
+    ExecuteInput:
+      type: object
+      additionalProperties: false
+      required: [signature]
+      properties:
+        signature:
+          type: string
+          description: Base64 Ed25519 signature over the decoded hash
+          minLength: 1
+          maxLength: 128
+    SignAction:
+      type: object
+      required: [id, purpose, description, hash, createdAt, expiresAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        purpose:
+          type: string
+          enum: [allocate, transfer-accept, transfer-out]
+        description:
+          type: string
+          example: Allocate 0.1 CBTC for quote 3f2c…
+        hash:
+          type: string
+          description: Base64 prepared-transaction hash to sign
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    Actions:
+      type: object
+      required: [actions]
+      properties:
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignAction'
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      example:
+        error: 'request failed: insufficient funds: CBTC'
+        code: INSUFFICIENT_FUNDS

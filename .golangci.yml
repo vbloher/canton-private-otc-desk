@@ -1,0 +1,112 @@
+version: "2"
+
+linters:
+  default: all
+  disable:
+    - exhaustruct
+    - exhaustruct_v5
+    - forbidigo
+    - funcorder
+    - ireturn
+    - mnd
+    - nonamedreturns
+    - revive
+    - tagliatelle
+    - varnamelen
+    - depguard
+    - wsl
+    - gomodguard
+
+  settings:
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - experimental
+        - opinionated
+      disabled-checks:
+        - whyNoLint
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+
+    paths:
+      - _test.go
+      - gen/
+      - test/e2e/
+      - web/
+
+    rules:
+      - path: pkg/logger
+        linters:
+          - zerologlint
+
+      - path: services/[^/]+/internal/app
+        linters:
+          - contextcheck
+
+      - path: services/[^/]+/internal/controller/grpc/
+        linters:
+          - wrapcheck
+
+      - path: services/[^/]+/internal/controller/http/v1
+        linters:
+          - wrapcheck
+
+      - linters:
+          - err113
+        text: "do not define dynamic errors"
+
+      - linters:
+          - lll
+        source: "^//go:generate "
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+
+  settings:
+    gofumpt:
+      extra:
+        group-params: true
+        clothe-returns: true
+    gci:
+      sections:
+        - standard
+        - default
+        - blank
+        - dot
+        - localmodule
+        - alias
+
+  exclusions:
+    generated: disable
+
+    paths:
+      - gen
+      - mocks
+
+issues:
+  max-same-issues: 0
+  fix: true
+
+output:
+  formats:
+    text:
+      path: stdout
+
+  sort-order:
+    - linter
+    - file
+
+run:
+  timeout: 5m
+  relative-path-mode: gomod
+  allow-parallel-runners: true
+  allow-serial-runners: true

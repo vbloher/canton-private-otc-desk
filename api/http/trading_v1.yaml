@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: Private OTC Desk — trading API
+  version: 1.0.0
+  description: |
+    Request for quotes. A taker asks chosen makers for a price on a block of one instrument
+    against another; each quote is the maker's committed on-ledger allocation; accepting a
+    quote settles the swap atomically in one Canton transaction. Directions are the taker's
+    view (BUY = the taker buys `base`). Party fields carry party hints. Every route needs a
+    caller: the gateway forwards it in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`.
+servers:
+  - url: /api/v1
+tags:
+  - name: Desk
+  - name: Taker
+  - name: Maker
+paths:
+  /desk:
+    get:
+      tags: [Desk]
+      operationId: getDesk
+      summary: Desk terms
+      responses:
+        '200':
+          description: Desk terms
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Desk'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs:
+    post:
+      tags: [Taker]
+      operationId: createRfq
+      summary: Ask makers for quotes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRfqInput'
+      responses:
+        '201':
+          description: RFQ created and sent to the makers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rfq'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs/mine:
+    get:
+      tags: [Taker]
+      operationId: listMyRfqs
+      summary: The caller's RFQs with their quotes (open ones and those closed in the last hour)
+      responses:
+        '200':
+          description: RFQs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RfqWithQuotes'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs/incoming:
+    get:
+      tags: [Maker]
+      operationId: listIncomingRfqs
+      summary: RFQs the caller was asked to quote (open ones and those closed in the last hour)
+      responses:
+        '200':
+          description: RFQs, newest first
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/IncomingRfq'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs/history:
+    get:
+      tags: [Taker]
+      operationId: listRfqHistory
+      summary: The caller's RFQs that closed without a trade
+      responses:
+        '200':
+          description: RFQs, newest first (at most 100)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Rfq'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ID'
+    delete:
+      tags: [Taker]
+      operationId: cancelRfq
+      summary: Cancel an open RFQ (not while a trade on it is settling)
+      responses:
+        '204':
+          description: Cancelled
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /rfqs/{id}/quotes:
+    parameters:
+      - $ref: '#/components/parameters/ID'
+    post:
+      tags: [Maker]
+      operationId: submitQuote
+      summary: Quote an RFQ; the quote commits the maker's funds on the ledger
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitQuoteInput'
+      responses:
+        '201':
+          description: Quote recorded; it opens once its allocations are on the ledger
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /quotes/{id}/accept:
+    parameters:
+      - $ref: '#/components/parameters/ID'
+    post:
+      tags: [Taker]
+      operationId: acceptQuote
+      summary: Accept an open quote; the trade settles once the taker's allocations land
+      responses:
+        '202':
+          description: Trade created and settling
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Trade'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /trades:
+    get:
+      tags: [Desk]
+      operationId: listTrades
+      summary: Trades of the caller in either role
+      responses:
+        '200':
+          description: Trades, newest first (at most 100)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Trade'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: |
+        Conflict; `code` is one of RFQ_CLOSED, ALREADY_QUOTED, QUOTE_NOT_OPEN,
+        INSUFFICIENT_FUNDS, DUST_TRADE, NOT_A_MAKER
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: The ledger or the identity service failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Decimal:
+      type: string
+      description: Positive decimal with at most 10 fraction digits
+      pattern: '^\d{1,28}(\.\d{1,10})?$'
+      example: '1.5'
+    Direction:
+      type: string
+      enum: [BUY, SELL]
+    Desk:
+      type: object
+      required: [feeBps]
+      properties:
+        feeBps:
+          type: integer
+          description: Desk fee in basis points of the quote notional, paid by the maker
+          example: 10
+    CreateRfqInput:
+      type: object
+      additionalProperties: false
+      required: [direction, qty, base, quote, makers, ttlSeconds]
+      properties:
+        direction:
+          $ref: '#/components/schemas/Direction'
+        qty:
+          $ref: '#/components/schemas/Decimal'
+        base:
+          type: string
+          example: CBTC
+        quote:
+          type: string
+          example: USDCx
+        makers:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: string
+          example: [makerA, makerB]
+        ttlSeconds:
+          type: integer
+          minimum: 30
+          maximum: 3600
+          example: 300
+    SubmitQuoteInput:
+      type: object
+      additionalProperties: false
+      required: [price]
+      properties:
+        price:
+          $ref: '#/components/schemas/Decimal'
+        ttlSeconds:
+          type: integer
+          minimum: 10
+          maximum: 600
+          description: Defaults to 60; never past the RFQ deadline
+    Rfq:
+      type: object
+      required: [id, taker, direction, qty, base, quote, makers, feeBps, deadline, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        taker:
+          type: string
+        direction:
+          $ref: '#/components/schemas/Direction'
+        qty:
+          $ref: '#/components/schemas/Decimal'
+        base:
+          type: string
+        quote:
+          type: string
+        makers:
+          type: array
+          items:
+            type: string
+        feeBps:
+          type: integer
+        deadline:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [open, filled, expired, cancelled]
+        createdAt:
+          type: string
+          format: date-time
+    Quote:
+      type: object
+      required: [id, rfqId, maker, price, validUntil, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfqId:
+          type: string
+          format: uuid
+        maker:
+          type: string
+        price:
+          $ref: '#/components/schemas/Decimal'
+        validUntil:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [allocating, open, accepted, won, lost, expired, cancelled, failed]
+        createdAt:
+          type: string
+          format: date-time
+    RfqWithQuotes:
+      type: object
+      required: [rfq, quotes]
+      properties:
+        rfq:
+          $ref: '#/components/schemas/Rfq'
+        quotes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+    IncomingRfq:
+      type: object
+      required: [rfq]
+      properties:
+        rfq:
+          $ref: '#/components/schemas/Rfq'
+        myQuote:
+          $ref: '#/components/schemas/Quote'
+    Trade:
+      type: object
+      required: [id, rfqId, quoteId, taker, maker, direction, base, quote, qty, price, notional, fee, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        rfqId:
+          type: string
+          format: uuid
+        quoteId:
+          type: string
+          format: uuid
+        taker:
+          type: string
+        maker:
+          type: string
+        direction:
+          $ref: '#/components/schemas/Direction'
+        base:
+          type: string
+        quote:
+          type: string
+        qty:
+          $ref: '#/components/schemas/Decimal'
+        price:
+          $ref: '#/components/schemas/Decimal'
+        notional:
+          $ref: '#/components/schemas/Decimal'
+        fee:
+          type: string
+          description: Decimal; "0.0" when the fee floors to zero
+        status:
+          type: string
+          enum: [settling, settled, failed]
+        reason:
+          type: string
+        updateId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        settledAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      example:
+        error: 'request failed: quote is not open'
+        code: QUOTE_NOT_OPEN

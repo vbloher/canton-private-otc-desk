@@ -1,0 +1,14 @@
+all: false
+dir: '{{.InterfaceDir}}/mocks'
+filename: mocks.go
+force-file-write: true
+formatter: goimports
+log-level: error
+pkgname: 'mocks'
+recursive: false
+template: testify
+structname: '{{.InterfaceName}}'
+packages:
+  github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase:
+    config:
+      all: True

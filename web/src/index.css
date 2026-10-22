@@ -1,0 +1,153 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Radix state attributes as short variants (the shadcn radix-nova set). */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Warm ink with an amber accent; the desk is dark only. */
+:root {
+  color-scheme: dark;
+  --radius: 0.5rem;
+  --background: oklch(0.17 0.008 85);
+  --foreground: oklch(0.93 0.012 90);
+  --card: oklch(0.21 0.009 85);
+  --card-foreground: oklch(0.93 0.012 90);
+  --popover: oklch(0.21 0.009 85);
+  --popover-foreground: oklch(0.93 0.012 90);
+  --primary: oklch(0.76 0.13 80);
+  --primary-foreground: oklch(0.17 0.008 85);
+  --secondary: oklch(0.25 0.01 85);
+  --secondary-foreground: oklch(0.93 0.012 90);
+  --muted: oklch(0.25 0.01 85);
+  --muted-foreground: oklch(0.62 0.015 88);
+  --accent: oklch(0.27 0.012 85);
+  --accent-foreground: oklch(0.93 0.012 90);
+  --destructive: oklch(0.66 0.14 25);
+  --success: oklch(0.72 0.1 165);
+  --border: oklch(0.3 0.01 85);
+  --input: oklch(0.32 0.012 85);
+  --ring: oklch(0.76 0.13 80 / 60%);
+  --sidebar: oklch(0.145 0.008 85);
+  --sidebar-foreground: oklch(0.93 0.012 90);
+  --sidebar-primary: oklch(0.76 0.13 80);
+  --sidebar-primary-foreground: oklch(0.17 0.008 85);
+  --sidebar-accent: oklch(0.23 0.01 85);
+  --sidebar-accent-foreground: oklch(0.93 0.012 90);
+  --sidebar-border: oklch(0.26 0.01 85);
+  --sidebar-ring: oklch(0.76 0.13 80 / 60%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html {
+    @apply font-sans;
+    /* a larger base: every rem-derived size scales with it */
+    font-size: 120%;
+  }
+  body {
+    @apply min-h-screen bg-background text-foreground antialiased;
+  }
+  /* Tailwind's preflight leaves buttons on cursor:default — every enabled control gets the pointer. */
+  button:not(:disabled),
+  [role="button"]:not(:disabled),
+  [role="switch"]:not([data-disabled]),
+  label:has(> [role="switch"]:not([data-disabled])),
+  [role="tab"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@layer utilities {
+  /* amounts, prices, party ids: monospace with lined-up digits */
+  .tabular {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+  /* caps labels for section heads */
+  .label-caps {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+    font-weight: 550;
+  }
+}

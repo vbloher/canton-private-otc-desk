@@ -1,0 +1,13 @@
+sdk-version: 3.5.2
+name: otc-desk-setup
+source: daml
+version: 1.0.0
+dependencies:
+  - daml-prim
+  - daml-stdlib
+  - daml-script
+data-dependencies:
+  - ../test-token-v2/.daml/dist/splice-test-token-v2-1.0.1.dar
+  - ../deps/splice-api-token-metadata-v1-1.0.0.dar
+  - ../deps/splice-api-token-holding-v1-1.0.0.dar
+  - ../deps/splice-api-token-holding-v2-1.0.0.dar

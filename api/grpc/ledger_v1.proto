@@ -1,0 +1,143 @@
+syntax = "proto3";
+
+package ledger_v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/vbloher/canton-private-otc-desk/gen/grpc/ledger_v1";
+
+// Internal API of the ledger service: everything other services need from Canton.
+// Errors: InvalidArgument for bad input, NotFound for unknown parties or settlements,
+// FailedPrecondition with a message starting "insufficient funds" when holdings do not cover
+// an allocation, Internal for ledger failures.
+service LedgerV1 {
+  // Full party id of a party hosted on the participant (e.g. "makerA").
+  rpc ResolveParty(ResolvePartyInput) returns (ResolvePartyOutput);
+  // Step 1 of onboarding an external party: the topology its key must sign.
+  rpc GenerateExternalParty(GenerateExternalPartyInput) returns (GenerateExternalPartyOutput);
+  // Step 2 of onboarding: allocate the party with the signature over multi_hash.
+  rpc AllocateExternalParty(AllocateExternalPartyInput) returns (AllocateExternalPartyOutput);
+  // The desk's operator party and the tradable instruments.
+  rpc GetDesk(GetDeskInput) returns (GetDeskOutput);
+  // Creates (hosted party) or queues for signature (external party) every allocation the
+  // party owes to the settlement described by the legs.
+  rpc Allocate(AllocateInput) returns (AllocateOutput);
+  // For each settlement: which parties have created all of their allocations.
+  rpc GetSettlements(GetSettlementsInput) returns (GetSettlementsOutput);
+  // Settles every leg atomically in one transaction, as the operator.
+  rpc Settle(SettleInput) returns (SettleOutput);
+  // Cancels, as the operator, every allocation of the settlement that is still active.
+  rpc CancelSettlement(CancelSettlementInput) returns (CancelSettlementOutput);
+}
+
+message ResolvePartyInput {
+  string hint = 1;
+}
+
+message ResolvePartyOutput {
+  string party_id = 1;
+}
+
+message GenerateExternalPartyInput {
+  string hint = 1;
+  // Raw Ed25519 public key, 32 bytes.
+  bytes public_key = 2;
+}
+
+message GenerateExternalPartyOutput {
+  string party_id = 1;
+  string fingerprint = 2;
+  // The hash the party key signs to authorise its onboarding.
+  bytes multi_hash = 3;
+  // Opaque base64 topology transactions, handed back unchanged to AllocateExternalParty.
+  repeated string topology_transactions = 4;
+}
+
+message AllocateExternalPartyInput {
+  repeated string topology_transactions = 1;
+  // Raw Ed25519 signature over multi_hash.
+  bytes signature = 2;
+  string fingerprint = 3;
+}
+
+message AllocateExternalPartyOutput {
+  string party_id = 1;
+}
+
+message Instrument {
+  string symbol = 1;
+  string name = 2;
+  int32 decimals = 3;
+}
+
+message GetDeskInput {}
+
+message GetDeskOutput {
+  string operator_party_id = 1;
+  repeated Instrument instruments = 2;
+}
+
+// One transfer of a trade. id is "base", "quote" or "fee"; amount is a decimal string.
+message TransferLeg {
+  string id = 1;
+  string sender = 2;
+  string receiver = 3;
+  string instrument = 4;
+  string amount = 5;
+}
+
+message AllocateInput {
+  string settlement_id = 1;
+  google.protobuf.Timestamp deadline = 2;
+  repeated TransferLeg legs = 3;
+  string party_id = 4;
+  // Shown to the signer next to each queued action.
+  string description = 5;
+}
+
+message AllocateOutput {
+  // True when the desk submitted the allocations itself (hosted party).
+  bool executed = 1;
+  // Queued sign actions for an external party.
+  repeated string action_ids = 2;
+}
+
+message SettlementQuery {
+  string settlement_id = 1;
+  repeated TransferLeg legs = 2;
+}
+
+message GetSettlementsInput {
+  repeated SettlementQuery settlements = 1;
+}
+
+message PartyAllocation {
+  string party_id = 1;
+  bool allocated = 2;
+}
+
+message SettlementStatus {
+  string settlement_id = 1;
+  repeated PartyAllocation parties = 2;
+}
+
+message GetSettlementsOutput {
+  repeated SettlementStatus settlements = 1;
+}
+
+message SettleInput {
+  string settlement_id = 1;
+  repeated TransferLeg legs = 2;
+}
+
+message SettleOutput {
+  string update_id = 1;
+}
+
+message CancelSettlementInput {
+  string settlement_id = 1;
+}
+
+message CancelSettlementOutput {
+  int32 cancelled = 1;
+}

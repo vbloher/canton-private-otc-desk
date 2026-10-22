@@ -1,0 +1,22 @@
+module Setup where
+
+import DA.Foldable (forA_)
+import Daml.Script
+import Splice.Testing.Tokens.TestTokenV2 (TokenRules(..))
+import Common (mint)
+
+-- | Seeds the local sandbox. `operator` is the desk: settlement executor, fee receiver and,
+-- on the sandbox, the admin of every test instrument. One TokenRules contract plays the
+-- token registry. The two house makers are hosted on the participant, so the desk signs
+-- for them; everyone else is an external party that signs in the browser.
+setup : Script ()
+setup = do
+  operator <- allocatePartyByHint (PartyIdHint "operator")
+  makerA <- allocatePartyByHint (PartyIdHint "makerA")
+  makerB <- allocatePartyByHint (PartyIdHint "makerB")
+  _ <- submit operator $ createCmd TokenRules with admin = operator
+  forA_ [makerA, makerB] $ \maker -> do
+    _ <- mint operator maker "CBTC" 10.0
+    _ <- mint operator maker "USDCx" 1000000.0
+    _ <- mint operator maker "CETH" 100.0
+    pure ()

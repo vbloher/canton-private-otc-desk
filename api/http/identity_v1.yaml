@@ -1,0 +1,384 @@
+openapi: 3.0.3
+info:
+  title: Private OTC Desk — identity API
+  version: 1.0.0
+  description: |
+    Passkey wallets and sessions. A wallet is an external Canton party whose Ed25519 key is
+    generated in the browser and wrapped with a passkey; the server stores only the wrapped blob.
+    Authenticated routes rely on the gateway: it resolves the `otc_session` cookie and forwards
+    the caller in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`.
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Me
+paths:
+  /auth/register/start:
+    post:
+      tags: [Auth]
+      operationId: registerStart
+      summary: Start creating a wallet and get the onboarding hash the browser key must sign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterStartInput'
+      responses:
+        '200':
+          description: Topology generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterStartOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/register/complete:
+    post:
+      tags: [Auth]
+      operationId: registerComplete
+      summary: Finish creating the wallet with the signed onboarding hash
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCompleteInput'
+      responses:
+        '200':
+          description: Wallet created; the session cookie is set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/challenge:
+    post:
+      tags: [Auth]
+      operationId: createChallenge
+      summary: Get a one-time challenge and the wrapped key of a passkey wallet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChallengeInput'
+      responses:
+        '200':
+          description: Challenge issued (valid for 5 minutes)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChallengeOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: login
+      summary: Connect the wallet by signing the challenge with the party key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: Signed in; the session cookie is set
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      summary: End the session
+      parameters:
+        - name: otc_session
+          in: cookie
+          required: false
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Signed out; the session cookie is cleared
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /me:
+    get:
+      tags: [Me]
+      operationId: getMe
+      summary: The signed-in user
+      responses:
+        '200':
+          description: The caller
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /me/maker-mode:
+    put:
+      tags: [Me]
+      operationId: setMakerMode
+      summary: Turn maker mode on or off (makers can be asked for quotes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MakerModeInput'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Me'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /makers:
+    get:
+      tags: [Me]
+      operationId: listMakers
+      summary: Makers the caller can request quotes from (the caller excluded)
+      responses:
+        '200':
+          description: Makers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Maker'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Gone:
+      description: Gone
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadGateway:
+      description: The ledger failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    RegisterStartInput:
+      type: object
+      additionalProperties: false
+      required: [displayName, publicKey]
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 32
+          example: Alice
+        publicKey:
+          type: string
+          description: Raw Ed25519 public key, base64 (32 bytes)
+          minLength: 44
+          maxLength: 44
+          example: 3q2+7wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+    RegisterStartOutput:
+      type: object
+      required: [registrationId, partyId, multiHash]
+      properties:
+        registrationId:
+          type: string
+          format: uuid
+        partyId:
+          type: string
+          example: alice-3f9a1c::1220ab12
+        multiHash:
+          type: string
+          description: Base64 hash to sign with the party key (raw bytes, Ed25519)
+    RegisterCompleteInput:
+      type: object
+      additionalProperties: false
+      required: [registrationId, signature, credentialId, encryptedBlob]
+      properties:
+        registrationId:
+          type: string
+          format: uuid
+        signature:
+          type: string
+          description: Base64 Ed25519 signature over the decoded multiHash
+          minLength: 1
+          maxLength: 128
+        credentialId:
+          type: string
+          description: The passkey's credential id (base64url)
+          minLength: 1
+          maxLength: 1024
+        encryptedBlob:
+          type: string
+          description: The party key wrapped with the passkey (base64)
+          minLength: 1
+          maxLength: 4096
+    ChallengeInput:
+      type: object
+      additionalProperties: false
+      required: [credentialId]
+      properties:
+        credentialId:
+          type: string
+          minLength: 1
+          maxLength: 1024
+    ChallengeOutput:
+      type: object
+      required: [challenge, encryptedBlob, publicKey]
+      properties:
+        challenge:
+          type: string
+          example: otc-desk:4kJ8m2...
+        encryptedBlob:
+          type: string
+        publicKey:
+          type: string
+    LoginInput:
+      type: object
+      additionalProperties: false
+      required: [challenge, signature, credentialId]
+      properties:
+        challenge:
+          type: string
+          minLength: 1
+          maxLength: 256
+        signature:
+          type: string
+          description: Base64 Ed25519 signature over the challenge's UTF-8 bytes
+          minLength: 1
+          maxLength: 128
+        credentialId:
+          type: string
+          minLength: 1
+          maxLength: 1024
+    MakerModeInput:
+      type: object
+      additionalProperties: false
+      required: [enabled]
+      properties:
+        enabled:
+          type: boolean
+    Me:
+      type: object
+      required: [id, partyId, hint, displayName, kind, makerMode]
+      properties:
+        id:
+          type: string
+          format: uuid
+        partyId:
+          type: string
+          example: alice-3f9a1c::1220ab12
+        hint:
+          type: string
+          example: alice-3f9a1c
+        displayName:
+          type: string
+          example: Alice
+        kind:
+          type: string
+          enum: [passkey, house]
+        makerMode:
+          type: boolean
+    Maker:
+      type: object
+      required: [hint, displayName]
+      properties:
+        hint:
+          type: string
+          example: makerA
+        displayName:
+          type: string
+          example: makerA
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+      example:
+        error: 'request failed: registration expired'

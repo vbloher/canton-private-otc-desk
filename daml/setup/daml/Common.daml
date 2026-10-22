@@ -1,0 +1,18 @@
+module Common (mint) where
+
+import Daml.Script
+import Splice.Api.Token.HoldingV2 (Account(..), HoldingView(..), InstrumentId(..))
+import Splice.Api.Token.MetadataV1 (emptyMetadata)
+import Splice.Testing.Tokens.TestTokenV2.Holding (Token(..))
+
+-- | Create a test-token holding directly. `Token` is signed by the account parties and the
+-- instrument admin, so both authorise the create; no mint offer is needed for a fixture.
+mint : Party -> Party -> Text -> Decimal -> Script (ContractId Token)
+mint admin owner instrument amount =
+  submit (actAs [admin, owner]) $ createCmd Token with
+    holding = HoldingView with
+      account = Account with owner = Some owner, provider = None, id = ""
+      instrumentId = InstrumentId with admin, id = instrument
+      amount
+      lock = None
+      meta = emptyMetadata

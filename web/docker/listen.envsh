@@ -1,0 +1,23 @@
+#!/bin/sh
+# Sourced by the nginx image's entrypoint before the templates are rendered:
+# the listen address is NGINX_HOST:NGINX_PORT, or just the port (every
+# interface) when NGINX_HOST is empty. An IPv6 host gets its brackets.
+otc_host="${NGINX_HOST:-}"
+case "$otc_host" in
+    "") NGINX_LISTEN="${NGINX_PORT:-80}" ;;
+    \[*) NGINX_LISTEN="${otc_host}:${NGINX_PORT:-80}" ;;
+    *:*) NGINX_LISTEN="[${otc_host}]:${NGINX_PORT:-80}" ;;
+    *) NGINX_LISTEN="${otc_host}:${NGINX_PORT:-80}" ;;
+esac
+export NGINX_LISTEN
+unset otc_host
+
+# The image's 15-local-resolvers step lists every nameserver in /etc/resolv.conf. On the host
+# network that is the host's file, and a scoped link-local entry (fe80::1%eth0) is not an address
+# nginx accepts; drop those. With an IP upstream (host mode) no lookup happens, so a placeholder
+# keeps the resolver directive valid when nothing usable is left.
+NGINX_LOCAL_RESOLVERS=$(printf '%s\n' ${NGINX_LOCAL_RESOLVERS:-} | grep -v '%' | tr '\n' ' ')
+case "$(printf '%s' "$NGINX_LOCAL_RESOLVERS" | tr -d ' ')" in
+    "") NGINX_LOCAL_RESOLVERS="127.0.0.1" ;;
+esac
+export NGINX_LOCAL_RESOLVERS

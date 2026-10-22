@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package identity_v1;
+
+option go_package = "github.com/vbloher/canton-private-otc-desk/gen/grpc/identity_v1";
+
+// Internal API of the identity service: authentication for the gateway, maker lookups for trading.
+service IdentityV1 {
+  // Resolves a browser session token. NotFound / Unauthenticated when it is unknown or expired.
+  rpc Authenticate(AuthenticateInput) returns (User);
+  // Resolves a bot's API key. NotFound / Unauthenticated when it is unknown.
+  rpc AuthenticateAPIKey(AuthenticateAPIKeyInput) returns (User);
+  // Returns the users with maker mode on among the given hints; unknown hints are left out.
+  rpc ResolveMakers(ResolveMakersInput) returns (ResolveMakersOutput);
+}
+
+message AuthenticateInput {
+  string session_token = 1;
+}
+
+message AuthenticateAPIKeyInput {
+  string api_key = 1;
+}
+
+message User {
+  string id = 1;
+  string party_id = 2;
+  string hint = 3;
+  string display_name = 4;
+  bool maker_mode = 5;
+}
+
+message ResolveMakersInput {
+  repeated string hints = 1;
+}
+
+message ResolveMakersOutput {
+  repeated User makers = 1;
+}

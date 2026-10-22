@@ -1,0 +1,177 @@
+# Full stack: `make ledger` (Canton sandbox on the host) + `make up-all`.
+# `make up` starts only postgres and redis, for running the services from source.
+#
+# Everything is published on loopback only — the gateway (:8080), the web app (:3000), Postgres
+# and Redis — and identity, trading and ledger are not published at all: they trust the X-User-*
+# headers the gateway sets, so nothing but the gateway may reach them. On Linux, `make up-all` adds docker-compose.host.yml, because the
+# containers cannot reach a sandbox listening on the host's loopback through host-gateway.
+
+x-go-service: &go-service
+  restart: unless-stopped
+  extra_hosts:
+    - 'host.docker.internal:host-gateway'
+
+x-common-env: &common-env
+  LOGGER_LEVEL: info
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: '5432'
+  POSTGRES_USER: otc
+  POSTGRES_PASSWORD: otc
+  REDIS_ADDR: redis:6379
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: otc
+      POSTGRES_PASSWORD: otc
+      POSTGRES_DB: postgres
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - pg-data:/var/lib/postgresql
+    healthcheck:
+      # TCP, not the socket: the entrypoint's temporary init server answers on the socket only.
+      test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U otc -d ledger']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+  ledger:
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: ledger
+    environment:
+      <<: *common-env
+      OTEL_SERVICE_NAME: ledger
+      HTTP_PORT: '8083'
+      GRPC_PORT: '9083'
+      POSTGRES_DB_NAME: ledger
+      CANTON_URL: http://host.docker.internal:6864
+    # an in-flight settle or cancel is one ledger call of up to 30 s
+    stop_grace_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck: &ready
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8083/ready']
+      interval: 3s
+      timeout: 3s
+      retries: 60
+
+  identity:
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: identity
+    environment:
+      <<: *common-env
+      OTEL_SERVICE_NAME: identity
+      HTTP_PORT: '8081'
+      GRPC_PORT: '9081'
+      POSTGRES_DB_NAME: identity
+      LEDGER_GRPC_ADDR: ledger:9083
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *ready
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8081/ready']
+
+  trading:
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: trading
+    environment:
+      <<: *common-env
+      OTEL_SERVICE_NAME: trading
+      HTTP_PORT: '8082'
+      POSTGRES_DB_NAME: trading
+      LEDGER_GRPC_ADDR: ledger:9083
+      IDENTITY_GRPC_ADDR: identity:9081
+    # the worker finishes an in-flight settlement (one ledger call of up to 30 s) before exiting
+    stop_grace_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *ready
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8082/ready']
+
+  gateway:
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: gateway
+    environment:
+      LOGGER_LEVEL: info
+      OTEL_SERVICE_NAME: gateway
+      HTTP_PORT: '8080'
+      REDIS_ADDR: redis:6379
+      IDENTITY_GRPC_ADDR: identity:9081
+      IDENTITY_URL: http://identity:8081
+      TRADING_URL: http://trading:8082
+      LEDGER_URL: http://ledger:8083
+    ports:
+      - '127.0.0.1:8080:8080'
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *ready
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/ready']
+
+  maker-bot:
+    <<: *go-service
+    build:
+      context: .
+      args:
+        SERVICE: maker-bot
+    environment:
+      LOGGER_LEVEL: info
+      OTEL_SERVICE_NAME: maker-bot
+      GATEWAY_URL: http://gateway:8080
+    depends_on:
+      gateway:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./web
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:3000:80'
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1/']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pg-data:

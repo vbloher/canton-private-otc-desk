@@ -1,0 +1,198 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Go lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          args: --fix=false
+
+  test:
+    name: Go unit tests
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -shuffle=on -coverprofile=coverage.out ./...
+
+      - name: Coverage
+        run: go tool cover -func=coverage.out | tail -1
+
+  integration:
+    name: Service integration tests (Postgres, Redis)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Start infrastructure
+        run: docker compose up -d --wait postgres redis
+
+      - name: Test
+        run: make integration-test
+
+      - name: Stop infrastructure
+        if: always()
+        run: docker compose down
+
+  generate:
+    name: Generated code is up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install protoc
+        run: make protoc-install
+
+      - name: Generate
+        run: make generate
+
+      - name: Check diff
+        run: |
+          git status --porcelain
+          test -z "$(git status --porcelain)"
+
+  vuln:
+    name: govulncheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: golang/govulncheck-action@v1
+        with:
+          go-version-file: go.mod
+
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: web/package.json
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm gen:api && git diff --exit-code src/infrastructure/api/schema
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  docker:
+    name: Docker build (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [gateway, identity, trading, ledger, maker-bot, web]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.image == 'web' && 'web' || '.' }}
+          build-args: ${{ matrix.image != 'web' && format('SERVICE={0}', matrix.image) || '' }}
+          platforms: linux/amd64,linux/arm64
+          push: false
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  e2e:
+    name: End-to-end (Canton sandbox)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install DPM and Daml SDK 3.5.2
+        run: |
+          curl -sSfL https://get.digitalasset.com/install/install.sh | sh
+          echo "$HOME/.dpm/bin" >> "$GITHUB_PATH"
+          "$HOME/.dpm/bin/dpm" install 3.5.2
+
+      - name: Start the Canton sandbox
+        run: |
+          nohup ./scripts/ledger-start.sh > ledger.log 2>&1 &
+          for _ in $(seq 1 120); do grep -q 'ledger-start: ready' ledger.log && exit 0; sleep 3; done
+          cat ledger.log; exit 1
+
+      - name: Start the stack
+        run: docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build --wait postgres redis ledger identity trading gateway maker-bot
+
+      - name: Test
+        run: make e2e-test
+
+      - name: Logs
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.host.yml logs
+          tail -200 ledger.log
+
+      - name: Stop
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.host.yml down

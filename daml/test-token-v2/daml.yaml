@@ -1,0 +1,26 @@
+# Vendored from canton-network/splice tag 0.7.5, token-standard/examples/splice-test-token-v2.
+# Apache-2.0. Sandbox-only rail: implements the v1+v2 token standard (Holding,
+# AllocationFactory, SettlementFactory, TransferFactory, EventLog). Never deployed.
+sdk-version: 3.5.2
+name: splice-test-token-v2
+source: daml
+version: 1.0.1
+dependencies:
+  - daml-prim
+  - daml-stdlib
+data-dependencies:
+  - ../deps/splice-api-token-metadata-v1-1.0.0.dar
+  - ../deps/splice-api-token-holding-v1-1.0.0.dar
+  - ../deps/splice-api-token-transfer-instruction-v1-1.0.0.dar
+  - ../deps/splice-api-token-allocation-v1-1.0.0.dar
+  - ../deps/splice-api-token-allocation-instruction-v1-1.0.0.dar
+  - ../deps/splice-api-token-holding-v2-1.0.0.dar
+  - ../deps/splice-api-token-transfer-instruction-v2-1.0.0.dar
+  - ../deps/splice-api-token-allocation-v2-1.0.0.dar
+  - ../deps/splice-api-token-allocation-instruction-v2-1.0.0.dar
+  - ../deps/splice-api-token-transfer-events-v2-1.0.0.dar
+  - ../deps/splice-token-standard-utils-2.0.0.dar
+build-options:
+  - --target=2.1
+  - --ghc-option=-Wunused-binds
+  - --ghc-option=-Wunused-matches
