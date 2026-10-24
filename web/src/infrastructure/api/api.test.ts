@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createHttpApis } from "./http-apis";
+import { createSessionTokens, type SessionTokens } from "./session-token";
 
 interface Seen {
   method: string;
@@ -7,21 +8,37 @@ interface Seen {
   body: unknown;
 }
 
+/** How a request presented itself: its Authorization header and its credentials mode. */
+interface Presented {
+  path: string;
+  authorization: string | null;
+  credentials: RequestCredentials;
+}
+
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-/** A desk that answers from a route table ("POST /api/v1/rfqs") and records what it was sent. */
-function desk(routes: Record<string, () => Response>) {
+/**
+ * A desk that answers from a route table ("POST /api/v1/rfqs") and records what it was sent.
+ * With `tokens` the client runs in bearer mode (gateway on another origin); `null` is cookie mode.
+ */
+function desk(
+  routes: Record<string, () => Response | Promise<Response>>,
+  tokens: SessionTokens | null = createSessionTokens(undefined),
+) {
   const seen: Seen[] = [];
+  const presented: Presented[] = [];
   const fetch = async (input: Request | string | URL): Promise<Response> => {
     const req = input instanceof Request ? input : new Request(input);
     const url = new URL(req.url);
     const text = await req.text();
     seen.push({ method: req.method, path: url.pathname, body: text === "" ? undefined : JSON.parse(text) });
+    presented.push({ path: url.pathname, authorization: req.headers.get("authorization"), credentials: req.credentials });
     const route = routes[`${req.method} ${url.pathname}`];
     return route === undefined ? json(404, { error: "no route" }) : route();
   };
-  return { apis: createHttpApis({ baseUrl: "http://desk.test/api/v1", fetch }), seen };
+  const apis = createHttpApis({ baseUrl: "http://desk.test/api/v1", fetch, ...(tokens === null ? {} : { tokens }) });
+  return { apis, seen, presented, tokens };
 }
 
 const RFQ = {
@@ -145,6 +162,7 @@ describe("wallet api", () => {
       fetch: async () => {
         throw network;
       },
+      tokens: createSessionTokens(undefined),
     });
 
     const error: unknown = await apis.wallet.balances().catch((e: unknown) => e);
@@ -174,6 +192,8 @@ describe("wallet api", () => {
   });
 });
 
+const LATER = "2099-01-01T00:00:00Z";
+
 describe("auth api", () => {
   const ME = {
     id: "0f6a3c1e-2b4d-4e5f-8a9b-1c2d3e4f5a6b",
@@ -200,7 +220,7 @@ describe("auth api", () => {
     const { apis, seen } = desk({
       "POST /api/v1/auth/register/start": () =>
         json(200, { registrationId: "r-1", partyId: ME.partyId, multiHash: "bXVsdGk=" }),
-      "POST /api/v1/auth/register/complete": () => json(200, ME),
+      "POST /api/v1/auth/register/complete": () => json(200, { me: ME, sessionToken: "tok-reg", expiresAt: LATER }),
     });
 
     const reg = await apis.auth.registerStart({ displayName: "Alice", publicKey: new Uint8Array(32).fill(255) });
@@ -216,5 +236,106 @@ describe("auth api", () => {
       { displayName: "Alice", publicKey: "/".repeat(42) + "8=" },
       { registrationId: "r-1", signature: "c2ln", credentialId: "-_8BAg", encryptedBlob: "blob" },
     ]);
+  });
+
+  describe("session token", () => {
+    const session = (token: string) => () => json(200, { me: ME, sessionToken: token, expiresAt: LATER });
+
+    it("keeps the token register/complete answers with and sends it as a Bearer header from then on", async () => {
+      const { apis, presented } = desk({
+        "POST /api/v1/auth/register/complete": session("tok-reg"),
+        "GET /api/v1/me": () => json(200, ME),
+      });
+
+      const me = await apis.auth.registerComplete({
+        registrationId: "r-1",
+        signature: new Uint8Array([1]),
+        credentialId: "c",
+        encryptedBlob: "b",
+      });
+      await apis.auth.me();
+
+      expect(me).toEqual(ME);
+      expect(presented.map((p) => p.authorization)).toEqual([null, "Bearer tok-reg"]);
+    });
+
+    it("takes the token a login answers with, replacing the previous one", async () => {
+      const tokens = createSessionTokens(undefined);
+      tokens.set("tok-old", LATER);
+      const { apis, presented } = desk(
+        { "POST /api/v1/auth/login": session("tok-login"), "GET /api/v1/trades": () => json(200, []) },
+        tokens,
+      );
+
+      expect(await apis.auth.login({ challenge: "c", signature: new Uint8Array([1]), credentialId: "c" })).toEqual(ME);
+      await apis.desk.trades();
+
+      expect(presented.map((p) => p.authorization)).toEqual(["Bearer tok-old", "Bearer tok-login"]);
+    });
+
+    it("never asks for credentials beyond the same origin", async () => {
+      const { apis, presented } = desk({ "GET /api/v1/instruments": () => json(200, []) });
+
+      await apis.wallet.instruments();
+
+      expect(presented).toEqual([{ path: "/api/v1/instruments", authorization: null, credentials: "same-origin" }]);
+    });
+
+    it("drops the token on logout, even when the desk fails to answer", async () => {
+      const tokens = createSessionTokens(undefined);
+      tokens.set("tok-1", LATER);
+      const { apis } = desk({ "POST /api/v1/auth/logout": () => json(500, { error: "boom" }) }, tokens);
+
+      await expect(apis.auth.logout()).rejects.toMatchObject({ status: 500 });
+
+      expect(tokens.get()).toBeUndefined();
+    });
+
+    it("keeps no token and sends no Authorization header on the same origin (cookie mode)", async () => {
+      const { apis, presented } = desk(
+        { "POST /api/v1/auth/login": session("tok-login"), "GET /api/v1/me": () => json(200, ME) },
+        null,
+      );
+
+      expect(await apis.auth.login({ challenge: "c", signature: new Uint8Array([1]), credentialId: "c" })).toEqual(ME);
+      expect(await apis.auth.me()).toEqual(ME);
+
+      expect(presented.map((p) => p.authorization)).toEqual([null, null]);
+    });
+
+    it("does not let a late /me 401 wipe the token a login stored meanwhile", async () => {
+      const tokens = createSessionTokens(undefined);
+      tokens.set("tok-old", LATER);
+      let answerMe: (r: Response) => void = () => undefined;
+      const { apis, presented } = desk(
+        {
+          "GET /api/v1/me": () => new Promise<Response>((resolve) => (answerMe = resolve)),
+          "POST /api/v1/auth/login": session("tok-new"),
+        },
+        tokens,
+      );
+
+      const late = apis.auth.me(); // asked with tok-old
+      await apis.auth.login({ challenge: "c", signature: new Uint8Array([1]), credentialId: "c" });
+      answerMe(json(401, { error: "unauthorized" }));
+
+      expect(await late).toBeNull();
+      expect(presented[0]).toMatchObject({ path: "/api/v1/me", authorization: "Bearer tok-old" });
+      expect(tokens.get()).toBe("tok-new");
+    });
+
+    it("drops the token when /me answers 401, but not when the desk is only down", async () => {
+      const tokens = createSessionTokens(undefined);
+      tokens.set("tok-1", LATER);
+      let status = 502;
+      const { apis } = desk({ "GET /api/v1/me": () => json(status, { error: "x" }) }, tokens);
+
+      await expect(apis.auth.me()).rejects.toMatchObject({ status: 502 });
+      expect(tokens.get()).toBe("tok-1");
+
+      status = 401;
+      expect(await apis.auth.me()).toBeNull();
+      expect(tokens.get()).toBeUndefined();
+    });
   });
 });

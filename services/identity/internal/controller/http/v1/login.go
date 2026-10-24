@@ -36,7 +36,7 @@ func (h *Handlers) Login(
 	cookie := h.sessionCookie(output.Token, output.TTL)
 
 	return http_server.Login200JSONResponse{
-		Body:    toMe(output.User),
+		Body:    toSession(output.User, output.Token, output.ExpiresAt),
 		Headers: http_server.Login200ResponseHeaders{SetCookie: &cookie},
 	}, nil
 }

@@ -16,7 +16,8 @@ func isolate(t *testing.T) {
 	t.Chdir(t.TempDir())
 
 	for _, name := range []string{
-		"HTTP_PORT", "IDENTITY_GRPC_ADDR", "IDENTITY_URL", "TRADING_URL", "LEDGER_URL", "OTEL_SERVICE_NAME", "REDIS_PASSWORD", "REDIS_DB",
+		"HTTP_PORT", "IDENTITY_GRPC_ADDR", "IDENTITY_URL", "TRADING_URL", "LEDGER_URL", "CORS_ORIGINS",
+		"OTEL_SERVICE_NAME", "REDIS_PASSWORD", "REDIS_DB",
 	} {
 		t.Setenv(name, "")
 		require.NoError(t, os.Unsetenv(name))
@@ -35,9 +36,9 @@ func Test_New_Defaults(t *testing.T) {
 	require.Equal(t, "gateway", c.OTEL.ServiceName)
 	require.Equal(t, "localhost:6379", c.Redis.Addr)
 	require.Equal(t, "localhost:9081", c.Identity.Addr)
-	require.Equal(t, "http://localhost:8081", c.Upstreams.IdentityURL)
-	require.Equal(t, "http://localhost:8082", c.Upstreams.TradingURL)
-	require.Equal(t, "http://localhost:8083", c.Upstreams.LedgerURL)
+	require.Equal(t, "http://localhost:8081", c.Gateway.IdentityURL)
+	require.Equal(t, "http://localhost:8082", c.Gateway.TradingURL)
+	require.Equal(t, "http://localhost:8083", c.Gateway.LedgerURL)
 }
 
 func Test_New_Overrides(t *testing.T) {
@@ -56,9 +57,30 @@ func Test_New_Overrides(t *testing.T) {
 	require.Equal(t, "9090", c.HTTP.Port)
 	require.Equal(t, "edge", c.OTEL.ServiceName)
 	require.Equal(t, "identity:9081", c.Identity.Addr)
-	require.Equal(t, "http://identity:8081", c.Upstreams.IdentityURL)
-	require.Equal(t, "http://trading:8082", c.Upstreams.TradingURL)
-	require.Equal(t, "http://ledger:8083", c.Upstreams.LedgerURL)
+	require.Equal(t, "http://identity:8081", c.Gateway.IdentityURL)
+	require.Equal(t, "http://trading:8082", c.Gateway.TradingURL)
+	require.Equal(t, "http://ledger:8083", c.Gateway.LedgerURL)
+}
+
+func Test_New_CORSOrigins(t *testing.T) {
+	isolate(t)
+
+	c, err := config.New()
+	require.NoError(t, err)
+	require.Empty(t, c.Gateway.CORSOrigins, "no other origin may call the API unless it is configured")
+
+	// docker-compose passes the variable on even when it is not set.
+	t.Setenv("CORS_ORIGINS", "")
+
+	c, err = config.New()
+	require.NoError(t, err)
+	require.Empty(t, c.Gateway.CORSOrigins)
+
+	t.Setenv("CORS_ORIGINS", "https://vbloher.github.io,http://localhost:5173")
+
+	c, err = config.New()
+	require.NoError(t, err)
+	require.Equal(t, []string{"https://vbloher.github.io", "http://localhost:5173"}, c.Gateway.CORSOrigins)
 }
 
 func Test_New_ReadsDotEnv(t *testing.T) {
@@ -70,7 +92,7 @@ func Test_New_ReadsDotEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "7070", c.HTTP.Port)
-	require.Equal(t, "http://from-dotenv:1", c.Upstreams.TradingURL)
+	require.Equal(t, "http://from-dotenv:1", c.Gateway.TradingURL)
 }
 
 func Test_New_MissingRedis(t *testing.T) {

@@ -31,7 +31,12 @@ import (
 	controller "github.com/vbloher/canton-private-otc-desk/services/gateway/internal/controller/http"
 )
 
-const wait = 10 * time.Second
+const (
+	wait = 10 * time.Second
+
+	// pagesOrigin is where the web app is hosted when the gateway does not serve it.
+	pagesOrigin = "https://vbloher.github.io"
+)
 
 // ranOnce: app.Run registers global Prometheus collectors, which panics on a second registration,
 // so it can run once per process. `go test -count=N` repeats tests inside one process.
@@ -80,12 +85,10 @@ func freePort(t *testing.T) string {
 }
 
 // watch opens the socket and reports its frames (dropped when nobody reads) and how it ended.
-func watch(t *testing.T, url, session string) (frames <-chan []byte, ended <-chan error) {
+func watch(t *testing.T, url string, opts *websocket.DialOptions) (frames <-chan []byte, ended <-chan error) {
 	t.Helper()
 
-	conn, resp, err := websocket.Dial(t.Context(), url, &websocket.DialOptions{
-		HTTPHeader: http.Header{"Cookie": []string{"otc_session=" + session}},
-	})
+	conn, resp, err := websocket.Dial(t.Context(), url, opts)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 
@@ -166,17 +169,24 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 
 	go func() {
 		done <- app.Run(ctx, config.Config{
-			HTTP:      httpserver.Config{Port: port},
-			Redis:     redis.Config{Addr: redisAddr},
-			Identity:  identity.Config{Addr: idp.Addr().String()},
-			Upstreams: controller.Config{IdentityURL: service.URL, TradingURL: service.URL, LedgerURL: service.URL},
+			HTTP:     httpserver.Config{Port: port},
+			Redis:    redis.Config{Addr: redisAddr},
+			Identity: identity.Config{Addr: idp.Addr().String()},
+			Gateway: controller.Config{
+				IdentityURL: service.URL, TradingURL: service.URL, LedgerURL: service.URL,
+				CORSOrigins: []string{pagesOrigin},
+			},
 		})
 	}()
 
 	base := "127.0.0.1:" + port
 
+	// No connection reuse: a pooled client sometimes keeps a connection it dialed but never used, and the HTTP
+	// server's graceful shutdown waits up to 5 s for such a connection before it closes the sockets.
+	client := &http.Client{Transport: &http.Transport{DisableKeepAlives: true}}
+
 	require.Eventually(t, func() bool {
-		resp, err := http.Get("http://" + base + "/live") //nolint:noctx,bodyclose // polling until the port is open
+		resp, err := client.Get("http://" + base + "/live") //nolint:noctx,bodyclose // polling until the port is open
 		if err != nil {
 			return false
 		}
@@ -193,7 +203,7 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 
 		req.AddCookie(&http.Cookie{Name: "otc_session", Value: session})
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := client.Do(req)
 		require.NoError(t, err)
 
 		defer func() { _ = resp.Body.Close() }()
@@ -212,9 +222,44 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	code, _ = get("forged-session")
 	require.Equal(t, http.StatusUnauthorized, code)
 
+	// A page on another origin: bearer token instead of the cookie, and CORS headers on what it reads.
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+base+"/api/v1/trades", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Authorization", "Bearer bob-session")
+	req.Header.Set("Origin", pagesOrigin)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Equal(t, pagesOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
+	require.Contains(t, resp.Header.Values("Vary"), "Origin")
+	require.Equal(t, []string{"no-store"}, resp.Header.Values("Cache-Control"))
+
+	req, err = http.NewRequestWithContext(t.Context(), http.MethodOptions, "http://"+base+"/api/v1/rfqs", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("Origin", pagesOrigin)
+	req.Header.Set("Access-Control-Request-Method", http.MethodPost)
+
+	resp, err = client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+	require.Equal(t, pagesOrigin, resp.Header.Get("Access-Control-Allow-Origin"))
+	require.Equal(t, "GET, POST, PUT, DELETE", resp.Header.Get("Access-Control-Allow-Methods"))
+	require.Equal(t, []string{"no-store"}, resp.Header.Values("Cache-Control"))
+
 	// Events: Redis -> subscriber -> hub -> the party's socket.
-	aliceFrames, aliceEnded := watch(t, "ws://"+base+"/api/v1/ws", "alice-session")
-	bobFrames, bobEnded := watch(t, "ws://"+base+"/api/v1/ws", "bob-session")
+	// Alice is a same-origin page (cookie); Bob is the page on another origin, which can only offer subprotocols.
+	aliceFrames, aliceEnded := watch(t, "ws://"+base+"/api/v1/ws", &websocket.DialOptions{
+		HTTPHeader: http.Header{"Cookie": []string{"otc_session=alice-session"}},
+	})
+	bobFrames, bobEnded := watch(t, "ws://"+base+"/api/v1/ws", &websocket.DialOptions{
+		Subprotocols: []string{"otc-desk.v1", "otc-desk.bearer.bob-session"},
+		HTTPHeader:   http.Header{"Origin": []string{pagesOrigin}},
+	})
 
 	redisClient, err := redis.New(ctx, redis.Config{Addr: redisAddr})
 	require.NoError(t, err)

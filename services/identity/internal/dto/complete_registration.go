@@ -32,9 +32,12 @@ func (i CompleteRegistrationInput) Validate() error {
 	return nil
 }
 
-// CompleteRegistrationOutput signs the new wallet in: Token goes into the cookie for TTL.
+// CompleteRegistrationOutput signs the new wallet in. Token is the secret: it goes into the cookie
+// for TTL, and is also handed to clients that send it as a bearer token. ExpiresAt is the expiry
+// that is stored.
 type CompleteRegistrationOutput struct {
-	User  domain.User
-	Token string
-	TTL   time.Duration
+	User      domain.User
+	Token     string
+	TTL       time.Duration
+	ExpiresAt time.Time
 }

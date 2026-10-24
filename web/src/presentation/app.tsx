@@ -18,7 +18,8 @@ import { ServicesProvider } from "@/presentation/providers/services";
 import { SessionProvider } from "@/presentation/providers/session";
 import { SignerProvider } from "@/presentation/providers/signer";
 
-export function App({ services }: { services: Services }) {
+/** `basename`: the path the app is served under ("/" or e.g. "/canton-private-otc-desk" on Pages). */
+export function App({ services, basename = "/" }: { services: Services; basename?: string }) {
   return (
     <ServicesProvider services={services}>
       <QueryProvider>
@@ -26,7 +27,7 @@ export function App({ services }: { services: Services }) {
           <SessionProvider>
             <EventsProvider>
               <SignerProvider>
-                <BrowserRouter>
+                <BrowserRouter basename={basename}>
                   <Routes>
                     <Route path="/signin" element={<SignInPage />} />
                     <Route element={<DeskLayout />}>

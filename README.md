@@ -171,8 +171,10 @@ Every service reads environment variables (and `.env` in its directory when pres
 Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (info),
 `LOGGER_PRETTY_CONSOLE`, `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`,
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB_NAME`, `REDIS_ADDR`; services with gRPC also take
-`GRPC_HOST` and `GRPC_PORT`. The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and
-`GATEWAY_UPSTREAM` (gateway:8080).
+`GRPC_HOST` and `GRPC_PORT`. The gateway takes `CORS_ORIGINS` (frontends on other origins).
+The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and `GATEWAY_UPSTREAM` (gateway:8080); a
+web build takes `VITE_API_URL` (gateway origin, empty = same origin), `VITE_BASE` (path prefix)
+and `VITE_DEPLOY=pages`.
 
 | Service | Variables (defaults) |
 |---|---|
@@ -181,6 +183,64 @@ Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (i
 | trading | `LEDGER_GRPC_ADDR` (localhost:9083), `IDENTITY_GRPC_ADDR` (localhost:9081), `FEE_BPS` (10), `WORKER_INTERVAL` (1s), `SETTLE_TIMEOUT` (10m) |
 | gateway | `IDENTITY_GRPC_ADDR` (localhost:9081), `IDENTITY_URL`, `TRADING_URL`, `LEDGER_URL` (localhost:8081–8083) |
 | maker-bot | `GATEWAY_URL` (http://localhost:8080), `MAKER_KEYS` (demo-key-a:15,demo-key-b:40 — key:spread bps), `PRICES_USD` (CBTC:100000,CETH:4000,USDCx:1), `QUOTE_TTL` (60s), `POLL_INTERVAL` (1s) |
+
+## Deployment
+
+### Web app on GitHub Pages
+
+[`pages.yml`](.github/workflows/pages.yml) builds `web/` and publishes it to GitHub Pages on
+every push to `master` that touches the web app (or by hand: **Actions → Pages → Run workflow**),
+at `https://<owner>.github.io/<repo>/`. Pages serves static files only, so the app talks to a
+gateway you host elsewhere:
+
+0. Once: **Settings → Pages → Source: GitHub Actions**
+   (or `gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow`).
+1. Run the backend somewhere reachable over HTTPS (see below), behind a TLS-terminating proxy
+   that also passes WebSocket upgrades on `/api/v1/ws` and does not log the
+   `Sec-WebSocket-Protocol` header (it carries the session token).
+2. On the gateway set `CORS_ORIGINS=https://<owner>.github.io` (comma-separated for several).
+3. Set the repository variable `API_URL` to the gateway's origin and re-run the Pages workflow:
+
+   ```bash
+   gh variable set API_URL --body https://desk.example.com
+   gh workflow run pages.yml
+   ```
+
+Until `API_URL` is set the site deploys anyway and says that no desk is connected.
+
+The session cookie is `SameSite=Lax`, so no browser sends it on a request from another site.
+When the gateway is on another origin the app therefore keeps the session token from sign-in
+in `sessionStorage` and sends it as `Authorization: Bearer …`, and the WebSocket carries it as a
+subprotocol. The session is per tab: a new tab asks for the passkey again, and signing out ends
+that tab's session. A same-origin deployment (docker-compose, nginx) keeps using the HttpOnly
+cookie only.
+
+`https://<owner>.github.io` is one origin for every Pages site of that owner: `CORS_ORIGINS`,
+the passkeys' relying-party id and the browser storage are shared with all of them, and a
+wallet created there opens on any of them. For a real deployment use a custom domain.
+
+### Images
+
+[`release.yml`](.github/workflows/release.yml) publishes a multi-arch image per service and one
+for the web app to the GitHub Container Registry:
+
+| Trigger | Tags |
+|---|---|
+| push to `master` | `edge`, `sha-<short>` |
+| tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` |
+
+`edge` follows `master` whether or not CI passed on that commit; tags are the stable channel.
+New packages are private: make each of the six public once (package page → **Package
+settings → Change visibility**), then:
+
+```bash
+docker pull ghcr.io/vbloher/canton-private-otc-desk/gateway:edge   # gateway, identity, trading, ledger, maker-bot, web
+```
+
+`docker-compose.yml` shows how they fit together. A public deployment needs at least: a
+Canton participant (`CANTON_URL`) with the token rail, `COOKIE_SECURE=true` on identity,
+`CORS_ORIGINS` on the gateway, your own `HOUSE_MAKERS` keys, and nothing but the gateway
+reachable from outside.
 
 ## Repository layout
 

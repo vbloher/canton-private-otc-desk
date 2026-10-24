@@ -43,6 +43,7 @@ type user struct {
 	wallet   *wallet.ClientWithResponses
 	key      ed25519.PrivateKey
 	me       identity.Me
+	session  string // the bearer token returned at registration (same secret as the cookie)
 }
 
 func newUser(t *testing.T, apiKey string) *user {
@@ -105,7 +106,9 @@ func newWallet(t *testing.T, displayName string) *user {
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, complete.StatusCode(), string(complete.Body))
 
-	u.me = *complete.JSON200
+	u.me = complete.JSON200.Me
+	u.session = complete.JSON200.SessionToken
+	require.NotEmpty(t, u.session)
 	require.Equal(t, start.JSON200.PartyID, u.me.PartyID)
 
 	return u

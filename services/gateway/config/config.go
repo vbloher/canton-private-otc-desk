@@ -17,12 +17,12 @@ import (
 )
 
 type Config struct {
-	HTTP      httpserver.Config
-	Logger    logger.Config
-	OTEL      otel.Config
-	Redis     redis.Config
-	Identity  identity.Config
-	Upstreams http.Config
+	HTTP     httpserver.Config
+	Logger   logger.Config
+	OTEL     otel.Config
+	Redis    redis.Config
+	Identity identity.Config
+	Gateway  http.Config
 }
 
 func New() (Config, error) {

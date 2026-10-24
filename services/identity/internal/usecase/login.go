@@ -45,14 +45,15 @@ func (u *UseCase) Login(ctx context.Context, input dto.LoginInput) (dto.LoginOut
 		return output, fmt.Errorf("the signature does not match the challenge: %w", domain.ErrUnauthorized)
 	}
 
-	token, err := u.startSession(ctx, user.ID)
+	token, expiresAt, err := u.startSession(ctx, user.ID)
 	if err != nil {
 		return output, fmt.Errorf("u.startSession: %w", err)
 	}
 
 	return dto.LoginOutput{
-		User:  user,
-		Token: token,
-		TTL:   u.config.SessionTTL,
+		User:      user,
+		Token:     token,
+		TTL:       u.config.SessionTTL,
+		ExpiresAt: expiresAt,
 	}, nil
 }

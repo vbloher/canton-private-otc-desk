@@ -7,21 +7,25 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// Logout answers 204 and clears the cookie whether or not the cookie held a live session.
+// Logout ends every session the request names: the one in the cookie and the one in "Authorization:
+// Bearer <token>" (a frontend on another origin has no cookie). They can differ, and the gateway
+// prefers the bearer token over the cookie, so neither may be left alive; when they are the same
+// session it ends once. A missing or unusable header is no token. It answers 204 and clears the
+// cookie whether or not the tokens held live sessions.
 func (h *Handlers) Logout(
 	ctx context.Context, request http_server.LogoutRequestObject,
 ) (http_server.LogoutResponseObject, error) {
-	var token string
+	var cookie string
 	if request.Params.OtcSession != nil {
-		token = *request.Params.OtcSession
+		cookie = *request.Params.OtcSession
 	}
 
-	err := h.usecase.Logout(ctx, dto.LogoutInput{Token: token})
+	err := h.usecase.Logout(ctx, dto.LogoutInput{Tokens: []string{cookie, bearerFrom(ctx)}})
 	if err != nil {
 		return nil, err
 	}
 
-	cookie := h.clearedCookie()
+	cleared := h.clearedCookie()
 
-	return http_server.Logout204Response{Headers: http_server.Logout204ResponseHeaders{SetCookie: &cookie}}, nil
+	return http_server.Logout204Response{Headers: http_server.Logout204ResponseHeaders{SetCookie: &cleared}}, nil
 }

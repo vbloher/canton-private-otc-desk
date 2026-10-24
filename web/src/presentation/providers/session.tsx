@@ -1,7 +1,9 @@
 /**
- * Who is signed in (the session cookie, read through GET /me) and the party
- * seed unlocked in this tab. The seed lives in memory only: a reload keeps the
- * session but locks signing until the user unlocks again.
+ * Who is signed in, read through GET /me, and the party seed unlocked in this
+ * tab. The session itself is the HttpOnly cookie when the gateway is the page's
+ * own origin, or the token kept in this tab's sessionStorage when it is on
+ * another origin (config.sessionTransport). The seed lives in memory only: a
+ * reload keeps the session but locks signing until the user unlocks again.
  *
  * The session also keeps the auto-signer on the right identity: every sign-in,
  * an unlock that turned out to open another wallet, and an identity change the

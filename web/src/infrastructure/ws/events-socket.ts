@@ -1,7 +1,10 @@
 /**
- * The desk's event stream: one WebSocket on /api/v1/ws (the session cookie
- * authenticates the upgrade), `{"type", "data"}` frames, reconnecting with a
- * 0.5 s backoff that doubles up to 8 s and starts over after a good connection.
+ * The desk's event stream: one WebSocket on /api/v1/ws, `{"type", "data"}`
+ * frames, reconnecting with a 0.5 s backoff that doubles up to 8 s and starts
+ * over after a good connection. The upgrade is authenticated by the session
+ * cookie on the same origin, or by the session token offered as the
+ * subprotocol `otc-desk.bearer.<token>` (next to `otc-desk.v1`, which the
+ * gateway always echoes) when the gateway is on another origin.
  */
 import type { DeskEvent, DeskEventType, EventHandlers, EventsSource } from "@/application/ports";
 
@@ -12,6 +15,16 @@ export interface SocketLike {
   onclose: ((ev: CloseEvent) => void) | null;
   onerror: ((ev: Event) => void) | null;
   close(): void;
+}
+
+export const PROTOCOL = "otc-desk.v1";
+const BEARER_PREFIX = "otc-desk.bearer.";
+/** Characters an HTTP token, and so a subprotocol name, may hold (RFC 7230 tchar). */
+const TCHARS = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+/** The subprotocols to offer: always the desk's, plus the session token when one is known. */
+export function eventProtocols(token: string | undefined): string[] {
+  return token !== undefined && TCHARS.test(token) ? [PROTOCOL, `${BEARER_PREFIX}${token}`] : [PROTOCOL];
 }
 
 const FIRST_DELAY_MS = 500;
@@ -53,17 +66,16 @@ export function parseEvent(raw: string): DeskEvent | null {
 }
 
 export interface EventsSourceOptions {
+  /** Read at every dial (config.eventsUrl). */
   url: () => string;
-  open?: (url: string) => SocketLike;
-}
-
-/** ws(s)://<this host>/api/v1/ws — same origin, through the dev proxy or nginx. */
-export function deskEventsUrl(location: Pick<Location, "protocol" | "host">): string {
-  return `${location.protocol === "https:" ? "wss" : "ws"}://${location.host}/api/v1/ws`;
+  /** Read at every dial, so a reconnect offers the current session token (eventProtocols). */
+  protocols?: () => string[];
+  open?: (url: string, protocols: string[]) => SocketLike;
 }
 
 export function createEventsSource(options: EventsSourceOptions): EventsSource {
-  const open = options.open ?? ((url: string): SocketLike => new WebSocket(url));
+  const open = options.open ?? ((url: string, protocols: string[]): SocketLike => new WebSocket(url, protocols));
+  const protocols = options.protocols ?? (() => [PROTOCOL]);
   return {
     connect(handlers: EventHandlers): () => void {
       let stopped = false;
@@ -71,10 +83,22 @@ export function createEventsSource(options: EventsSourceOptions): EventsSource {
       let socket: SocketLike | undefined;
       let timer: ReturnType<typeof setTimeout> | undefined;
 
+      const retry = (): void => {
+        handlers.onStatus("offline");
+        attempt += 1;
+        timer = setTimeout(dial, reconnectDelay(attempt));
+      };
+
       const dial = (): void => {
         if (stopped) return;
         handlers.onStatus("connecting");
-        const s = open(options.url());
+        let s: SocketLike;
+        try {
+          s = open(options.url(), protocols());
+        } catch {
+          retry(); // e.g. a URL or subprotocol the browser refuses: wait, then try again
+          return;
+        }
         socket = s;
         s.onopen = () => {
           if (stopped || socket !== s) return;
@@ -91,9 +115,7 @@ export function createEventsSource(options: EventsSourceOptions): EventsSource {
         s.onclose = () => {
           if (stopped || socket !== s) return;
           socket = undefined;
-          handlers.onStatus("offline");
-          attempt += 1;
-          timer = setTimeout(dial, reconnectDelay(attempt));
+          retry();
         };
       };
 
