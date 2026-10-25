@@ -134,7 +134,7 @@ jobs:
 
   # On master and tags the images are built and published by release.yml.
   docker:
-    name: Docker build (${{ matrix.image }})
+    name: Docker build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     strategy:

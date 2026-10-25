@@ -230,8 +230,8 @@ for the web app to the GitHub Container Registry:
 | tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` |
 
 `edge` follows `master` whether or not CI passed on that commit; tags are the stable channel.
-New packages are private: make each of the six public once (package page → **Package
-settings → Change visibility**), then:
+Each image is linked to this repository and takes its visibility, so they are public here (a
+private fork's images stay private until changed in the package settings):
 
 ```bash
 docker pull ghcr.io/vbloher/canton-private-otc-desk/gateway:edge   # gateway, identity, trading, ledger, maker-bot, web

@@ -4,7 +4,7 @@ name: Release images
 #   ghcr.io/<owner>/<repo>/<image>:edge, :sha-<short>   on every push to master
 #   ghcr.io/<owner>/<repo>/<image>:1.2.3, :1.2, :latest on a v1.2.3 tag
 # edge follows master whether or not CI passed on that commit; tags are the stable channel.
-# New packages are private: make each one public once in its package settings.
+# Each image is linked to this repository and takes its visibility (public here).
 
 on:
   push:
