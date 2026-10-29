@@ -25,8 +25,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/migration"
 )
 
-// Run starts the service. The ledger and identity clients connect lazily: while either is down
-// the service runs and the routes that need it answer 502.
 func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 	err := migrate.Up(c.Postgres.URL(), migration.FS)
 	if err != nil {

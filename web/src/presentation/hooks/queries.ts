@@ -1,9 +1,3 @@
-/**
- * TanStack Query hooks over the application's ports. Reads are keyed by
- * application/query-keys (server events invalidate them); every mutation's
- * error is toasted by the query provider, and the ones that queue ledger
- * actions hand those to the auto-signer straight away.
- */
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { queryKeys } from "@/application/query-keys";
@@ -12,7 +6,6 @@ import { useServices } from "@/presentation/providers/services";
 import { useSession } from "@/presentation/providers/session";
 import { useSigner } from "@/presentation/providers/signer";
 
-/** Reads that need a session: off while signed out, so nothing 401s. */
 function useSignedIn(): boolean {
   return useSession().status === "signed-in";
 }
@@ -27,7 +20,16 @@ export function useInstruments() {
   });
 }
 
-/** Instrument by symbol; an unknown symbol gets 10 display digits and its own name. */
+export function useNetwork() {
+  const { wallet } = useServices();
+  return useQuery({
+    queryKey: queryKeys.network,
+    queryFn: () => wallet.network(),
+    enabled: useSignedIn(),
+    staleTime: Infinity,
+  });
+}
+
 export function useInstrument(): (symbol: string) => Instrument {
   const { data } = useInstruments();
   return useMemo(() => {
@@ -67,10 +69,6 @@ export function useTrades() {
   return useQuery({ queryKey: queryKeys.trades, queryFn: () => desk.trades(), enabled: useSignedIn() });
 }
 
-/**
- * Polled as well: an executed action is acknowledged before the ledger commits
- * it, so the refetch an event triggers can still read the old holdings.
- */
 export function useBalances(enabled = true) {
   const { wallet } = useServices();
   const signedIn = useSignedIn();
@@ -79,11 +77,10 @@ export function useBalances(enabled = true) {
     queryFn: () => wallet.balances(),
     enabled: enabled && signedIn,
     refetchInterval: 10_000,
-    meta: { quiet: true }, // a down desk must not toast every 10 s
+    meta: { quiet: true },
   });
 }
 
-/** Polled: a transfer someone sends here raises no event for this party. */
 export function useIncomingTransfers() {
   const { wallet } = useServices();
   return useQuery({
@@ -154,7 +151,6 @@ export function useSetMakerMode() {
   });
 }
 
-/** Ledger changes answer with the actions to sign: they go to the auto-signer at once. */
 function useLedgerMutation<T>(run: (input: T) => Promise<SignAction[]>) {
   const qc = useQueryClient();
   const { submit } = useSigner();
@@ -184,11 +180,6 @@ export function useWithdraw() {
 
 const UNLOCK = ["unlock"];
 
-/**
- * Unlock signing. A mutation, so a failure toasts; `unlocking` is shared by every caller
- * (the session runs one passkey ceremony at a time). The result says whether it is still
- * the same wallet (false: the passkey opened another one and the session switched to it).
- */
 export function useUnlock() {
   const session = useSession();
   const { mutate } = useMutation({ mutationKey: UNLOCK, mutationFn: () => session.unlock() });
@@ -196,11 +187,6 @@ export function useUnlock() {
   return { unlock: mutate, unlocking };
 }
 
-/**
- * For a control whose action needs a signature: `act` runs `run` straight away while signing
- * is unlocked, and otherwise unlocks first and runs it after — unless the unlock switched to
- * another wallet, whose user did not ask for it.
- */
 export function useUnlockThen(run: () => void) {
   const { locked } = useSession();
   const { unlock, unlocking } = useUnlock();

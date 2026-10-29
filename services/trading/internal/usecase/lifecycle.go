@@ -13,7 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// lockQuote locks the quote's RFQ row and then the quote row: the one lock order of the service.
 func (u *UseCase) lockQuote(ctx context.Context, rfqID, quoteID uuid.UUID) (domain.RFQ, domain.Quote, error) {
 	rfq, err := u.postgres.GetRFQForUpdate(ctx, rfqID)
 	if err != nil {
@@ -28,8 +27,6 @@ func (u *UseCase) lockQuote(ctx context.Context, rfqID, quoteID uuid.UUID) (doma
 	return rfq, quote, nil
 }
 
-// transition applies change to one quote under the row locks; change reports false to leave the
-// quote as it is. It returns the quote's RFQ, the quote as it is now, and whether it changed.
 func (u *UseCase) transition(
 	ctx context.Context, q domain.Quote, change func(domain.Quote) (domain.Quote, bool),
 ) (domain.RFQ, domain.Quote, bool, error) {
@@ -68,7 +65,6 @@ func (u *UseCase) transition(
 	return rfq, quote, done, nil
 }
 
-// closeRFQ saves the RFQ in a terminal status and closes its live quotes with quoteStatus.
 func (u *UseCase) closeRFQ(
 	ctx context.Context, rfq domain.RFQ, quotes []domain.Quote,
 	status domain.RFQStatus, quoteStatus domain.QuoteStatus, now time.Time,
@@ -100,12 +96,10 @@ func (u *UseCase) closeRFQ(
 	return rfq, closed, nil
 }
 
-// settling reports whether one of the quotes is accepted: its trade is settling.
 func settling(quotes []domain.Quote) bool {
 	return slices.ContainsFunc(quotes, func(q domain.Quote) bool { return q.Status == domain.QuoteAccepted })
 }
 
-// closed announces a closed RFQ and releases the quotes its closing closed.
 func (u *UseCase) closed(ctx context.Context, rfq domain.RFQ, quotes []domain.Quote) {
 	for _, q := range quotes {
 		u.release(ctx, rfq.TakerParty, q)
@@ -114,14 +108,11 @@ func (u *UseCase) closed(ctx context.Context, rfq domain.RFQ, quotes []domain.Qu
 	u.publishRFQ(ctx, events.RFQUpdated, rfq)
 }
 
-// release cancels the allocations of a closed quote and tells its parties.
 func (u *UseCase) release(ctx context.Context, taker string, q domain.Quote) {
 	u.cancelSettlement(ctx, q.ID)
 	u.publishQuote(ctx, taker, q)
 }
 
-// cancelSettlement is best effort: whatever the ledger keeps lapses at the settlement deadline. It
-// runs after a commit, so neither a caller going away nor a shutdown stops it.
 func (u *UseCase) cancelSettlement(ctx context.Context, settlementID uuid.UUID) {
 	err := u.ledger.CancelSettlement(context.WithoutCancel(ctx), settlementID)
 	if err != nil {
@@ -129,8 +120,6 @@ func (u *UseCase) cancelSettlement(ctx context.Context, settlementID uuid.UUID) 
 	}
 }
 
-// failTrade marks a settling trade and its quote failed and releases every allocation of the
-// settlement. A trade that settled or failed meanwhile is left alone.
 func (u *UseCase) failTrade(ctx context.Context, trade domain.Trade, reason string) error {
 	var (
 		quote  domain.Quote
@@ -180,7 +169,6 @@ func (u *UseCase) failTrade(ctx context.Context, trade domain.Trade, reason stri
 	return nil
 }
 
-// describe is what a signer reads next to its allocation: the trade from the signer's side.
 func describe(rfq domain.RFQ, quote domain.Quote, forTaker bool) string {
 	verb := "Sell"
 	if rfq.Direction.TakerBuys() == forTaker {

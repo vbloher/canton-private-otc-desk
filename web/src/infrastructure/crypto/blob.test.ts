@@ -4,7 +4,6 @@ import { unwrapSeed, wrapSeed } from "./blob";
 const random = (n: number): Uint8Array<ArrayBuffer> => crypto.getRandomValues(new Uint8Array(n));
 const fromB64 = (b64: string): Uint8Array<ArrayBuffer> => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
-/** The spec's recipe, written out independently: HKDF-SHA256(salt "otc-desk-kek-v1", empty info) → AES-256-GCM. */
 async function specDecrypt(blob: string, prfSecret: Uint8Array<ArrayBuffer>): Promise<Uint8Array> {
   const ikm = await crypto.subtle.importKey("raw", prfSecret, "HKDF", false, ["deriveKey"]);
   const kek = await crypto.subtle.deriveKey(

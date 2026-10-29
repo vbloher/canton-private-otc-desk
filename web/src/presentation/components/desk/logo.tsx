@@ -1,6 +1,5 @@
 import { cn } from "@/presentation/lib/utils";
 
-/** The desk's mark: an amber tile with two arrows trading places. */
 export function Logo({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" role="img" aria-label="Private OTC Desk" className={cn("size-7", className)}>

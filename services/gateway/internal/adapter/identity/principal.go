@@ -10,8 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/domain"
 )
 
-// toPrincipal keeps only what the upstream services trust the gateway to vouch for.
-// A user without a party or a hint would reach them as "no caller", so it is refused here.
 func toPrincipal(user *pb.User) (principal.Principal, error) {
 	userID, err := uuid.Parse(user.GetId())
 	if err != nil {

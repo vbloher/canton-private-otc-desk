@@ -41,7 +41,6 @@ func Test_Authenticate_APIKeyWins(t *testing.T) {
 
 	want := principal.Principal{UserID: uuid.New(), PartyID: "makerA::1220cd", Hint: "makerA"}
 
-	// The mock fails the test if the session token is looked up as well.
 	identity := mocks.NewIdentity(t)
 	identity.EXPECT().AuthenticateAPIKey(Any, "demo-key-a").Return(want, nil)
 
@@ -55,7 +54,6 @@ func Test_Authenticate_APIKeyWins(t *testing.T) {
 func Test_Authenticate_None(t *testing.T) {
 	otel.SilentModeInit()
 
-	// No expectations: identity must not be called at all.
 	u := usecase.New(mocks.NewIdentity(t))
 
 	actual, err := u.Authenticate(t.Context(), "", "")

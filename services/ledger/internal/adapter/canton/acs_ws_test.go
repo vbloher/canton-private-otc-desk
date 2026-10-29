@@ -2,7 +2,7 @@ package canton
 
 import (
 	"bufio"
-	"crypto/sha1" //nolint:gosec // the WebSocket handshake is defined with SHA-1
+	"crypto/sha1" //nolint:gosec
 	"encoding/base64"
 	"encoding/binary"
 	"io"
@@ -23,11 +23,9 @@ const (
 	opClose = 0x8
 )
 
-// socket is the server end of a hand-upgraded WebSocket: hand-made frames can do what a
-// WebSocket library refuses to, like a close frame without a status code.
 type socket struct {
 	rw   *bufio.ReadWriter
-	stop <-chan struct{} // closed when the test ends
+	stop <-chan struct{}
 }
 
 func (s socket) frame(t *testing.T, opcode byte, payload []byte) {
@@ -54,7 +52,6 @@ func (s socket) text(t *testing.T, payload string) {
 	s.frame(t, opText, []byte(payload))
 }
 
-// closeWith sends a close frame; no codes at all is how a peer omits the status (1005).
 func (s socket) closeWith(t *testing.T, codes ...uint16) {
 	t.Helper()
 
@@ -66,7 +63,6 @@ func (s socket) closeWith(t *testing.T, codes ...uint16) {
 	s.frame(t, opClose, payload)
 }
 
-// readClientFrame consumes one masked client frame (the active-contracts request).
 func (s socket) readClientFrame(t *testing.T) []byte {
 	t.Helper()
 
@@ -104,8 +100,6 @@ func (s socket) readClientFrame(t *testing.T) []byte {
 	return payload
 }
 
-// streamServer is a JSON API stand-in: it answers ledger-end and runs script on the
-// active-contracts socket once the request has arrived.
 func streamServer(t *testing.T, script func(s socket)) *Canton {
 	t.Helper()
 
@@ -196,7 +190,6 @@ func Test_ActiveContracts_CloseHandling(t *testing.T) {
 }
 
 func Test_ActiveContracts_IdleTimeoutResetsOnEveryFrame(t *testing.T) {
-	// Eight frames 60 ms apart take longer than the 300 ms idle timeout, but no gap does.
 	c := streamServer(t, func(s socket) {
 		for range 8 {
 			time.Sleep(60 * time.Millisecond)

@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// Logout ends the session of the token. An unknown or missing token is not an error: the caller
-// wanted to be signed out and is.
 func (u *UseCase) Logout(ctx context.Context, input dto.LogoutInput) error {
 	ctx, span := tracer.Start(ctx, "usecase Logout")
 	defer span.End()

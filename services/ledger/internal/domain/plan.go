@@ -7,7 +7,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/decimal"
 )
 
-// Side names follow the token standard (TransferSide).
 type Side string
 
 const (
@@ -15,7 +14,6 @@ const (
 	SideReceiver Side = "ReceiverSide"
 )
 
-// LegSide is one party's side of a leg: what it sends to, or receives from, the otherside.
 type LegSide struct {
 	LegID     string
 	Side      Side
@@ -23,12 +21,12 @@ type LegSide struct {
 	Amount    decimal.Decimal
 }
 
-// Slot is one allocation of a settlement: everything one party sends and receives in one
-// instrument of one admin. It funds the sum of its sender sides (Send).
 type Slot struct {
 	Party        string
 	Admin        string
 	InstrumentID string
+	Symbol       string
+	Registry     string
 	Sides        []LegSide
 	Send         decimal.Decimal
 }
@@ -37,18 +35,22 @@ func (s Slot) Key() string {
 	return s.Party + "|" + s.Admin + "|" + s.InstrumentID
 }
 
-// Plan is the allocation plan of a settlement: one slot per (party, admin, instrument),
-// sorted by that key in byte order, so the order is the same on every host and every run.
-func Plan(legs []TransferLeg, admin string) []Slot {
+func Plan(legs []TransferLeg) []Slot {
 	slots := make(map[string]*Slot)
 
 	add := func(party, otherside string, leg TransferLeg, side Side) {
-		key := Slot{Party: party, Admin: admin, InstrumentID: leg.Instrument}.Key()
+		slot := &Slot{
+			Party:        party,
+			Admin:        leg.Instrument.Admin,
+			InstrumentID: leg.Instrument.ID,
+			Symbol:       leg.Instrument.Symbol,
+			Registry:     leg.Instrument.Registry,
+		}
 
-		slot, ok := slots[key]
-		if !ok {
-			slot = &Slot{Party: party, Admin: admin, InstrumentID: leg.Instrument}
-			slots[key] = slot
+		if existing, ok := slots[slot.Key()]; ok {
+			slot = existing
+		} else {
+			slots[slot.Key()] = slot
 		}
 
 		slot.Sides = append(slot.Sides, LegSide{LegID: leg.ID, Side: side, Otherside: otherside, Amount: leg.Amount})
@@ -87,7 +89,6 @@ func SlotsOf(plan []Slot, party string) []Slot {
 	return out
 }
 
-// Parties of the plan, in plan order, each once.
 func Parties(plan []Slot) []string {
 	var out []string
 
@@ -98,4 +99,36 @@ func Parties(plan []Slot) []string {
 	}
 
 	return out
+}
+
+type Batch struct {
+	Admin          string
+	Registry       string
+	Legs           []TransferLeg
+	AllocationCIDs []string
+}
+
+func Batches(legs []TransferLeg, matches []SlotMatch) []Batch {
+	var batches []Batch
+
+	index := make(map[string]int)
+
+	for _, leg := range legs {
+		i, ok := index[leg.Instrument.Admin]
+		if !ok {
+			i = len(batches)
+			index[leg.Instrument.Admin] = i
+			batches = append(batches, Batch{Admin: leg.Instrument.Admin, Registry: leg.Instrument.Registry})
+		}
+
+		batches[i].Legs = append(batches[i].Legs, leg)
+	}
+
+	for _, m := range matches {
+		if i, ok := index[m.Admin]; ok {
+			batches[i].AllocationCIDs = append(batches[i].AllocationCIDs, m.ContractID)
+		}
+	}
+
+	return batches
 }

@@ -18,6 +18,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for NetworkName.
+const (
+	NetworkNameDevnet  NetworkName = "devnet"
+	NetworkNameMainnet NetworkName = "mainnet"
+	NetworkNameTestnet NetworkName = "testnet"
+)
+
+// Valid indicates whether the value is a known member of the NetworkName enum.
+func (e NetworkName) Valid() bool {
+	switch e {
+	case NetworkNameDevnet:
+		return true
+	case NetworkNameMainnet:
+		return true
+	case NetworkNameTestnet:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SignActionPurpose.
 const (
 	SignActionPurposeAllocate       SignActionPurpose = "allocate"
@@ -63,6 +84,17 @@ type Balance struct {
 // Example: 1.5
 type Decimal = string
 
+// Drip defines model for Drip.
+type Drip struct {
+	// Amount Decimal with at most 10 fraction digits
+	//
+	// Example: 1.5
+	Amount Decimal `json:"amount"`
+
+	// Symbol Example: CBTC
+	Symbol string `json:"symbol"`
+}
+
 // Error Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type Error struct {
 	Code  *string `json:"code,omitempty"`
@@ -102,6 +134,16 @@ type Instrument struct {
 	Symbol string `json:"symbol"`
 }
 
+// Network defines model for Network.
+type Network struct {
+	// Faucet What one faucet drip sends; empty when the network has no faucet
+	Faucet []Drip      `json:"faucet"`
+	Name   NetworkName `json:"name"`
+}
+
+// NetworkName defines model for Network.Name.
+type NetworkName string
+
 // SignAction defines model for SignAction.
 type SignAction struct {
 	CreatedAt time.Time `json:"createdAt"`
@@ -128,7 +170,7 @@ type WithdrawInput struct {
 
 	// Receiver Full party id of the receiver
 	//
-	// Example: makerB::122096feab
+	// Example: bob::122096feab
 	Receiver string `json:"receiver"`
 
 	// Symbol Example: CBTC
@@ -149,6 +191,9 @@ type InternalError = Error
 
 // NotFound Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type NotFound = Error
+
+// TooManyRequests Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
+type TooManyRequests = Error
 
 // Unauthorized Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type Unauthorized = Error
@@ -262,7 +307,7 @@ type ClientInterface interface {
 	// Corresponds with GET /wallet/balances (the `GetBalances` operationId).
 	GetBalances(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// Faucet Mint test tokens to the caller (local sandbox only)
+	// Faucet Send DevNet test tokens from the desk's reservoir to the caller
 	//
 	// Corresponds with POST /wallet/faucet (the `Faucet` operationId).
 	Faucet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -276,6 +321,11 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /wallet/incoming/{contractId}/accept (the `AcceptIncoming` operationId).
 	AcceptIncoming(ctx context.Context, contractID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetNetwork The Canton network the desk is on and what its faucet hands out
+	//
+	// Corresponds with GET /wallet/network (the `GetNetwork` operationId).
+	GetNetwork(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// WithdrawWithBody Send holdings to any Canton party (it receives a transfer offer to accept)
 	//
@@ -371,7 +421,7 @@ func (c *Client) GetBalances(ctx context.Context, reqEditors ...RequestEditorFn)
 	return c.Client.Do(req)
 }
 
-// Faucet Mint test tokens to the caller (local sandbox only)
+// Faucet Send DevNet test tokens from the desk's reservoir to the caller
 //
 // Corresponds with POST /wallet/faucet (the `Faucet` operationId).
 func (c *Client) Faucet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -406,6 +456,21 @@ func (c *Client) ListIncoming(ctx context.Context, reqEditors ...RequestEditorFn
 // Corresponds with POST /wallet/incoming/{contractId}/accept (the `AcceptIncoming` operationId).
 func (c *Client) AcceptIncoming(ctx context.Context, contractID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewAcceptIncomingRequest(c.Server, contractID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetNetwork The Canton network the desk is on and what its faucet hands out
+//
+// Corresponds with GET /wallet/network (the `GetNetwork` operationId).
+func (c *Client) GetNetwork(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetNetworkRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -666,6 +731,33 @@ func NewAcceptIncomingRequest(server string, contractID string) (*http.Request, 
 	return req, nil
 }
 
+// NewGetNetworkRequest constructs an http.Request for the GetNetwork method
+func NewGetNetworkRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/wallet/network")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewWithdrawRequest calls the generic Withdraw builder with application/json body
 func NewWithdrawRequest(server string, body WithdrawJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -785,7 +877,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /wallet/balances (the `GetBalances` operationId).
 	GetBalancesWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetBalancesResponse, error)
 
-	// FaucetWithResponse Mint test tokens to the caller (local sandbox only)
+	// FaucetWithResponse Send DevNet test tokens from the desk's reservoir to the caller
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -805,6 +897,13 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /wallet/incoming/{contractId}/accept (the `AcceptIncoming` operationId).
 	AcceptIncomingWithResponse(ctx context.Context, contractID string, reqEditors ...RequestEditorFn) (*AcceptIncomingResponse, error)
+
+	// GetNetworkWithResponse The Canton network the desk is on and what its faucet hands out
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /wallet/network (the `GetNetwork` operationId).
+	GetNetworkWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetNetworkResponse, error)
 
 	// WithdrawWithBodyWithResponse Send holdings to any Canton party (it receives a transfer offer to accept)
 	//
@@ -1074,8 +1173,14 @@ type FaucetResponse struct {
 	HTTPResponse *http.Response
 	// JSON202 the response for an HTTP 202 `application/json` response
 	JSON202 *Actions
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
 	// JSON401 the response for an HTTP 401 `application/json` response
 	JSON401 *Unauthorized
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *NotFound
+	// JSON429 the response for an HTTP 429 `application/json` response
+	JSON429 *TooManyRequests
 	// JSON500 the response for an HTTP 500 `application/json` response
 	JSON500 *InternalError
 	// JSON502 the response for an HTTP 502 `application/json` response
@@ -1087,9 +1192,24 @@ func (r FaucetResponse) GetJSON202() *Actions {
 	return r.JSON202
 }
 
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r FaucetResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
 // GetJSON401 returns the response for an HTTP 401 `application/json` response
 func (r FaucetResponse) GetJSON401() *Unauthorized {
 	return r.JSON401
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r FaucetResponse) GetJSON404() *NotFound {
+	return r.JSON404
+}
+
+// GetJSON429 returns the response for an HTTP 429 `application/json` response
+func (r FaucetResponse) GetJSON429() *TooManyRequests {
+	return r.JSON429
 }
 
 // GetJSON500 returns the response for an HTTP 500 `application/json` response
@@ -1262,6 +1382,61 @@ func (r AcceptIncomingResponse) ContentType() string {
 	return ""
 }
 
+type GetNetworkResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *Network
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *Unauthorized
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetNetworkResponse) GetJSON200() *Network {
+	return r.JSON200
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r GetNetworkResponse) GetJSON401() *Unauthorized {
+	return r.JSON401
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r GetNetworkResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetBody returns the raw response body bytes
+func (r GetNetworkResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetNetworkResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetNetworkResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetNetworkResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type WithdrawResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -1403,7 +1578,7 @@ func (c *ClientWithResponses) GetBalancesWithResponse(ctx context.Context, reqEd
 	return ParseGetBalancesResponse(rsp)
 }
 
-// FaucetWithResponse Mint test tokens to the caller (local sandbox only)
+// FaucetWithResponse Send DevNet test tokens from the desk's reservoir to the caller
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -1440,6 +1615,19 @@ func (c *ClientWithResponses) AcceptIncomingWithResponse(ctx context.Context, co
 		return nil, err
 	}
 	return ParseAcceptIncomingResponse(rsp)
+}
+
+// GetNetworkWithResponse The Canton network the desk is on and what its faucet hands out
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /wallet/network (the `GetNetwork` operationId).
+func (c *ClientWithResponses) GetNetworkWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetNetworkResponse, error) {
+	rsp, err := c.GetNetwork(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetNetworkResponse(rsp)
 }
 
 // WithdrawWithBodyWithResponse Send holdings to any Canton party (it receives a transfer offer to accept)
@@ -1680,12 +1868,33 @@ func ParseFaucetResponse(rsp *http.Response) (*FaucetResponse, error) {
 		}
 		response.JSON202 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest NotFound
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -1801,6 +2010,46 @@ func ParseAcceptIncomingResponse(rsp *http.Response) (*AcceptIncomingResponse, e
 			return nil, err
 		}
 		response.JSON502 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetNetworkResponse parses an HTTP response from a GetNetworkWithResponse call
+func ParseGetNetworkResponse(rsp *http.Response) (*GetNetworkResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetNetworkResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Network
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

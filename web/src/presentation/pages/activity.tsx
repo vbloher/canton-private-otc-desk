@@ -1,7 +1,3 @@
-/**
- * Activity: trades in either role and the user's RFQs that closed without one,
- * newest first, grouped by day.
- */
 import { useMemo, useState } from "react";
 import { activityFeed, type ActivityItem } from "@/domain/trade";
 import { CopyButton } from "@/presentation/components/desk/copy-button";
@@ -187,7 +183,6 @@ function TradeCard({ item }: { item: Extract<ActivityItem, { kind: "trade" }> })
   );
 }
 
-/** An RFQ that ended without a trade; the dashed edge says no funds moved. */
 function UnfilledCard({ item }: { item: Extract<ActivityItem, { kind: "rfq" }> }) {
   const { rfq } = item;
   const buy = rfq.direction === "BUY";

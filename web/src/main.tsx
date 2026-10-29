@@ -1,8 +1,3 @@
-/**
- * Composition root: the only module that knows every layer. It builds the
- * infrastructure adapters for the application's ports and hands them to the
- * presentation.
- */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import type { Services } from "@/application/ports";
@@ -18,7 +13,7 @@ function localStorageOrNothing(): Storage | undefined {
   try {
     return window.localStorage;
   } catch {
-    return undefined; // storage blocked: Unlock lets the platform pick the passkey
+    return undefined;
   }
 }
 

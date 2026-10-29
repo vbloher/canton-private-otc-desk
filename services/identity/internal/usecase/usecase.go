@@ -33,10 +33,8 @@ type Postgres interface {
 
 type Redis interface {
 	SaveRegistration(ctx context.Context, r domain.Registration, ttl time.Duration) error
-	// TakeRegistration reads and deletes in one step (GETDEL); ErrRegistrationExpired when it is gone.
 	TakeRegistration(ctx context.Context, id uuid.UUID) (domain.Registration, error)
 	SaveChallenge(ctx context.Context, challenge string, userID uuid.UUID, ttl time.Duration) error
-	// TakeChallenge reads and deletes in one step (GETDEL); ErrUnauthorized when it is gone.
 	TakeChallenge(ctx context.Context, challenge string) (uuid.UUID, error)
 	GetCachedSession(ctx context.Context, tokenHash string) (domain.User, bool)
 	CacheSession(ctx context.Context, tokenHash string, user domain.User, ttl time.Duration)
@@ -50,8 +48,9 @@ type Ledger interface {
 }
 
 type Config struct {
-	SessionTTL  time.Duration      `env:"SESSION_TTL"  envDefault:"168h"`
-	HouseMakers domain.HouseMakers `env:"HOUSE_MAKERS" envDefault:"makerA:demo-key-a,makerB:demo-key-b"`
+	SessionTTL  time.Duration `env:"SESSION_TTL"   envDefault:"168h"`
+	MakerParty  string        `env:"MAKER_PARTY"`
+	MakerAPIKey string        `env:"MAKER_API_KEY"`
 }
 
 type UseCase struct {
@@ -70,7 +69,6 @@ func New(postgres Postgres, redis Redis, ledger Ledger, config Config) *UseCase 
 	}
 }
 
-// startSession stores a new session of the user and returns the token for the cookie.
 func (u *UseCase) startSession(ctx context.Context, userID uuid.UUID) (string, error) {
 	token, hash := domain.NewSessionToken()
 

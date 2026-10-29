@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListExpiredRFQs returns the open RFQs whose deadline has passed and that have no settling trade.
 func (p *Postgres) ListExpiredRFQs(ctx context.Context, now time.Time) ([]domain.RFQ, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListExpiredRFQs")
 	defer span.End()

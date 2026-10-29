@@ -91,6 +91,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/wallet/network": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The Canton network the desk is on and what its faucet hands out */
+        get: operations["getNetwork"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/wallet/faucet": {
         parameters: {
             query?: never;
@@ -100,7 +117,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Mint test tokens to the caller (local sandbox only) */
+        /** Send DevNet test tokens from the desk's reservoir to the caller */
         post: operations["faucet"];
         delete?: never;
         options?: never;
@@ -164,6 +181,17 @@ export interface components {
              */
             decimals: number;
         };
+        Network: {
+            /** @enum {string} */
+            name: "devnet" | "testnet" | "mainnet";
+            /** @description What one faucet drip sends; empty when the network has no faucet */
+            faucet: components["schemas"]["Drip"][];
+        };
+        Drip: {
+            /** @example CBTC */
+            symbol: string;
+            amount: components["schemas"]["Decimal"];
+        };
         Balance: {
             symbol: string;
             available: components["schemas"]["Decimal"];
@@ -182,7 +210,7 @@ export interface components {
             amount: components["schemas"]["Decimal"];
             /**
              * @description Full party id of the receiver
-             * @example makerB::122096feab
+             * @example bob::122096feab
              */
             receiver: string;
         };
@@ -248,6 +276,15 @@ export interface components {
         };
         /** @description Conflict; `code` is INSUFFICIENT_FUNDS or ACTION_NOT_PENDING */
         Conflict: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
+        /** @description The faucet was used recently */
+        TooManyRequests: {
             headers: {
                 [name: string]: unknown;
             };
@@ -404,6 +441,28 @@ export interface operations {
             502: components["responses"]["BadGateway"];
         };
     };
+    getNetwork: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Network */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Network"];
+                };
+            };
+            401: components["responses"]["Unauthorized"];
+            500: components["responses"]["InternalError"];
+        };
+    };
     faucet: {
         parameters: {
             query?: never;
@@ -413,7 +472,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Mint offers created; their accepts are queued for signature */
+            /** @description Transfers sent; the accepts of those waiting for the caller are queued for signature */
             202: {
                 headers: {
                     [name: string]: unknown;
@@ -422,7 +481,10 @@ export interface operations {
                     "application/json": components["schemas"]["Actions"];
                 };
             };
+            400: components["responses"]["BadRequest"];
             401: components["responses"]["Unauthorized"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["BadGateway"];
         };

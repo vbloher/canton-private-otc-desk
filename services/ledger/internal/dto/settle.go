@@ -6,5 +6,5 @@ type SettleInput struct {
 }
 
 type SettleOutput struct {
-	UpdateID string // empty when an earlier attempt already settled
+	UpdateID string
 }

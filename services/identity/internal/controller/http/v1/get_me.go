@@ -20,7 +20,6 @@ func (h *Handlers) GetMe(
 
 	output, err := h.usecase.GetMe(ctx, dto.GetMeInput{UserID: caller.UserID})
 	if err != nil {
-		// A caller the gateway vouched for but who is gone is no caller at all.
 		if errors.Is(err, domain.ErrNotFound) {
 			return http_server.GetMe401JSONResponse{UnauthorizedJSONResponse: unauthorized(ctx, domain.ErrUnauthorized)}, nil
 		}

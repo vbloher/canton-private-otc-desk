@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// GenerateExternalParty is step 1 of onboarding a browser-held key: the topology it signs.
 func (u *UseCase) GenerateExternalParty(
 	ctx context.Context, input dto.GenerateExternalPartyInput,
 ) (dto.GenerateExternalPartyOutput, error) {

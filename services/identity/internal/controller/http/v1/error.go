@@ -35,7 +35,6 @@ func gone(ctx context.Context, err error) http_server.GoneJSONResponse {
 	return http_server.GoneJSONResponse{Error: render.Error(ctx, err, "request failed").Error()}
 }
 
-// badGateway keeps what the ledger said (addresses, internals) in the log and out of the response.
 func badGateway(ctx context.Context, err error) http_server.BadGatewayJSONResponse {
 	_ = render.Error(ctx, err, ledgerFailedMessage)
 

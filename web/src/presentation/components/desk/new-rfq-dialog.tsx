@@ -1,8 +1,3 @@
-/**
- * New request for quotes, ticket style: pick a side, the token the trade is
- * about and what it settles in, the amount, the makers to ask and how long
- * they have. Only the makers picked ever see the request.
- */
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
@@ -27,7 +22,6 @@ import { count, formatAmount, formatTtl } from "@/presentation/lib/format";
 import { cn } from "@/presentation/lib/utils";
 import { TokenChip } from "./token-chip";
 
-/** Buy / Sell: the direction tint is the only colour in the ticket besides amber. */
 const sideClass = (tint: "success" | "destructive"): string =>
   cn(
     "rounded-lg border border-border py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground data-checked:text-foreground",
@@ -63,7 +57,6 @@ export function NewRfqDialog() {
     balances.data?.find((b) => b.symbol === symbol)?.available;
 
   const candidates = makers.data ?? [];
-  // A maker who switched maker mode off since being picked is no longer offered.
   const chosen = picked.filter((hint) => candidates.some((m) => m.hint === hint));
   const allChosen = candidates.length > 0 && candidates.every((m) => chosen.includes(m.hint));
   const sell = side === "SELL";
@@ -75,7 +68,7 @@ export function NewRfqDialog() {
     chosen.length <= RFQ_MAKERS_MAX;
 
   const pickBase = (symbol: string): void => {
-    if (symbol === quoteSym) setQuote(baseSym); // the legs swap rather than collide
+    if (symbol === quoteSym) setQuote(baseSym);
     setBase(symbol);
   };
 
@@ -100,7 +93,6 @@ export function NewRfqDialog() {
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
-        // maker-mode changes raise no event: refresh the list whenever the ticket opens
         if (v) void makers.refetch();
       }}
     >

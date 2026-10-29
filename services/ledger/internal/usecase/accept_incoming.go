@@ -10,8 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// AcceptIncoming accepts a pending transfer to the caller (a deposit). An external party
-// whose accept still waits for its signature gets that action back.
 func (u *UseCase) AcceptIncoming(ctx context.Context, input dto.AcceptIncomingInput) (dto.ActionsOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase AcceptIncoming")
 	defer span.End()
@@ -41,28 +39,12 @@ func (u *UseCase) AcceptIncoming(ctx context.Context, input dto.AcceptIncomingIn
 
 	transfer := transfers[i]
 
-	rules, err := u.tokenRules(ctx)
-	if err != nil {
-		return output, fmt.Errorf("u.tokenRules: %w", err)
-	}
+	intent.Description = fmt.Sprintf("Accept %s %s from %s", transfer.Amount, transfer.Symbol, transfer.SenderHint())
+	intent.Counterparty = transfer.Sender
 
-	inputs, err := u.lockedInputs(ctx, transfer)
+	action, err := u.accept(ctx, intent, transfer)
 	if err != nil {
 		return output, err
-	}
-
-	cmd, err := u.canton.AcceptTransferCommand(rules, inputs, transfer.ContractID)
-	if err != nil {
-		return output, fmt.Errorf("canton.AcceptTransferCommand: %w", err)
-	}
-
-	intent.Description = fmt.Sprintf("Accept %s %s from %s", transfer.Amount, transfer.InstrumentID,
-		transfer.SenderHint())
-	intent.Counterparty = transfer.Sender // its locked holding goes away; none for a mint
-
-	action, err := u.submit(ctx, intent, cmd, "accept:"+transfer.ContractID)
-	if err != nil {
-		return output, fmt.Errorf("u.submit: %w", err)
 	}
 
 	actions := collect(nil, action)
@@ -75,20 +57,22 @@ func (u *UseCase) AcceptIncoming(ctx context.Context, input dto.AcceptIncomingIn
 	return dto.ActionsOutput{Actions: actions}, nil
 }
 
-// lockedInputs are the sender's holdings the transfer locked, as their admin discloses them.
-func (u *UseCase) lockedInputs(ctx context.Context, transfer domain.IncomingTransfer) ([]domain.Disclosed, error) {
-	if len(transfer.Inputs) == 0 {
-		return nil, nil
+func (u *UseCase) accept(ctx context.Context, intent domain.Intent, transfer domain.IncomingTransfer,
+) (*domain.Action, error) {
+	inst, ok := u.config.Instruments.Of(transfer.Admin, transfer.InstrumentID)
+	if !ok {
+		return nil, domain.Errorf(domain.ErrUnknownInstrument, "%s of %s", transfer.InstrumentID, transfer.Admin)
 	}
 
-	tokens, err := u.canton.Tokens(ctx, u.operator)
+	cmd, err := u.registry.AcceptTransferCommand(ctx, inst.Registry, transfer.ContractID)
 	if err != nil {
-		return nil, fmt.Errorf("canton.Tokens: %w", err)
+		return nil, fmt.Errorf("registry.AcceptTransferCommand: %w", err)
 	}
 
-	inputs := slices.DeleteFunc(tokens, func(d domain.Disclosed) bool {
-		return !slices.Contains(transfer.Inputs, d.ContractID)
-	})
+	action, err := u.submit(ctx, intent, cmd, "accept:"+transfer.ContractID)
+	if err != nil {
+		return nil, fmt.Errorf("u.submit: %w", err)
+	}
 
-	return inputs, nil
+	return action, nil
 }

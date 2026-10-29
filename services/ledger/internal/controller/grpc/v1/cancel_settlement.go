@@ -15,5 +15,5 @@ func (h Handlers) CancelSettlement(
 		return nil, grpcError(ctx, err)
 	}
 
-	return &pb.CancelSettlementOutput{Cancelled: int32(output.Cancelled)}, nil //nolint:gosec // a handful per settlement
+	return &pb.CancelSettlementOutput{Cancelled: int32(output.Cancelled)}, nil //nolint:gosec
 }

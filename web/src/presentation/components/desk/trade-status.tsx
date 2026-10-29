@@ -1,8 +1,3 @@
-/**
- * A trade from accept to atomic settlement: what already happened, what this
- * browser is signing, what the desk is waiting for — and, once settled, what
- * moved, with the Canton update id as proof.
- */
 import { Check, Loader2, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { viewTrade } from "@/domain/trade";
@@ -25,7 +20,6 @@ export function TradeStatus({
   role,
 }: {
   rfq: Rfq;
-  /** The accepted (or won) quote. */
   quote?: Quote;
   trade?: Trade;
   role: "taker" | "maker";
@@ -36,7 +30,6 @@ export function TradeStatus({
   const instrument = useInstrument();
   const settled = trade?.status === "settled";
   const failed = trade?.status === "failed";
-  // The taker's allocation is the only signature a settlement needs from this browser.
   const signing = role === "taker" && !settled && !failed && pending.some((a) => a.purpose === "allocate");
   const price = trade?.price ?? quote?.price;
   const maker = trade?.maker ?? quote?.maker;

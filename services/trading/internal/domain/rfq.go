@@ -23,13 +23,11 @@ const (
 	MaxMakers = 10
 )
 
-// Party is a ledger party: the full party id and its public hint.
 type Party struct {
 	ID   string
 	Hint string
 }
 
-// RFQ is a taker's request for quotes on Qty of Base, paid in Quote, sent to chosen makers.
 type RFQ struct {
 	ID         uuid.UUID
 	TakerParty string
@@ -46,7 +44,6 @@ type RFQ struct {
 	ClosedAt   *time.Time
 }
 
-// RFQParams is what a taker asks for; NewRFQ validates it against the desk.
 type RFQParams struct {
 	Taker     Party
 	Direction Direction
@@ -142,7 +139,6 @@ func (r RFQ) HasMaker(partyID string) bool {
 	return false
 }
 
-// Parties are the taker followed by the makers: the audience of every RFQ event.
 func (r RFQ) Parties() []string {
 	parties := make([]string, 0, len(r.Makers)+1)
 	parties = append(parties, r.TakerParty)
@@ -154,7 +150,6 @@ func (r RFQ) Parties() []string {
 	return parties
 }
 
-// Close returns the RFQ in a terminal status.
 func (r RFQ) Close(status RFQStatus, at time.Time) RFQ {
 	r.Status = status
 	r.ClosedAt = &at

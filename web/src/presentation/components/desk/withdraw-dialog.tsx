@@ -1,7 +1,3 @@
-/**
- * Send holdings to any Canton party: the receiver is a full party id, and gets
- * a transfer offer to accept in their own wallet.
- */
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -17,7 +13,6 @@ import { formatAmount } from "@/presentation/lib/format";
 import { useSession } from "@/presentation/providers/session";
 import { TokenIcon } from "./token-icon";
 
-/** Mount it keyed by the symbol, so each open starts with an empty form. */
 export function WithdrawDialog({ balance, onClose }: { balance: Balance | null; onClose: () => void }) {
   const withdraw = useWithdraw();
   const { me } = useSession();

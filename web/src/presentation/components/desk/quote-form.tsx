@@ -1,8 +1,3 @@
-/**
- * The maker's quote: a price (quote units per one base unit) and how long it
- * stands. Sending it commits the maker's funds on the ledger (the quote IS the
- * allocation), so the receipt answers up front: what moves if this wins.
- */
 import { useId, useState } from "react";
 import { toast } from "sonner";
 import { cmpDecimal, isPositiveDecimal } from "@/domain/money";
@@ -36,7 +31,6 @@ export function QuoteForm({ rfq }: { rfq: Rfq }) {
   const show = (value: string | undefined, symbol: string, digits: number): string =>
     value === undefined ? "—" : `${formatAmount(value, digits)} ${symbol}`;
 
-  // The quote commits funds the moment it is sent: warn before the desk answers INSUFFICIENT_FUNDS.
   const short = (symbol: string, need: string): boolean => {
     const have = balances.data?.find((b) => b.symbol === symbol)?.available;
     return isPositiveDecimal(need) && have !== undefined && cmpDecimal(have, need) < 0;
@@ -57,7 +51,6 @@ export function QuoteForm({ rfq }: { rfq: Rfq }) {
     );
   const { act, locked, unlocking } = useUnlockThen(send);
 
-  // The maker takes the other side: delivering the base when the taker buys it, paying for it otherwise.
   const delivers = rfq.direction === "BUY";
 
   return (

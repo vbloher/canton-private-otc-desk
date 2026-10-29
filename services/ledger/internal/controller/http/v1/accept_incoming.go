@@ -24,7 +24,6 @@ func (h *Handlers) AcceptIncoming(
 	})
 	if err != nil {
 		switch {
-		// A transfer consumed meanwhile (accepted, withdrawn, its lock gone) is no longer pending.
 		case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrContractGone):
 			return http_server.AcceptIncoming404JSONResponse{NotFoundJSONResponse: notFound(ctx, err)}, nil
 		case errors.Is(err, domain.ErrLedger):

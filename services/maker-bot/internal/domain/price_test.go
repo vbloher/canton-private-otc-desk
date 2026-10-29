@@ -67,13 +67,13 @@ func Test_Prices_UnmarshalText(t *testing.T) {
 	}
 }
 
-func Test_Makers_UnmarshalText(t *testing.T) {
-	var makers domain.Makers
+func Test_Spread_UnmarshalText(t *testing.T) {
+	var spread domain.Spread
 
-	require.NoError(t, makers.UnmarshalText([]byte("demo-key-a:15,demo-key-b:40")))
-	require.Equal(t, domain.Makers{{APIKey: "demo-key-a", SpreadBps: 15}, {APIKey: "demo-key-b", SpreadBps: 40}}, makers)
+	require.NoError(t, spread.UnmarshalText([]byte("15")))
+	require.Equal(t, domain.Spread(15), spread)
 
-	for _, bad := range []string{"demo-key-a", "demo-key-a:x", ":15", "demo-key-a:-1", "demo-key-a:10000"} {
-		require.Error(t, new(domain.Makers).UnmarshalText([]byte(bad)), bad)
+	for _, bad := range []string{"", "x", "-1", "10000"} {
+		require.Error(t, new(domain.Spread).UnmarshalText([]byte(bad)), bad)
 	}
 }

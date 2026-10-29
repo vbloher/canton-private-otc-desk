@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// CreateChallenge issues the one-time text the wallet signs to connect, and hands over the wrapped
-// key the browser needs to do it.
 func (u *UseCase) CreateChallenge(
 	ctx context.Context, input dto.CreateChallengeInput,
 ) (dto.CreateChallengeOutput, error) {

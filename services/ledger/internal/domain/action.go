@@ -16,16 +16,12 @@ const (
 	ActionExpired  ActionStatus = "expired"
 )
 
-// Purposes of a sign action, as the wallet API shows them.
 const (
 	PurposeAllocate       = "allocate"
 	PurposeTransferAccept = "transfer-accept"
 	PurposeTransferOut    = "transfer-out"
 )
 
-// Intent is what a party's command is for: Ref names what it acts on (a settlement id, a
-// transfer contract id, or a withdrawal's receiver) and Counterparty is the other party
-// whose wallet its outcome changes (empty when there is none).
 type Intent struct {
 	PartyID      string
 	Purpose      string
@@ -34,7 +30,6 @@ type Intent struct {
 	Counterparty string
 }
 
-// Action is a prepared transaction of an external party waiting for its signature.
 type Action struct {
 	ID           uuid.UUID
 	PartyID      string
@@ -66,9 +61,6 @@ func NewAction(in Intent, prepared Prepared, now time.Time, ttl time.Duration) A
 	}
 }
 
-// Duplicates reports whether the action already stands for the intent, so it is handed back
-// instead of queuing another one. A withdrawal's ref is only its receiver: it duplicates only
-// a withdrawal of the same amount of the same instrument, which its description names.
 func (a Action) Duplicates(in Intent) bool {
 	if a.PartyID != in.PartyID || a.Purpose != in.Purpose || a.Ref != in.Ref {
 		return false
@@ -77,8 +69,6 @@ func (a Action) Duplicates(in Intent) bool {
 	return a.Purpose != PurposeTransferOut || a.Description == in.Description
 }
 
-// Executable checks that the party may sign the action now. Another party's action does
-// not exist for it.
 func (a Action) Executable(partyID string, now time.Time) error {
 	if a.PartyID != partyID {
 		return ErrNotFound
@@ -91,11 +81,6 @@ func (a Action) Executable(partyID string, now time.Time) error {
 	return nil
 }
 
-// Outcome is the action after the ledger answered its execution, and whether to record it.
-// Committed, or a duplicate of a command that has already landed, is executed. Nothing was
-// decided when the ledger was unavailable, or when the signature was made with another key
-// (another user's tab): the action stays pending for its party to sign. Any other rejection
-// failed it.
 func (a Action) Outcome(err error) (Action, bool) {
 	switch {
 	case err == nil || errors.Is(err, ErrDuplicateCommand):
@@ -107,7 +92,6 @@ func (a Action) Outcome(err error) (Action, bool) {
 	}
 }
 
-// Finished records the outcome of executing the action.
 func (a Action) Finished(err error) Action {
 	if err != nil {
 		a.Status = ActionFailed

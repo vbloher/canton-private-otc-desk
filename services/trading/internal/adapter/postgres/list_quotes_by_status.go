@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListQuotesByStatus returns every quote in one of the statuses, oldest first.
 func (p *Postgres) ListQuotesByStatus(ctx context.Context, statuses ...domain.QuoteStatus) ([]domain.Quote, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListQuotesByStatus")
 	defer span.End()

@@ -11,8 +11,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// GetSettlements says, per settlement, which parties have created all their allocations.
-// One read of the executor's allocations answers the whole batch.
 func (u *UseCase) GetSettlements(ctx context.Context, input dto.GetSettlementsInput) (dto.GetSettlementsOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase GetSettlements")
 	defer span.End()
@@ -31,7 +29,7 @@ func (u *UseCase) GetSettlements(ctx context.Context, input dto.GetSettlementsIn
 			return output, fmt.Errorf("settlement %s: %w", q.SettlementID, err)
 		}
 
-		plans[i] = domain.Plan(legs, u.operator)
+		plans[i] = domain.Plan(legs)
 	}
 
 	allocations, err := u.canton.Allocations(ctx, u.operator)

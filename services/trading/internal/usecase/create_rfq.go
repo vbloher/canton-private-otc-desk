@@ -60,7 +60,6 @@ func (u *UseCase) CreateRFQ(ctx context.Context, input dto.CreateRFQInput) (doma
 	return rfq, nil
 }
 
-// resolveMakers maps the hints, in order, to makers; a hint that is not a maker is ErrNotAMaker.
 func (u *UseCase) resolveMakers(ctx context.Context, hints []string) ([]domain.Party, error) {
 	found, err := u.identity.ResolveMakers(ctx, hints)
 	if err != nil {

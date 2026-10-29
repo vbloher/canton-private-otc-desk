@@ -3,7 +3,6 @@ package http_test
 import (
 	"context"
 	"encoding/json"
-	nethttp "net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -12,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	nethttp "net/http"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/decimal"
 	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
@@ -27,7 +28,6 @@ import (
 const Any = mock.Anything
 
 var (
-	// httpMetrics registers global collectors: one per test binary.
 	httpMetrics = metrics.NewHTTPServer()
 
 	alice  = principal.Principal{UserID: uuid.New(), PartyID: "alice::1220", Hint: "alice"}
@@ -73,7 +73,6 @@ func newServer(t *testing.T) (deps, *httptest.Server) {
 	return d, server
 }
 
-// call sends the request as the principal (none when nil) and decodes the JSON body.
 func call(t *testing.T, server *httptest.Server, method, path, body string, p *principal.Principal) (int, map[string]any) {
 	t.Helper()
 

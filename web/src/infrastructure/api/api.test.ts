@@ -10,7 +10,6 @@ interface Seen {
 const json = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
-/** A desk that answers from a route table ("POST /api/v1/rfqs") and records what it was sent. */
 function desk(routes: Record<string, () => Response>) {
   const seen: Seen[] = [];
   const fetch = async (input: Request | string | URL): Promise<Response> => {
@@ -136,6 +135,14 @@ describe("wallet api", () => {
     const { apis } = desk({ "POST /api/v1/wallet/faucet": () => json(202, { actions: [] }) });
 
     expect(await apis.wallet.faucet()).toEqual([]);
+  });
+
+  it("reads the network and what its faucet hands out", async () => {
+    const { apis } = desk({
+      "GET /api/v1/wallet/network": () => json(200, { name: "devnet", faucet: [{ symbol: "CBTC", amount: "0.01" }] }),
+    });
+
+    expect(await apis.wallet.network()).toEqual({ name: "devnet", faucet: [{ symbol: "CBTC", amount: "0.01" }] });
   });
 
   it("reports an unreachable desk as status 0, keeping the network error as the cause", async () => {

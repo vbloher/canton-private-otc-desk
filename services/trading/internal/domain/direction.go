@@ -1,6 +1,5 @@
 package domain
 
-// Direction is the taker's view: Buy means the taker buys the base instrument.
 type Direction string
 
 const (
@@ -17,7 +16,6 @@ func ParseDirection(s string) (Direction, error) {
 	}
 }
 
-// TakerBuys reports whether the taker is the buyer of the base instrument.
 func (d Direction) TakerBuys() bool {
 	return d == Buy
 }

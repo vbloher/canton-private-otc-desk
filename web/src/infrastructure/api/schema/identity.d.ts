@@ -203,9 +203,9 @@ export interface components {
             makerMode: boolean;
         };
         Maker: {
-            /** @example makerA */
+            /** @example otc-desk-maker */
             hint: string;
-            /** @example makerA */
+            /** @example otc-desk-maker */
             displayName: string;
         };
         /**

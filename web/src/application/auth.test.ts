@@ -17,17 +17,14 @@ const ME: Me = {
   makerMode: false,
 };
 
-/** The wallet behind the passkey "cred-bob". */
 const BOB: Me = { ...ME, id: "u-2", partyId: "bob-77aa01::1220cd", hint: "bob-77aa01", displayName: "Bob" };
 
-/** Seeds are 32 copies of one byte; the "public key" is "pk" + that byte; a signature is "<byte>:<message>". */
 const keys = (seedByte = 9): PartyKeys => ({
   generateSeed: () => new Uint8Array(32).fill(seedByte),
   publicKey: async (seed) => enc.encode(`pk${seed[0] ?? -1}`),
   signer: (seed) => ({ sign: async (m) => enc.encode(`${seed[0] ?? -1}:${dec.decode(m)}`) }),
 });
 
-/** A passkey's PRF key "wraps" a seed as "blob:<hex>" and opens only its own blobs. */
 function passkey(credentialId: string): UnlockedPasskey {
   return {
     credentialId,

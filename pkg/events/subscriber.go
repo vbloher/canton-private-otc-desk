@@ -17,8 +17,6 @@ func NewSubscriber(client *redis.Client) *Subscriber {
 	return &Subscriber{redis: client}
 }
 
-// Run delivers every event of every party to fn until ctx is done.
-// The underlying go-redis subscription reconnects on its own.
 func (s *Subscriber) Run(ctx context.Context, fn func(partyID string, payload []byte)) {
 	sub := s.redis.PSubscribe(ctx, channelPrefix+"*")
 

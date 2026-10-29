@@ -12,7 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// anHourAgo matches the start of the one-hour "recent" window.
 func anHourAgo() any {
 	return mock.MatchedBy(func(since time.Time) bool {
 		return time.Since(since) >= time.Hour && time.Since(since) < time.Hour+time.Minute
@@ -38,7 +37,7 @@ func Test_ListMyRFQs_HidesQuotesThatNeverLanded(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, []dto.RFQWithQuotes{
 		{RFQ: rfq, Quotes: []domain.Quote{open}},
-		{RFQ: quiet, Quotes: []domain.Quote{lapsed}}, // the price of a quote that never opened stays private
+		{RFQ: quiet, Quotes: []domain.Quote{lapsed}},
 	}, out)
 }
 

@@ -7,12 +7,10 @@ import (
 
 const sessionCookieName = "otc_session"
 
-// sessionCookie is the Set-Cookie value that signs the browser in for ttl.
 func (h *Handlers) sessionCookie(token string, ttl time.Duration) string {
 	return h.cookie(token, int(ttl/time.Second))
 }
 
-// clearedCookie is the Set-Cookie value that signs the browser out.
 func (h *Handlers) clearedCookie() string {
 	return h.cookie("", 0)
 }

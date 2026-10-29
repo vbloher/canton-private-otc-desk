@@ -1,7 +1,3 @@
-/**
- * The signed-in shell: session guard, sidebar, header (identity, log out), the
- * "signing is locked" banner, and toasts for trades that finish.
- */
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRight, Lock, LogOut } from "lucide-react";
 import { Navigate, Outlet, useLocation, useNavigate } from "react-router";
@@ -48,7 +44,6 @@ function Desk() {
   return (
     <div className="flex min-h-screen">
       <Sidebar />
-      {/* min-w-0 lets wide content scroll inside the column instead of widening the page */}
       <div className="flex min-w-0 flex-1 flex-col">
         <Header />
         <LockedBanner />
@@ -94,7 +89,6 @@ function Header() {
   );
 }
 
-/** After a reload the session survives but the key does not: say so, and what is waiting on it. */
 function LockedBanner() {
   const { locked } = useSession();
   const { pending } = useSigner();
@@ -120,7 +114,6 @@ function LockedBanner() {
   );
 }
 
-/** Every trade the user is part of ends in a toast, whichever page is open. */
 function useTradeToasts(): void {
   const navigate = useNavigate();
   useDeskEvent((event) => {

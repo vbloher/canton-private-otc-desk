@@ -39,12 +39,10 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// The Prometheus collectors are registered globally, so the whole test binary shares one set.
 var sharedMetrics = sync.OnceValue(metrics.NewHTTPServer)
 
 var alice = principal.Principal{UserID: uuid.New(), PartyID: "alice-3f9a1c::1220ab", Hint: "alice-3f9a1c"}
 
-// seen is what an echo upstream received.
 type seen struct {
 	Upstream string      `json:"upstream"`
 	Method   string      `json:"method"`
@@ -54,7 +52,6 @@ type seen struct {
 	Body     string      `json:"body"`
 }
 
-// upstream is a fake service that answers every request with a description of it.
 type upstream struct {
 	*httptest.Server
 
@@ -87,7 +84,6 @@ func startUpstream(t *testing.T, name string) *upstream {
 	return u
 }
 
-// gateway is the real router (middlewares included) in front of three echo upstreams.
 type gateway struct {
 	http.Handler
 
@@ -131,7 +127,6 @@ func (g *gateway) totalHits() int64 {
 	return g.identity.hits.Load() + g.trading.hits.Load() + g.ledger.hits.Load()
 }
 
-// identityKnowsAlice makes the session cookie "alice-session" and the API key "alice-key" valid.
 func identityKnowsAlice(t *testing.T) *mocks.Identity {
 	t.Helper()
 
@@ -251,8 +246,6 @@ func Test_Proxy_StripsSpoofedHeaders(t *testing.T) {
 func Test_Proxy_ConnectionHeaderCannotDropPrincipal(t *testing.T) {
 	g := newGateway(t, identityKnowsAlice(t))
 
-	// A proxy that adds its headers first and strips hop-by-hop headers afterwards lets the client delete them
-	// by naming them in Connection. The principal must survive that.
 	rec := do(t, g, http.MethodGet, "/api/v1/trades", "",
 		withSession("alice-session"),
 		withHeader("Connection", "X-User-Id, X-Party-Id, X-Party-Hint"),
@@ -265,7 +258,6 @@ func Test_Proxy_ConnectionHeaderCannotDropPrincipal(t *testing.T) {
 }
 
 func Test_Proxy_PublicAuthRoutes(t *testing.T) {
-	// No expectations on identity: a public route must not even try to authenticate.
 	g := newGateway(t, mocks.NewIdentity(t))
 
 	rec := do(t, g, http.MethodPost, "/api/v1/auth/challenge", `{"credentialId":"c1"}`,
@@ -292,8 +284,6 @@ func Test_Proxy_IdentityKeepsCookieForLogout(t *testing.T) {
 	require.Equal(t, []string{domain.SessionCookie + "=alice-session"}, got.Header.Values("Cookie"), "identity reads the session cookie itself")
 }
 
-// The gateway authenticates and tells the services who is calling. A service that is never handed a session
-// token or an API key cannot leak one, however exposed or compromised it is.
 func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 	g := newGateway(t, identityKnowsAlice(t))
 
@@ -322,7 +312,6 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 	}
 }
 
-// Identity authenticates API keys over gRPC; it never needs the header, not even on its public routes.
 func Test_Proxy_IdentityNeverSeesAPIKey(t *testing.T) {
 	g := newGateway(t, identityKnowsAlice(t))
 
@@ -374,7 +363,6 @@ func Test_Proxy_Unauthorized(t *testing.T) {
 func Test_Proxy_APIKeyWinsOverCookie(t *testing.T) {
 	maker := principal.Principal{UserID: uuid.New(), PartyID: "makerA::1220cd", Hint: "makerA"}
 
-	// The mock fails the test if the cookie is looked up as well.
 	idp := mocks.NewIdentity(t)
 	idp.EXPECT().AuthenticateAPIKey(Any, "demo-key-a").Return(maker, nil)
 
@@ -407,7 +395,7 @@ func Test_Proxy_IdentityOutage(t *testing.T) {
 func Test_Proxy_UpstreamDown(t *testing.T) {
 	g := newGateway(t, identityKnowsAlice(t))
 
-	g.trading.Close() // the connection is refused from now on
+	g.trading.Close()
 
 	rec := do(t, g, http.MethodGet, "/api/v1/trades", "", withSession("alice-session"))
 
@@ -415,7 +403,6 @@ func Test_Proxy_UpstreamDown(t *testing.T) {
 	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
 	require.JSONEq(t, `{"error":"upstream unavailable"}`, rec.Body.String())
 
-	// The other services are unaffected.
 	require.Equal(t, ledgerName, echo(t, do(t, g, http.MethodGet, "/api/v1/instruments", "", withSession("alice-session"))).Upstream)
 }
 

@@ -42,7 +42,6 @@ func quoteOf(rfq domain.RFQ, price string) domain.Quote {
 	}
 }
 
-// show renders legs as text: decimals compare by value, not by their big.Int internals.
 func show(legs []domain.Leg) []string {
 	out := make([]string, 0, len(legs))
 
@@ -83,7 +82,6 @@ func Test_Legs_FeeFloorsToZeroIsOmitted(t *testing.T) {
 		qty    string
 		feeBps int64
 	}{
-		// notional 0.00000005 × 10 bps = 0.00000000005, below the tenth fraction digit
 		{"fee floors to zero", "0.00000005", 10},
 		{"no desk fee", "0.5", 0},
 	}
@@ -106,7 +104,6 @@ func Test_Legs_DustRejected(t *testing.T) {
 	cases := []struct {
 		name, qty, price string
 	}{
-		// 0.0000000001 × 0.5 floors to zero at ten fraction digits
 		{"quote leg floors to zero", "0.0000000001", "0.5"},
 		{"zero base leg", "0", "100000"},
 	}
@@ -151,7 +148,6 @@ func Test_Allocated_RequiresEveryParty(t *testing.T) {
 	require.False(t, domain.Allocated(legs, nil))
 }
 
-// NoneAllocated needs the ledger's answer for every party: a party it did not report is unknown.
 func Test_NoneAllocated_NeedsAnAnswerForEveryParty(t *testing.T) {
 	rfq := rfqOf(domain.Buy, "0.5", 10)
 

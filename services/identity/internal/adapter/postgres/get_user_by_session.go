@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// GetUserBySession finds the owner of a session that has not expired at now.
 func (p *Postgres) GetUserBySession(ctx context.Context, tokenHash string, now time.Time) (domain.User, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres GetUserBySession")
 	defer span.End()

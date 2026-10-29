@@ -1,4 +1,3 @@
-/** One label–value line of a receipt or summary, the value in tabular figures. */
 export function DetailRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4">

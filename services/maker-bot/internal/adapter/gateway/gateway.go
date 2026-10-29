@@ -1,4 +1,3 @@
-// Package gateway calls the desk's public trading API through the gateway, as a house maker.
 package gateway
 
 import (
@@ -14,7 +13,6 @@ import (
 	http_client "github.com/vbloher/canton-private-otc-desk/gen/http/trading_v1/client"
 )
 
-// makerHeader carries the maker's API key: X-API-Key in canonical form.
 const makerHeader = "X-Api-Key"
 
 var ErrUnexpectedStatus = errors.New("gateway: unexpected status")
@@ -42,7 +40,6 @@ func New(c Config) (*Gateway, error) {
 	return &Gateway{client: client}, nil
 }
 
-// asMaker authenticates one request with the maker's API key.
 func asMaker(apiKey string) http_client.RequestEditorFn {
 	return func(_ context.Context, req *http.Request) error {
 		req.Header.Set(makerHeader, apiKey)

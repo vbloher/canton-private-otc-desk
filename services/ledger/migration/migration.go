@@ -1,4 +1,3 @@
-// Package migration embeds the ledger service's schema, applied on start.
 package migration
 
 import "embed"

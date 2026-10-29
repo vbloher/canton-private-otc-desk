@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListTrades returns the party's trades in either role, newest first.
 func (u *UseCase) ListTrades(ctx context.Context, party domain.Party) ([]domain.Trade, error) {
 	ctx, span := tracer.Start(ctx, "usecase ListTrades")
 	defer span.End()

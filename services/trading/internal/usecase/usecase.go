@@ -15,15 +15,12 @@ import (
 //go:generate go tool mockery --config=../../.mockery.yml
 
 const (
-	// recentWindow is how long a closed RFQ stays in the taker's and the makers' lists.
 	recentWindow = time.Hour
 	listLimit    = 100
 
-	// bpsOfTheNotional is 100% in basis points.
 	bpsOfTheNotional = 10_000
 )
 
-// ErrInvalidConfig is a use case setting out of range.
 var ErrInvalidConfig = errors.New("invalid config")
 
 type Config struct {
@@ -31,8 +28,6 @@ type Config struct {
 	SettleTimeout time.Duration `env:"SETTLE_TIMEOUT" envDefault:"10m"`
 }
 
-// Validate checks the settings at load: the desk fee is neither negative nor 100% of the notional
-// or more, and the settlement timeout is positive.
 func (c Config) Validate() error {
 	if c.FeeBps < 0 || c.FeeBps >= bpsOfTheNotional {
 		return fmt.Errorf("%w: FEE_BPS must be between 0 and %d, got %d", ErrInvalidConfig, bpsOfTheNotional-1, c.FeeBps)
@@ -49,10 +44,7 @@ type Transactor interface {
 	Wrap(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
-// Postgres is the RFQ book. Every status change of an RFQ, its quotes or its trade runs in a
-// transaction that locks the RFQ row first and the quote row second, so they never deadlock.
-//
-//nolint:interfacebloat // one port for the book, as the template
+//nolint:interfacebloat
 type Postgres interface {
 	CreateRFQ(ctx context.Context, rfq domain.RFQ) error
 	GetRFQForUpdate(ctx context.Context, id uuid.UUID) (domain.RFQ, error)
@@ -61,9 +53,9 @@ type Postgres interface {
 	ListTakerRFQs(ctx context.Context, taker string, since time.Time) ([]domain.RFQ, error)
 	ListMakerRFQs(ctx context.Context, maker string, since time.Time) ([]domain.RFQ, error)
 	ListRFQHistory(ctx context.Context, taker string, limit int) ([]domain.RFQ, error)
-	ListExpiredRFQs(ctx context.Context, now time.Time) ([]domain.RFQ, error) // open, deadline passed, no settling trade
+	ListExpiredRFQs(ctx context.Context, now time.Time) ([]domain.RFQ, error)
 
-	CreateQuote(ctx context.Context, q domain.Quote) error // ErrAlreadyQuoted when the maker quoted the RFQ before
+	CreateQuote(ctx context.Context, q domain.Quote) error
 	GetQuote(ctx context.Context, id uuid.UUID) (domain.Quote, error)
 	GetQuoteForUpdate(ctx context.Context, id uuid.UUID) (domain.Quote, error)
 	UpdateQuote(ctx context.Context, q domain.Quote) error
@@ -77,17 +69,15 @@ type Postgres interface {
 }
 
 type Ledger interface {
-	Desk(ctx context.Context) (domain.Desk, error) // operator + instrument symbols
+	Desk(ctx context.Context) (domain.Desk, error)
 	Allocate(ctx context.Context, settlementID uuid.UUID, deadline time.Time, legs []domain.Leg,
 		party, description string) error
-	// Settlements reports, per settlement id, which parties have created all of their allocations.
 	Settlements(ctx context.Context, queries map[uuid.UUID][]domain.Leg) (map[uuid.UUID]map[string]bool, error)
 	Settle(ctx context.Context, settlementID uuid.UUID, legs []domain.Leg) (string, error)
 	CancelSettlement(ctx context.Context, settlementID uuid.UUID) error
 }
 
 type Identity interface {
-	// ResolveMakers returns the makers among the hints; unknown hints are left out.
 	ResolveMakers(ctx context.Context, hints []string) ([]domain.Party, error)
 }
 
@@ -124,7 +114,6 @@ func New(
 	}
 }
 
-// deal is a quote with its RFQ and settlement legs, and the trade once the quote is accepted.
 type deal struct {
 	rfq   domain.RFQ
 	quote domain.Quote

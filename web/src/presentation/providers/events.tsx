@@ -1,9 +1,3 @@
-/**
- * The live event stream while signed in. Each event invalidates the reads it
- * made stale (application/event-invalidation), and some once more a moment
- * later, since the ledger commits after it acknowledged; a (re)connect re-reads
- * everything, since anything may have happened while the socket was down.
- */
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, use, useCallback, useEffect, useEffectEvent, useMemo, useState, type ReactNode } from "react";
 import { invalidationsFor, LATE_REFRESH_MS, lateInvalidationsFor } from "@/application/event-invalidation";
@@ -23,7 +17,6 @@ const EventsContext = createContext<Events | null>(null);
 export function EventsProvider({ children }: { children: ReactNode }) {
   const services = useServices();
   const qc = useQueryClient();
-  // The stream belongs to one identity: when it changes (an unlock that switched wallets), reconnect.
   const userId = useSession().me?.id ?? null;
   const signedIn = userId !== null;
   const [status, setStatus] = useState<SocketStatus>("offline");
@@ -79,7 +72,6 @@ export function useSocketStatus(): SocketStatus {
   return useEvents().status;
 }
 
-/** Run `handler` for every desk event while the component is mounted. */
 export function useDeskEvent(handler: (event: DeskEvent) => void): void {
   const { subscribe } = useEvents();
   const onEvent = useEffectEvent(handler);

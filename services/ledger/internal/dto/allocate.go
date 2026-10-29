@@ -15,6 +15,6 @@ type AllocateInput struct {
 }
 
 type AllocateOutput struct {
-	Executed  bool // the desk submitted the allocations itself (hosted party)
+	Executed  bool
 	ActionIDs []uuid.UUID
 }

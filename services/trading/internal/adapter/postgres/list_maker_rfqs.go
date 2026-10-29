@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListMakerRFQs returns the open RFQs sent to the maker and those closed since, newest first.
 func (p *Postgres) ListMakerRFQs(ctx context.Context, maker string, since time.Time) ([]domain.RFQ, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListMakerRFQs")
 	defer span.End()

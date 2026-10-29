@@ -8,9 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// UpsertHouseUser inserts a house maker, or brings an existing one (same hint) up to date with the
-// configuration: its party, API key and maker mode. Its id and creation time stay.
-// A hint that belongs to a wallet is never touched, and is an error: the house maker was not saved.
 func (p *Postgres) UpsertHouseUser(ctx context.Context, user domain.User) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres UpsertHouseUser")
 	defer span.End()
@@ -42,8 +39,6 @@ func (p *Postgres) UpsertHouseUser(ctx context.Context, user domain.User) error 
 		return fmt.Errorf("txOrPool.Exec: %w", err)
 	}
 
-	// An insert or an update of a house maker changes one row. None means the WHERE clause above
-	// held the update back, because the hint is a wallet's.
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("hint %q belongs to a wallet, not to a house maker", user.Hint)
 	}

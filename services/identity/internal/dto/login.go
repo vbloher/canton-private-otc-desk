@@ -12,7 +12,6 @@ type LoginInput struct {
 	CredentialID string
 }
 
-// LoginOutput carries the new session: Token goes into the cookie for TTL.
 type LoginOutput struct {
 	User  domain.User
 	Token string

@@ -13,7 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// GetDesk reports a miss on any failure: the caller then reads the ledger.
 func (r *Redis) GetDesk(ctx context.Context) (domain.Desk, bool) {
 	ctx, span := tracer.Start(ctx, "adapter redis GetDesk")
 	defer span.End()

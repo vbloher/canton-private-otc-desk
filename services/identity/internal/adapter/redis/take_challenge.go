@@ -13,8 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// TakeChallenge returns the wallet a challenge was issued to and removes the challenge in the same
-// step: it works once. An unknown, used or expired challenge is unauthorized.
 func (r *Redis) TakeChallenge(ctx context.Context, challenge string) (uuid.UUID, error) {
 	ctx, span := tracer.Start(ctx, "adapter redis TakeChallenge")
 	defer span.End()

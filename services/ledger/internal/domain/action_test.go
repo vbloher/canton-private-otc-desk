@@ -11,25 +11,31 @@ import (
 )
 
 func Test_Action_Duplicates(t *testing.T) {
-	allocate := domain.Intent{PartyID: "alice", Purpose: domain.PurposeAllocate, Ref: "s-1",
-		Description: "Allocate 1.0 CBTC for quote s-1"}
+	allocate := domain.Intent{
+		PartyID: "alice", Purpose: domain.PurposeAllocate, Ref: "s-1",
+		Description: "Allocate 1.0 CBTC for quote s-1",
+	}
 	action := domain.NewAction(allocate, domain.Prepared{Hash: []byte("h")}, time.Now(), time.Minute)
 
 	require.True(t, action.Duplicates(allocate))
-	// Any pending allocation of the settlement stands for the party's whole Allocate call.
-	require.True(t, action.Duplicates(domain.Intent{PartyID: "alice", Purpose: domain.PurposeAllocate, Ref: "s-1",
-		Description: "Allocate receipt of USDCx for quote s-1"}))
+	require.True(t, action.Duplicates(domain.Intent{
+		PartyID: "alice", Purpose: domain.PurposeAllocate, Ref: "s-1",
+		Description: "Allocate receipt of USDCx for quote s-1",
+	}))
 	require.False(t, action.Duplicates(domain.Intent{PartyID: "bob", Purpose: domain.PurposeAllocate, Ref: "s-1"}))
 	require.False(t, action.Duplicates(domain.Intent{PartyID: "alice", Purpose: domain.PurposeAllocate, Ref: "s-2"}))
 
-	// A withdrawal's ref is its receiver: only the same amount of the same instrument is a duplicate.
-	withdraw := domain.Intent{PartyID: "alice", Purpose: domain.PurposeTransferOut, Ref: "bob::1220",
-		Description: "Withdraw 1.0 CBTC to bob", Counterparty: "bob::1220"}
+	withdraw := domain.Intent{
+		PartyID: "alice", Purpose: domain.PurposeTransferOut, Ref: "bob::1220",
+		Description: "Withdraw 1.0 CBTC to bob", Counterparty: "bob::1220",
+	}
 	pending := domain.NewAction(withdraw, domain.Prepared{}, time.Now(), time.Minute)
 
 	require.True(t, pending.Duplicates(withdraw))
-	require.False(t, pending.Duplicates(domain.Intent{PartyID: "alice", Purpose: domain.PurposeTransferOut,
-		Ref: "bob::1220", Description: "Withdraw 2.0 CETH to bob"}))
+	require.False(t, pending.Duplicates(domain.Intent{
+		PartyID: "alice", Purpose: domain.PurposeTransferOut,
+		Ref: "bob::1220", Description: "Withdraw 2.0 CETH to bob",
+	}))
 	require.Equal(t, "bob::1220", pending.Counterparty)
 }
 
@@ -39,7 +45,6 @@ func Test_Invalidf_KeepsTheReason(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrValidation)
 	require.True(t, domain.IsInvalidInput(err))
 	require.EqualError(t, err, `validation failed: amount "0" is not a positive decimal`)
-	// errors.Unwrap stops here, so pkg/render shows the client the whole message.
 	require.NoError(t, errorsUnwrap(err))
 }
 
@@ -51,17 +56,14 @@ func Test_Action_Outcome(t *testing.T) {
 	require.True(t, record)
 	require.Equal(t, domain.ActionExecuted, executed.Status)
 
-	// An earlier execution under the same command id has landed.
 	duplicate, record := pending.Outcome(fmt.Errorf("%w: %w", domain.ErrLedger, domain.ErrDuplicateCommand))
 	require.True(t, record)
 	require.Equal(t, domain.ActionExecuted, duplicate.Status)
 
-	// The ledger decided nothing: keep it pending for a retry.
 	unchanged, record := pending.Outcome(fmt.Errorf("%w: %w", domain.ErrLedger, domain.ErrLedgerUnavailable))
 	require.False(t, record)
 	require.Equal(t, pending, unchanged)
 
-	// Signed with another key (another user's tab): the transaction itself is still good.
 	wrongKey, record := pending.Outcome(fmt.Errorf("%w: FAILED_TO_EXECUTE_TRANSACTION", domain.ErrSignatureRejected))
 	require.False(t, record)
 	require.Equal(t, pending, wrongKey)

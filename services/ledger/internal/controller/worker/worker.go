@@ -1,4 +1,3 @@
-// Package worker runs the ledger service's background job: expiring unsigned actions.
 package worker
 
 import (

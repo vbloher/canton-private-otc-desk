@@ -1,9 +1,3 @@
-/**
- * The query cache. Every failed mutation shows a toast with the API's own
- * error text; a failed read toasts once (deduplicated by query), except quiet
- * background polls. A 401 anywhere means the session ended: `me` is re-read
- * and the desk guard sends the user to sign in.
- */
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -13,7 +7,6 @@ import { queryKeys } from "@/application/query-keys";
 declare module "@tanstack/react-query" {
   interface Register {
     queryMeta: {
-      /** A background poll: its failures stay silent (the socket badge and retries cover them). */
       quiet?: boolean;
     };
   }

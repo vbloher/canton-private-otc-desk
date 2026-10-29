@@ -1,8 +1,3 @@
-/**
- * The application's API ports over HTTP: openapi-fetch clients typed by the
- * generated schemas (pnpm gen:api), one per contract, all on /api/v1 of the
- * page's own origin (the session cookie rides along).
- */
 import createClient from "openapi-fetch";
 import { isApiFailure } from "@/application/errors";
 import type { AuthApi, DeskApi, WalletApi } from "@/application/ports";
@@ -16,6 +11,7 @@ import {
   toInstrument,
   toMaker,
   toMe,
+  toNetwork,
   toQuote,
   toRegistration,
   toRfq,
@@ -28,7 +24,6 @@ import type { paths as TradingPaths } from "./schema/trading";
 import type { paths as WalletPaths } from "./schema/wallet";
 
 export interface HttpApiOptions {
-  /** Absolute base, e.g. `${location.origin}/api/v1`. */
   baseUrl: string;
   fetch?: (input: Request) => Promise<Response>;
 }
@@ -45,7 +40,6 @@ interface Answer<D> {
   response: Response;
 }
 
-/** The data of a 2xx answer; an error answer becomes an ApiError, a lost request an unreachable one. */
 async function unwrap<D>(pending: Promise<Answer<D>>): Promise<D> {
   let answer: Answer<D>;
   try {
@@ -57,7 +51,6 @@ async function unwrap<D>(pending: Promise<Answer<D>>): Promise<D> {
   return answer.data as D;
 }
 
-/** For 204 answers. */
 async function done(pending: Promise<Answer<unknown>>): Promise<void> {
   await unwrap(pending);
 }
@@ -136,6 +129,7 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
 
   const walletApi: WalletApi = {
     instruments: async () => (await unwrap(wallet.GET("/instruments"))).map(toInstrument),
+    network: async () => toNetwork(await unwrap(wallet.GET("/wallet/network"))),
     balances: async () => (await unwrap(wallet.GET("/wallet/balances"))).map(toBalance),
     incoming: async () => (await unwrap(wallet.GET("/wallet/incoming"))).map(toIncomingTransfer),
     acceptIncoming: async (contractId) =>

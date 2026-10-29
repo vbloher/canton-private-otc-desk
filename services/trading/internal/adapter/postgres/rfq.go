@@ -15,7 +15,6 @@ import (
 const rfqColumns = `id, taker_party, taker_hint, direction, qty::text, base, quote, makers, fee_bps,
                     deadline, status, created_at, closed_at`
 
-// party is a maker as stored in rfqs.makers.
 type party struct {
 	ID   string `json:"id"`
 	Hint string `json:"hint"`

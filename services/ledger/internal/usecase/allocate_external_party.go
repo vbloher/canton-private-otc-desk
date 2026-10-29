@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// AllocateExternalParty is step 2 of onboarding: the topology, signed, hosts the party.
 func (u *UseCase) AllocateExternalParty(
 	ctx context.Context, input dto.AllocateExternalPartyInput,
 ) (dto.AllocateExternalPartyOutput, error) {

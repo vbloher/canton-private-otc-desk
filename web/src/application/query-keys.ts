@@ -1,7 +1,3 @@
-/**
- * Cache keys of every server read. Prefixes group them: invalidating ["rfqs"]
- * refreshes mine, incoming and history at once.
- */
 export type QueryKey = readonly string[];
 
 export const queryKeys = {
@@ -9,6 +5,7 @@ export const queryKeys = {
   makers: ["makers"],
   desk: ["desk"],
   instruments: ["instruments"],
+  network: ["network"],
   rfqs: ["rfqs"],
   myRfqs: ["rfqs", "mine"],
   incomingRfqs: ["rfqs", "incoming"],

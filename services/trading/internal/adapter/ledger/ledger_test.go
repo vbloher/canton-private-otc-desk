@@ -109,12 +109,18 @@ func Test_Ledger_MapsErrors(t *testing.T) {
 			"insufficient funds", status.Error(codes.FailedPrecondition, "insufficient funds: need 0.5 CBTC, held 0.1"),
 			domain.ErrInsufficientFunds, "insufficient funds: need 0.5 CBTC, held 0.1",
 		},
-		{"bare insufficient funds", status.Error(codes.FailedPrecondition, "insufficient funds"),
-			domain.ErrInsufficientFunds, "insufficient funds"},
-		{"other precondition", status.Error(codes.FailedPrecondition, "settlement deadline passed"),
-			domain.ErrUpstream, ""},
-		{"invalid argument", status.Error(codes.InvalidArgument, "unknown instrument DOGE"),
-			domain.ErrValidation, "validation failed: unknown instrument DOGE"},
+		{
+			"bare insufficient funds", status.Error(codes.FailedPrecondition, "insufficient funds"),
+			domain.ErrInsufficientFunds, "insufficient funds",
+		},
+		{
+			"other precondition", status.Error(codes.FailedPrecondition, "settlement deadline passed"),
+			domain.ErrUpstream, "",
+		},
+		{
+			"invalid argument", status.Error(codes.InvalidArgument, "unknown instrument DOGE"),
+			domain.ErrValidation, "validation failed: unknown instrument DOGE",
+		},
 		{"ledger down", status.Error(codes.Unavailable, "connection refused"), domain.ErrUpstream, ""},
 		{"not found", status.Error(codes.NotFound, "unknown party"), domain.ErrUpstream, ""},
 		{"internal", status.Error(codes.Internal, "canton said no"), domain.ErrUpstream, ""},
@@ -170,7 +176,6 @@ func Test_Ledger_DownIsUpstream(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrUpstream)
 }
 
-// The ledger finds no allocation left for the settlement: Settle reports the settlement gone.
 func Test_Ledger_SettleOfConsumedAllocationsIsGone(t *testing.T) {
 	client := serve(t, &fakeLedger{
 		settleErr: status.Error(codes.NotFound, "request failed: not found: settlement has no allocation for makerA"),

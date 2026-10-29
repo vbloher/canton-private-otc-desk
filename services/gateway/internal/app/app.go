@@ -20,7 +20,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase"
 )
 
-// identityTimeout bounds one authentication call. It runs before every request, so it must not hang.
 const identityTimeout = 5 * time.Second
 
 func Run(ctx context.Context, c config.Config) error {
@@ -30,7 +29,6 @@ func Run(ctx context.Context, c config.Config) error {
 	}
 	defer redisClient.Close()
 
-	// The connection is lazy: the gateway starts without identity and answers 502 until it is up.
 	identityConn, err := grpcclient.New(c.Identity.Addr, identityTimeout)
 	if err != nil {
 		return fmt.Errorf("grpcclient.New: %w", err)
@@ -73,8 +71,6 @@ func Run(ctx context.Context, c config.Config) error {
 	return nil
 }
 
-// feedHub runs the one events subscriber of the process and hands every Redis payload to the hub.
-// The returned function stops the subscriber and waits for it.
 func feedHub(ctx context.Context, subscriber *events.Subscriber, hub *ws.Hub) (stop func()) {
 	ctx, cancel := context.WithCancel(ctx)
 	done := make(chan struct{})

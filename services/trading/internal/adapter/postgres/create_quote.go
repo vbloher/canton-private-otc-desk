@@ -13,7 +13,6 @@ import (
 
 const uniqueViolation = "23505"
 
-// CreateQuote saves a new quote; a second quote of the same maker on the RFQ is ErrAlreadyQuoted.
 func (p *Postgres) CreateQuote(ctx context.Context, q domain.Quote) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres CreateQuote")
 	defer span.End()

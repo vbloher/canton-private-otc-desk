@@ -7,7 +7,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 )
 
-// DeleteSession ends a session; a session that does not exist is already ended.
 func (p *Postgres) DeleteSession(ctx context.Context, tokenHash string) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres DeleteSession")
 	defer span.End()

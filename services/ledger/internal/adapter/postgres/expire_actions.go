@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// ExpireActions marks every pending action past its expiry as expired and returns them.
 func (p *Postgres) ExpireActions(ctx context.Context, now time.Time) ([]domain.Action, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ExpireActions")
 	defer span.End()

@@ -22,6 +22,27 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for NetworkName.
+const (
+	NetworkNameDevnet  NetworkName = "devnet"
+	NetworkNameMainnet NetworkName = "mainnet"
+	NetworkNameTestnet NetworkName = "testnet"
+)
+
+// Valid indicates whether the value is a known member of the NetworkName enum.
+func (e NetworkName) Valid() bool {
+	switch e {
+	case NetworkNameDevnet:
+		return true
+	case NetworkNameMainnet:
+		return true
+	case NetworkNameTestnet:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SignActionPurpose.
 const (
 	SignActionPurposeAllocate       SignActionPurpose = "allocate"
@@ -67,6 +88,17 @@ type Balance struct {
 // Example: 1.5
 type Decimal = string
 
+// Drip defines model for Drip.
+type Drip struct {
+	// Amount Decimal with at most 10 fraction digits
+	//
+	// Example: 1.5
+	Amount Decimal `json:"amount"`
+
+	// Symbol Example: CBTC
+	Symbol string `json:"symbol"`
+}
+
 // Error Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type Error struct {
 	Code  *string `json:"code,omitempty"`
@@ -106,6 +138,16 @@ type Instrument struct {
 	Symbol string `json:"symbol"`
 }
 
+// Network defines model for Network.
+type Network struct {
+	// Faucet What one faucet drip sends; empty when the network has no faucet
+	Faucet []Drip      `json:"faucet"`
+	Name   NetworkName `json:"name"`
+}
+
+// NetworkName defines model for Network.Name.
+type NetworkName string
+
 // SignAction defines model for SignAction.
 type SignAction struct {
 	CreatedAt time.Time `json:"createdAt"`
@@ -132,7 +174,7 @@ type WithdrawInput struct {
 
 	// Receiver Full party id of the receiver
 	//
-	// Example: makerB::122096feab
+	// Example: bob::122096feab
 	Receiver string `json:"receiver"`
 
 	// Symbol Example: CBTC
@@ -153,6 +195,9 @@ type InternalError = Error
 
 // NotFound Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type NotFound = Error
+
+// TooManyRequests Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
+type TooManyRequests = Error
 
 // Unauthorized Example: {"code":"INSUFFICIENT_FUNDS","error":"request failed: insufficient funds: CBTC"}
 type Unauthorized = Error
@@ -177,7 +222,7 @@ type ServerInterface interface {
 	// GetBalances The caller's balances, every instrument included
 	// (GET /wallet/balances)
 	GetBalances(w http.ResponseWriter, r *http.Request)
-	// Faucet Mint test tokens to the caller (local sandbox only)
+	// Faucet Send DevNet test tokens from the desk's reservoir to the caller
 	// (POST /wallet/faucet)
 	Faucet(w http.ResponseWriter, r *http.Request)
 	// ListIncoming Transfers to the caller waiting for acceptance
@@ -186,6 +231,9 @@ type ServerInterface interface {
 	// AcceptIncoming Accept an incoming transfer
 	// (POST /wallet/incoming/{contractId}/accept)
 	AcceptIncoming(w http.ResponseWriter, r *http.Request, contractID string)
+	// GetNetwork The Canton network the desk is on and what its faucet hands out
+	// (GET /wallet/network)
+	GetNetwork(w http.ResponseWriter, r *http.Request)
 	// Withdraw Send holdings to any Canton party (it receives a transfer offer to accept)
 	// (POST /wallet/withdraw)
 	Withdraw(w http.ResponseWriter, r *http.Request)
@@ -219,7 +267,7 @@ func (_ Unimplemented) GetBalances(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
-// Faucet Mint test tokens to the caller (local sandbox only)
+// Faucet Send DevNet test tokens from the desk's reservoir to the caller
 // (POST /wallet/faucet)
 func (_ Unimplemented) Faucet(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -234,6 +282,12 @@ func (_ Unimplemented) ListIncoming(w http.ResponseWriter, r *http.Request) {
 // AcceptIncoming Accept an incoming transfer
 // (POST /wallet/incoming/{contractId}/accept)
 func (_ Unimplemented) AcceptIncoming(w http.ResponseWriter, r *http.Request, contractID string) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// GetNetwork The Canton network the desk is on and what its faucet hands out
+// (GET /wallet/network)
+func (_ Unimplemented) GetNetwork(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -365,6 +419,20 @@ func (siw *ServerInterfaceWrapper) AcceptIncoming(w http.ResponseWriter, r *http
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.AcceptIncoming(w, r, contractID)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// GetNetwork operation middleware
+func (siw *ServerInterfaceWrapper) GetNetwork(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.GetNetwork(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -517,6 +585,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/wallet/withdraw", wrapper.Withdraw)
 	})
 	r.Group(func(r chi.Router) {
+		r.Get(options.BaseURL+"/wallet/network", wrapper.GetNetwork)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/wallet/faucet", wrapper.Faucet)
 	})
 	r.Group(func(r chi.Router) {
@@ -538,6 +609,8 @@ type ConflictJSONResponse Error
 type InternalErrorJSONResponse Error
 
 type NotFoundJSONResponse Error
+
+type TooManyRequestsJSONResponse Error
 
 type UnauthorizedJSONResponse Error
 
@@ -824,6 +897,20 @@ func (response Faucet202JSONResponse) VisitFaucetResponse(w http.ResponseWriter)
 	return err
 }
 
+type Faucet400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response Faucet400JSONResponse) VisitFaucetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type Faucet401JSONResponse struct{ UnauthorizedJSONResponse }
 
 func (response Faucet401JSONResponse) VisitFaucetResponse(w http.ResponseWriter) error {
@@ -834,6 +921,34 @@ func (response Faucet401JSONResponse) VisitFaucetResponse(w http.ResponseWriter)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Faucet404JSONResponse struct{ NotFoundJSONResponse }
+
+func (response Faucet404JSONResponse) VisitFaucetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type Faucet429JSONResponse struct{ TooManyRequestsJSONResponse }
+
+func (response Faucet429JSONResponse) VisitFaucetResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(429)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -1007,6 +1122,55 @@ func (response AcceptIncoming502JSONResponse) VisitAcceptIncomingResponse(w http
 	return err
 }
 
+type GetNetworkRequestObject struct {
+}
+
+type GetNetworkResponseObject interface {
+	VisitGetNetworkResponse(w http.ResponseWriter) error
+}
+
+type GetNetwork200JSONResponse Network
+
+func (response GetNetwork200JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetwork401JSONResponse struct{ UnauthorizedJSONResponse }
+
+func (response GetNetwork401JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetNetwork500JSONResponse struct{ InternalErrorJSONResponse }
+
+func (response GetNetwork500JSONResponse) VisitGetNetworkResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type WithdrawRequestObject struct {
 	Body *WithdrawJSONRequestBody
 }
@@ -1113,7 +1277,7 @@ type StrictServerInterface interface {
 	// GetBalances The caller's balances, every instrument included
 	// (GET /wallet/balances)
 	GetBalances(ctx context.Context, request GetBalancesRequestObject) (GetBalancesResponseObject, error)
-	// Faucet Mint test tokens to the caller (local sandbox only)
+	// Faucet Send DevNet test tokens from the desk's reservoir to the caller
 	// (POST /wallet/faucet)
 	Faucet(ctx context.Context, request FaucetRequestObject) (FaucetResponseObject, error)
 	// ListIncoming Transfers to the caller waiting for acceptance
@@ -1122,6 +1286,9 @@ type StrictServerInterface interface {
 	// AcceptIncoming Accept an incoming transfer
 	// (POST /wallet/incoming/{contractId}/accept)
 	AcceptIncoming(ctx context.Context, request AcceptIncomingRequestObject) (AcceptIncomingResponseObject, error)
+	// GetNetwork The Canton network the desk is on and what its faucet hands out
+	// (GET /wallet/network)
+	GetNetwork(ctx context.Context, request GetNetworkRequestObject) (GetNetworkResponseObject, error)
 	// Withdraw Send holdings to any Canton party (it receives a transfer offer to accept)
 	// (POST /wallet/withdraw)
 	Withdraw(ctx context.Context, request WithdrawRequestObject) (WithdrawResponseObject, error)
@@ -1345,6 +1512,30 @@ func (sh *strictHandler) AcceptIncoming(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
+// GetNetwork operation middleware
+func (sh *strictHandler) GetNetwork(w http.ResponseWriter, r *http.Request) {
+	var request GetNetworkRequestObject
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.GetNetwork(ctx, request.(GetNetworkRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetNetwork")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(GetNetworkResponseObject); ok {
+		if err := validResponse.VisitGetNetworkResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // Withdraw operation middleware
 func (sh *strictHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 	var request WithdrawRequestObject
@@ -1381,38 +1572,41 @@ func (sh *strictHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"1Fnvbts4En8VglegLVbxnzRdtN4PhyRNugb20uCSYBc452paHNncSqRKUnF8gYB9iHuGe7B9ksOQlCzH",
-	"Su10N170myWRnL+/38zQdzRWWa4kSGvo4I5qMLmSBtzDEePvmYU5W+BTrKQFafEny/NUxMwKJbu/GiXx",
-	"nYlnkDH89UxDQgf0b93l0V3/1XRPtFaalmUZUQ4m1iLHQ+iAXs6ApMCnoEnCRAqclhEq8E/4XICxT6/A",
-	"EeOkElZG9FjJJBXxDgRXkn4g41hxGBNhyPDs4ur0dHg8PDm7/Hh6dfbugihNDo8vhx/OPp59uPx4fnL2",
-	"bnj2HjUdSgtastQLeHJ1K3HkAvQNaBIWRvRM2VNVSP70KpwpS7yoMqJXkhV2prT4D+xA9Io0/Bx24IGH",
-	"MS5yP3OtctBWeByx5QdhITObpF+IqfSHoYF2kQMdUKY1WziRGj4XQqO1/6qPvq7XqcmvEFuPnpTJGFr0",
-	"uWEiZZMUNinyDmKRsRQPS1X8CfgjNphFNlEpbgiKGauFnK5ZENZFDa1qaW1WVSIGd/dCEz6QubAzwizJ",
-	"lLGk3yOJ9k4iXEyFNTSicMuyHK2n/c5rGtGcWcxpOqD/Ho34XT/af1O+GI06/qHfK1/+/RmN7tsR0Rpx",
-	"9YGYfhwXrQMY5fr1znwwNhDdgAhpiiQRsQBpSVJIbgbk+OjyGGWsRs6ffreuClSqfNnZflmbW09uIS4s",
-	"DGVeeOxwLtBrLD1vaJCw1MB9pYyYSmYLDesxOWIGvj8gJ3z/9ev+W1KvJAqpw86AcECbOJkxM6MRzdjt",
-	"TyCndkYH/f03Ec2ErJ+jTZlU69Fm4FDGKhNyeqmZNAnoFlhkqpD2ESmOVIPJNeStMTEgOeh1p1y4988N",
-	"yZm2CzIT0rZl17YAamhRy4wasPJWtbvEWF1kgS1XncG9maYFZw5GxCpiZmpOhHRxvBo2gfWmliakhSm4",
-	"AiFZBitooUfCxkrIL1u/XO4wEW3LJ05ctDSkzQMNpl3zQKyBWeCHzjmJ0hmzdEA5s7BnhTt6TekVRzU1",
-	"P0xTFTMLpNfpO2iTRGnyuVAWyKtkP/79t/+1nQe3udBgHqOCw9FDOMw15EwD37MIgkCLuMNFU0xbIyH4",
-	"ivSiELxtWV7oXBkfYFlkrjgFq3F5QN0ei2PIbfONKprZ+UBUncxKxKqjg81RI2BNz7WF/WdhZ1yz+dew",
-	"3aNZQkMM4qaNCE6LNA0kIDhRiQNSvbxZpzL2CfTRYNDf3++9/T4BNlktW53vBoPOd8+eBkjB4oYl6z7F",
-	"zUImat3IH1XKhZyaiHDIlRHWRGQe/M9SQ5jkzm5MP/K5gAIiYrC15GSycF/CWIAvRQydkTy5Ab2oXocs",
-	"VglhksBtaE6DV/F4ghTkeoAbIKaYZMIYoeQglB/zqYKFGUlhI/dazSVKFFNpQlBsoSVwMsZcG5MXms3J",
-	"ZGHBRFVxe+ksyZWxprbH1zqrRnLctbfdO8HLLvhCO+6QU6UJC5rWuszwAK9EsCwVxqIlkOV2QSYQs8JA",
-	"vWEkWaqB8YU3zVrgHeIdpFVhgUgAbggjMUtT0N7qqZ/qkITmTHNDhEUeH/+yd2VA7w35OBrJ8S9756gb",
-	"Pjrb6hc/CmnHnZFjC2FdRp1rcYP89uHymLxDO37/7b9kjiItOTzH2nAD2viM6Hd6nR6mpspBslzQAX3V",
-	"6XVe+ZSeOZR1RV2b3PMUHOQQiK6fx5JLfxLGDhvrotXxdb/Xe9RAsFVvvpTX0pu3DEtL7cqIHvT6D51f",
-	"a95dHTEi+rrX27xpdQhERUyRZUwvcLTWjGNfTcSKryybGsT5zy5K9Bo3YZbmIBGwX/T6uV9TTTy7cPwX",
-	"h6I1xwcFA4ZMRFTKXcsttLF/XSiCw8icCYvqYReAgPTgfG6WrNEIEFqOAakj1OQR17cwzTKwoHH5HRXo",
-	"AERS1QQNfPlckrvVBUSNAGwo7uV1RJHY1nMhTA0hLlE12Rwp/ideGTUnk7Is7xtSrmXfQUvPXZEjdjrL",
-	"ouIzYYugNm6ivjZ5DnoHmzfVlyhuw9vNG+p7qq9MT9y1v5X91VXgakZ7x2IdW0Gcn8LrUvrc3J/9cIQI",
-	"fVt7nvvi0Z34S4yHi8B7sEfVml3wUBC2DQnVeu2Sb/5oQC+bdFR5PyLgWoplBSFCxmnBgT9USUL8ElbE",
-	"PmztDHLqv69Fbv9P44+qSLUE6B9CWqKSBLQhYXr4AZNWaOLnFEOYBt+VckfWS37+lmLq7LRY/6z6BNJU",
-	"JOjjTF7gmJYSwySfqFuiZLp4uSGsItymbOjNwqLdNGb37nce0SVU1pBqKP3GIFtpfS+uzS7D57Njru0i",
-	"271bXiyVXb99u2Zj5ULq4aZj6ybj0Ml+OJl2QhVeiVYqIC/wqW4wnLfdHAfcT3cvd9cz/BXpF1zjJu17",
-	"ONqQa9U9wMPlobqpeaLecvUiaKvmcifZViH6D+Xbrtrab6FLBcnJLNxEIUsyuSDHTFolwwXMC2Grqze8",
-	"LakS2HcHbofL8va6iLLcv6GeEwud0gHtslx0b/q0vK633FUUGbaWUf2man7L6/L/AwA=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

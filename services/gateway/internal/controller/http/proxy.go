@@ -20,27 +20,20 @@ import (
 var ErrInvalidUpstream = errors.New("upstream URL must look like http://host:port")
 
 const (
-	// dialTimeout makes a service that is gone (not just refusing connections) fail fast with 502.
-	dialTimeout = 5 * time.Second
-	// responseHeaderTimeout stays below the HTTP server's write timeout, so a hung service is answered with
-	// 502 instead of a connection the server cuts.
+	dialTimeout           = 5 * time.Second
 	responseHeaderTimeout = 15 * time.Second
 
 	userHeaderPrefix = "X-User-"
 	cookieHeader     = "Cookie"
 )
 
-// cookiePolicy says whether a service is handed the caller's Cookie header.
 type cookiePolicy int
 
 const (
-	// dropCookie withholds it: the service trusts the principal headers and has no use for a session token.
 	dropCookie cookiePolicy = iota
-	// keepCookie forwards it unchanged: identity owns the sessions and reads the cookie itself on /auth/logout.
 	keepCookie
 )
 
-// newTransport is shared by the three proxies; it pools connections per service and carries the trace context.
 func newTransport() http.RoundTripper {
 	return otelhttp.NewTransport(&http.Transport{
 		DialContext:           (&net.Dialer{Timeout: dialTimeout, KeepAlive: 30 * time.Second}).DialContext,
@@ -52,10 +45,6 @@ func newTransport() http.RoundTripper {
 	})
 }
 
-// newProxy forwards requests unchanged (path, query, body, headers) to the service at rawURL and returns
-// its answer unchanged (status, headers including Set-Cookie, body).
-// The exceptions: what the client claims about who it is dropped and the authenticated principal's headers
-// are set instead; the API key is never forwarded; the Cookie header only if cookies says so.
 func newProxy(rawURL string, transport http.RoundTripper, cookies cookiePolicy) (*httputil.ReverseProxy, error) {
 	target, err := url.Parse(rawURL)
 	if err != nil {
@@ -67,8 +56,6 @@ func newProxy(rawURL string, transport http.RoundTripper, cookies cookiePolicy) 
 	}
 
 	return &httputil.ReverseProxy{
-		// Rewrite, not Director: it runs after the hop-by-hop headers are removed, so a client cannot delete
-		// the principal's headers by naming them in Connection.
 		Rewrite:      func(pr *httputil.ProxyRequest) { rewrite(pr, target, cookies) },
 		Transport:    transport,
 		ErrorHandler: upstreamUnavailable,
@@ -87,8 +74,6 @@ func rewrite(pr *httputil.ProxyRequest, target *url.URL, cookies cookiePolicy) {
 	}
 }
 
-// stripCallerHeaders removes everything with which a client could pass itself off as somebody else:
-// the three principal headers (two of them are not named X-User-*) and any other X-User-* header.
 func stripCallerHeaders(h http.Header) {
 	principal.StripHeaders(h)
 
@@ -99,9 +84,6 @@ func stripCallerHeaders(h http.Header) {
 	}
 }
 
-// stripCredentials keeps the caller's secrets with the gateway. It authenticates every request itself and tells
-// the services who is calling, so no service needs the API key, and a service that is never handed a session
-// token cannot leak one, however exposed or compromised it is.
 func stripCredentials(h http.Header, cookies cookiePolicy) {
 	h.Del(domain.APIKeyHeader)
 

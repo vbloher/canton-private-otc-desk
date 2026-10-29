@@ -19,11 +19,12 @@ import (
 var signature = bytes.Repeat([]byte{7}, 64)
 
 func pendingAction(createdAt time.Time) domain.Action {
-	return domain.NewAction(domain.Intent{PartyID: alice, Purpose: domain.PurposeAllocate, Ref: "s-1",
-		Description: "Allocate 1.0 CBTC"}, prepared("hash-1"), createdAt, 10*time.Minute)
+	return domain.NewAction(domain.Intent{
+		PartyID: alice, Purpose: domain.PurposeAllocate, Ref: "s-1",
+		Description: "Allocate 1.0 CBTC",
+	}, prepared("hash-1"), createdAt, 10*time.Minute)
 }
 
-// live matches a context that has not been cancelled.
 func live() any {
 	return mock.MatchedBy(func(ctx context.Context) bool { return ctx.Err() == nil })
 }
@@ -59,7 +60,6 @@ func Test_ExecuteAction_LedgerFailureMarksFailed(t *testing.T) {
 	d.postgres.EXPECT().UpdateAction(Any, mock.MatchedBy(func(a domain.Action) bool {
 		return a.Status == domain.ActionFailed && a.Error == ledgerErr.Error()
 	})).Return(nil).Once()
-	// Rejected: nothing changed on the ledger, so no wallet.updated.
 	d.events.EXPECT().Publish(Any, eventOfType(events.SignCompleted), parties(alice)).Return(nil).Once()
 
 	err := u.ExecuteAction(t.Context(), dto.ExecuteActionInput{ID: action.ID, PartyID: alice, Signature: signature})
@@ -72,7 +72,6 @@ func Test_ExecuteAction_DuplicateCommandIsExecuted(t *testing.T) {
 
 	action := pendingAction(time.Now())
 
-	// Another transaction under the same command id has already landed.
 	d.postgres.EXPECT().GetActionForUpdate(Any, action.ID).Return(action, nil).Once()
 	d.canton.EXPECT().Execute(Any, action.Prepared, alice, signature).
 		Return(fmt.Errorf("%w: %w: DUPLICATE_COMMAND", domain.ErrLedger, domain.ErrDuplicateCommand)).Once()
@@ -92,7 +91,6 @@ func Test_ExecuteAction_TransientFailureKeepsItPending(t *testing.T) {
 
 	action := pendingAction(time.Now())
 
-	// The ledger did not answer: nothing was decided, the signer may simply retry.
 	d.postgres.EXPECT().GetActionForUpdate(Any, action.ID).Return(action, nil).Once()
 	d.canton.EXPECT().Execute(Any, action.Prepared, alice, signature).
 		Return(fmt.Errorf("%w: %w: connection refused", domain.ErrLedger, domain.ErrLedgerUnavailable)).Once()
@@ -107,7 +105,6 @@ func Test_ExecuteAction_WrongKeyKeepsItPending(t *testing.T) {
 
 	action := pendingAction(time.Now())
 
-	// Another user's tab signed it with its own key: the action stays for its party to sign.
 	d.postgres.EXPECT().GetActionForUpdate(Any, action.ID).Return(action, nil).Once()
 	d.canton.EXPECT().Execute(Any, action.Prepared, alice, signature).
 		Return(fmt.Errorf("%w: FAILED_TO_EXECUTE_TRANSACTION: Received 0 valid signatures", domain.ErrSignatureRejected)).Once()
@@ -123,7 +120,6 @@ func Test_ExecuteAction_ContractGoneFailsIt(t *testing.T) {
 
 	action := pendingAction(time.Now())
 
-	// Its input holding was consumed meanwhile: this transaction can never land.
 	d.postgres.EXPECT().GetActionForUpdate(Any, action.ID).Return(action, nil).Once()
 	d.canton.EXPECT().Execute(Any, action.Prepared, alice, signature).
 		Return(fmt.Errorf("%w: %w: LOCAL_VERDICT_INACTIVE_CONTRACTS", domain.ErrLedger, domain.ErrContractGone)).Once()
@@ -140,10 +136,11 @@ func Test_ExecuteAction_OutlivesTheCaller(t *testing.T) {
 	d := newDeps(t)
 	u := d.started(t)
 
-	withdrawal := domain.NewAction(domain.Intent{PartyID: alice, Purpose: domain.PurposeTransferOut, Ref: makerB,
-		Counterparty: makerB, Description: "Withdraw 1.0 CBTC to makerB"}, prepared("hash-w"), time.Now(), time.Minute)
+	withdrawal := domain.NewAction(domain.Intent{
+		PartyID: alice, Purpose: domain.PurposeTransferOut, Ref: bob,
+		Counterparty: bob, Description: "Withdraw 1.0 CBTC to bob",
+	}, prepared("hash-w"), time.Now(), time.Minute)
 
-	// The caller goes away; the ledger call and the recorded outcome still run to completion.
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -153,8 +150,7 @@ func Test_ExecuteAction_OutlivesTheCaller(t *testing.T) {
 		return a.Status == domain.ActionExecuted
 	})).Return(nil).Once()
 	d.events.EXPECT().Publish(Any, eventOfType(events.SignCompleted), parties(alice)).Return(nil).Once()
-	// The receiver's wallet changed too: it has an incoming transfer.
-	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(alice, makerB)).Return(nil).Once()
+	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(alice, bob)).Return(nil).Once()
 
 	err := u.ExecuteAction(ctx, dto.ExecuteActionInput{ID: withdrawal.ID, PartyID: alice, Signature: signature})
 	require.NoError(t, err)
@@ -168,7 +164,7 @@ func Test_ExecuteAction_WrongParty(t *testing.T) {
 
 	d.postgres.EXPECT().GetActionForUpdate(Any, action.ID).Return(action, nil).Once()
 
-	err := u.ExecuteAction(t.Context(), dto.ExecuteActionInput{ID: action.ID, PartyID: makerA, Signature: signature})
+	err := u.ExecuteAction(t.Context(), dto.ExecuteActionInput{ID: action.ID, PartyID: maker, Signature: signature})
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 

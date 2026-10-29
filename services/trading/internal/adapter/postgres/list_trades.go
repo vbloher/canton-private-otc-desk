@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListTrades returns the party's trades in either role, newest first.
 func (p *Postgres) ListTrades(ctx context.Context, party string, limit int) ([]domain.Trade, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListTrades")
 	defer span.End()

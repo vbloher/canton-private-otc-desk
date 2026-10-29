@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListQuotes returns every quote of the RFQs, oldest first.
 func (p *Postgres) ListQuotes(ctx context.Context, rfqIDs []uuid.UUID) ([]domain.Quote, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListQuotes")
 	defer span.End()

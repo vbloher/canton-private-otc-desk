@@ -11,8 +11,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// Authenticate resolves a session token. A user read from the cache is at most a minute old;
-// the cache is dropped on logout.
 func (u *UseCase) Authenticate(ctx context.Context, input dto.AuthenticateInput) (dto.AuthenticateOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase Authenticate")
 	defer span.End()

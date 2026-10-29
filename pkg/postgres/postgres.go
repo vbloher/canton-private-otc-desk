@@ -18,7 +18,6 @@ type Config struct {
 	DBName   string `env:"POSTGRES_DB_NAME,required"`
 }
 
-// URL is the connection string in URL form, as golang-migrate expects it.
 func (c Config) URL() string {
 	u := url.URL{
 		Scheme:   "postgres",

@@ -15,17 +15,12 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase"
 )
 
-// Config holds the base URLs of the services behind the gateway.
 type Config struct {
 	IdentityURL string `env:"IDENTITY_URL" envDefault:"http://localhost:8081"`
 	TradingURL  string `env:"TRADING_URL"  envDefault:"http://localhost:8082"`
 	LedgerURL   string `env:"LEDGER_URL"   envDefault:"http://localhost:8083"`
 }
 
-// GatewayRouter authenticates every request under /api/v1 except /api/v1/auth/, then hands it to the service
-// that owns the path, or to the WebSocket hub. Whatever else is under /api answers 404.
-// The services get the caller as X-User-Id / X-Party-Id / X-Party-Hint and none of its secrets: no API key
-// anywhere, and the session cookie only for identity.
 func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *metrics.HTTPServer) error {
 	transport := newTransport()
 
@@ -48,9 +43,6 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 
 	r.Handle("/metrics", promhttp.Handler())
 
-	// The socket route stays beside the logging and metrics group: a socket lives for hours, while those
-	// middlewares record one log line and one duration sample (the buckets end at 120 s) when a request ends.
-	// The hub logs the sockets it drops. Authentication and OpenTelemetry apply as everywhere.
 	r.With(otel.Middleware, auth).Method(http.MethodGet, "/api/v1/ws", ws.NewHandler(hub))
 
 	r.Group(func(r chi.Router) {
@@ -58,7 +50,6 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 		r.Use(logger.Middleware)
 		r.Use(metrics.NewMiddleware(m))
 
-		// Public: the caller is not signed in yet. Identity checks the credentials on these itself.
 		r.Handle("/api/v1/auth/*", identity)
 
 		r.Group(func(r chi.Router) {
@@ -84,7 +75,6 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 	return nil
 }
 
-// mount routes the path itself and everything below it, but not look-alikes such as /api/v1/mexico for /api/v1/me.
 func mount(r chi.Router, prefix string, h http.Handler) {
 	r.Handle(prefix, h)
 	r.Handle(prefix+"/*", h)

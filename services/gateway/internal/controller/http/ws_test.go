@@ -16,7 +16,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase/mocks"
 )
 
-// serveSocketGateway runs the whole router (all middlewares) on a real listener. No service is needed for the socket.
 func serveSocketGateway(t *testing.T, idp *mocks.Identity) (url string, hubDeliver func(partyID string, payload []byte)) {
 	t.Helper()
 
@@ -62,8 +61,6 @@ func Test_WS_DeliversEventsOfTheCaller(t *testing.T) {
 			mine := []byte(`{"type":"trade.updated","data":{"tradeId":"t1","rfqId":"r1","status":"settled"}}`)
 			theirs := []byte(`{"type":"wallet.updated","data":{}}`)
 
-			// The upgrade completes a moment before the socket is registered (events are at-most-once), so keep
-			// publishing until one arrives. Bob's events go out alongside and must never show up.
 			var got []byte
 
 			require.Eventually(t, func() bool {

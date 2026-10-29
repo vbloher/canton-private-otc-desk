@@ -1,8 +1,3 @@
-/**
- * A trade from the viewer's side, and the activity feed built from trades and
- * RFQs that closed without one. Directions are the taker's: the maker always
- * takes the other side and pays the desk fee in the quote asset.
- */
 import { isPositiveDecimal } from "./money";
 import type { Rfq, Trade } from "./types";
 
@@ -13,11 +8,9 @@ export interface Leg {
 
 export interface TradeView {
   role: "taker" | "maker";
-  /** The viewer received the base. */
   boughtBase: boolean;
   gave: Leg;
   got: Leg;
-  /** The maker's fee; absent for the taker and when it floored to zero. */
   fee?: Leg;
   counterparty: string;
 }
@@ -42,7 +35,6 @@ export type ActivityItem =
   | { kind: "trade"; key: string; at: number; trade: Trade; view: TradeView }
   | { kind: "rfq"; key: string; at: number; rfq: Rfq };
 
-/** Trades (dated by settlement once settled) and unfilled RFQs, newest first. */
 export function activityFeed(trades: readonly Trade[], closed: readonly Rfq[], myHint: string): ActivityItem[] {
   const items: ActivityItem[] = [
     ...trades.map(

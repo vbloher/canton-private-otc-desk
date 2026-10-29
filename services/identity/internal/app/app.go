@@ -59,14 +59,13 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 		c.UseCase,
 	)
 
-	// The servers do not wait for the ledger: the house makers are seeded beside them, with retries.
 	seedCtx, stopSeeding := context.WithCancel(ctx)
 	seeded := make(chan struct{})
 
 	go func() {
 		defer close(seeded)
 
-		seedHouseMakers(seedCtx, uc, seedRetryDelay)
+		seedHouseMaker(seedCtx, uc, seedRetryDelay)
 	}()
 
 	defer func() {

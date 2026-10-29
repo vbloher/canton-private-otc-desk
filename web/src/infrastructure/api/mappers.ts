@@ -1,13 +1,10 @@
-/**
- * Wire DTOs (generated from api/http/*.yaml) → domain entities: RFC 3339
- * timestamps become epoch milliseconds and base64 byte fields become bytes.
- */
 import type { Registration, LoginChallenge } from "@/application/ports";
 import type {
   Balance,
   IncomingRfq,
   IncomingTransfer,
   Instrument,
+  Network,
   Maker,
   Me,
   Quote,
@@ -25,7 +22,6 @@ type IdentityDto = IdentitySchema["schemas"];
 type TradingDto = TradingSchema["schemas"];
 type WalletDto = WalletSchema["schemas"];
 
-/** Go writes nanoseconds; Date.parse is only specified for milliseconds. */
 export function parseTime(iso: string): number {
   const ms = Date.parse(iso.replace(/(\.\d{3})\d+/, "$1"));
   if (Number.isNaN(ms)) throw new Error(`The desk sent an unreadable time: ${iso}`);
@@ -110,6 +106,11 @@ export function toTrade(d: TradingDto["Trade"]): Trade {
   if (d.settledAt !== undefined) trade.settledAt = parseTime(d.settledAt);
   return trade;
 }
+
+export const toNetwork = (d: WalletDto["Network"]): Network => ({
+  name: d.name,
+  faucet: d.faucet.map(({ symbol, amount }) => ({ symbol, amount })),
+});
 
 export const toInstrument = (d: WalletDto["Instrument"]): Instrument => ({
   symbol: d.symbol,

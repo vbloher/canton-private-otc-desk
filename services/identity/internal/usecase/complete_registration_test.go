@@ -14,7 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// parkedRegistration is a started registration and the browser key's signature over its multi-hash.
 func parkedRegistration(t *testing.T) (domain.Registration, []byte) {
 	t.Helper()
 
@@ -65,7 +64,6 @@ func Test_CompleteRegistration_CredentialTaken(t *testing.T) {
 
 	d.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
 	d.postgres.EXPECT().GetUserByCredential(Any, "cred-1").Return(domain.User{ID: uuid.New()}, nil)
-	// No ledger expectation: allocating the party before the credential check would fail the test.
 
 	_, err := d.useCase().CompleteRegistration(t.Context(), completeInput(reg, signature))
 	require.ErrorIs(t, err, domain.ErrCredentialTaken)
@@ -136,14 +134,12 @@ func Test_CompleteRegistration_BadSignature(t *testing.T) {
 
 	reg, _ := parkedRegistration(t)
 
-	// A well-formed signature, made by another key.
 	_, otherKey, err := ed25519.GenerateKey(nil)
 	require.NoError(t, err)
 
 	forged := ed25519.Sign(otherKey, reg.Topology.MultiHash)
 
 	d.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
-	// No ledger or user expectation: a forged onboarding signature never reaches Canton.
 
 	_, err = d.useCase().CompleteRegistration(t.Context(), completeInput(reg, forged))
 	require.ErrorIs(t, err, domain.ErrValidation)
@@ -151,7 +147,7 @@ func Test_CompleteRegistration_BadSignature(t *testing.T) {
 }
 
 func Test_CompleteRegistration_MalformedSignatureKeepsTheRegistration(t *testing.T) {
-	d := newDeps(t) // no expectations: the registration must not be taken
+	d := newDeps(t)
 
 	reg, signature := parkedRegistration(t)
 
@@ -181,14 +177,11 @@ func Test_CompleteRegistration_CredentialTakenByARace(t *testing.T) {
 	d.postgres.EXPECT().GetUserByCredential(Any, "cred-1").Return(domain.User{}, domain.ErrNotFound)
 	d.ledger.EXPECT().AllocateExternalParty(Any, reg.Topology, signature).Return(reg.Topology.PartyID, nil)
 	d.postgres.EXPECT().CreateUser(Any, Any).Return(domain.ErrCredentialTaken)
-	// No CreateSession expectation: no session without a user.
 
 	_, err := d.useCase().CompleteRegistration(t.Context(), completeInput(reg, signature))
 	require.ErrorIs(t, err, domain.ErrCredentialTaken)
 }
 
-// A party that Canton allocated for input that cannot become a user is orphaned for good, so
-// nothing may reach the ledger before the credential id and the wrapped key are known to be there.
 func Test_CompleteRegistration_EmptyCredentialOrBlobNeverReachesTheLedger(t *testing.T) {
 	reg, signature := parkedRegistration(t)
 
@@ -200,8 +193,6 @@ func Test_CompleteRegistration_EmptyCredentialOrBlobNeverReachesTheLedger(t *tes
 
 	for name, input := range cases {
 		t.Run(name, func(t *testing.T) {
-			// Strict mocks without a single expectation: not the ledger, not Postgres, and not
-			// Redis either, so the parked registration is not burned by a request that can only fail.
 			d := newDeps(t)
 
 			_, err := d.useCase().CompleteRegistration(t.Context(), input)

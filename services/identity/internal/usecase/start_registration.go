@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// StartRegistration asks the ledger for the topology of the browser key's new party and parks it
-// until the browser has signed its hash.
 func (u *UseCase) StartRegistration(
 	ctx context.Context, input dto.StartRegistrationInput,
 ) (dto.StartRegistrationOutput, error) {

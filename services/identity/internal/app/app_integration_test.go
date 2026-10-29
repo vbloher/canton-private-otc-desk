@@ -1,8 +1,5 @@
 //go:build integration
 
-// An end-to-end run of the whole service against the Postgres and Redis of `make up`, with a fake
-// ledger standing in for the ledger service. It starts the service before the ledger is up, as
-// docker compose may, and walks a wallet through registration, sign-in and sign-out.
 package app_test
 
 import (
@@ -42,7 +39,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/adapter/ledger"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/app"
 	httpcontroller "github.com/vbloher/canton-private-otc-desk/services/identity/internal/controller/http"
-	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/usecase"
 )
 
@@ -54,7 +50,6 @@ func getenv(key, fallback string) string {
 	return fallback
 }
 
-// newDatabase creates a throwaway database for one run and drops it afterwards.
 func newDatabase(t *testing.T) postgres.Config {
 	t.Helper()
 
@@ -107,13 +102,11 @@ func port(addr string) string {
 	return p
 }
 
-// fakeLedger knows the house parties and onboards external parties the way Canton does: it
-// only allocates a party when the key signed the onboarding hash.
 type fakeLedger struct {
 	ledgerpb.UnimplementedLedgerV1Server
 
 	mu        sync.Mutex
-	pending   map[string]pendingParty // by topology transaction
+	pending   map[string]pendingParty
 	allocated []string
 }
 
@@ -125,8 +118,8 @@ type pendingParty struct {
 
 func (f *fakeLedger) ResolveParty(_ context.Context, in *ledgerpb.ResolvePartyInput) (*ledgerpb.ResolvePartyOutput, error) {
 	switch in.GetHint() {
-	case "makerA", "makerB":
-		return &ledgerpb.ResolvePartyOutput{PartyId: in.GetHint() + "::1220feed"}, nil
+	case "maker::1220feed":
+		return &ledgerpb.ResolvePartyOutput{PartyId: in.GetHint()}, nil
 	default:
 		return nil, status.Error(codes.NotFound, "no such party")
 	}
@@ -267,8 +260,6 @@ func asCaller(me map[string]any) map[string]string {
 	}
 }
 
-// app.Run registers the HTTP collectors of pkg/metrics on the global Prometheus registry, so the
-// service can start once per process.
 var started atomic.Bool
 
 func Test_Service_EndToEnd(t *testing.T) {
@@ -288,11 +279,9 @@ func Test_Service_EndToEnd(t *testing.T) {
 		Redis:    redis.Config{Addr: getenv("REDIS_ADDR", "localhost:6379")},
 		Ledger:   ledger.Config{Addr: ledgerAddr},
 		UseCase: usecase.Config{
-			SessionTTL: time.Hour,
-			HouseMakers: domain.HouseMakers{
-				{Hint: "makerA", APIKey: "demo-key-a"},
-				{Hint: "makerB", APIKey: "demo-key-b"},
-			},
+			SessionTTL:  time.Hour,
+			MakerParty:  "maker::1220feed",
+			MakerAPIKey: "maker-key",
 		},
 	}
 
@@ -305,7 +294,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 
 	api := client{t: t, base: "http://" + httpAddr}
 
-	// The ledger is not up: the service answers anyway.
 	require.Eventually(t, func() bool {
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, api.base+"/live", nil)
 		if err != nil {
@@ -336,28 +324,26 @@ func Test_Service_EndToEnd(t *testing.T) {
 	down := api.do(http.MethodPost, "/api/v1/auth/register/start", startBody, nil)
 	require.Equal(t, http.StatusBadGateway, down.status, string(down.body))
 
-	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "demo-key-a"})
+	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
 	require.Equal(t, codes.Unauthenticated, status.Code(err), "the house makers are not seeded yet")
 
-	// The ledger comes up; the house makers are seeded by the retry loop.
 	fake := startLedger(t, ledgerAddr)
 
 	require.Eventually(t, func() bool {
-		user, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "demo-key-a"})
+		user, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
 
-		return err == nil && user.GetHint() == "makerA"
+		return err == nil && user.GetHint() == "maker"
 	}, 15*time.Second, 100*time.Millisecond, "the house makers must be seeded once the ledger answers")
 
-	makerA, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "demo-key-a"})
+	maker, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
 	require.NoError(t, err)
-	require.Equal(t, "makerA::1220feed", makerA.GetPartyId())
-	require.Equal(t, "makerA", makerA.GetDisplayName())
-	require.True(t, makerA.GetMakerMode())
+	require.Equal(t, "maker::1220feed", maker.GetPartyId())
+	require.Equal(t, "maker", maker.GetDisplayName())
+	require.True(t, maker.GetMakerMode())
 
-	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "demo-key-z"})
+	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "unknown-key"})
 	require.Equal(t, codes.Unauthenticated, status.Code(err))
 
-	// Registration: start, sign the onboarding hash with the browser key, complete.
 	start := api.do(http.MethodPost, "/api/v1/auth/register/start", startBody, nil)
 	require.Equal(t, http.StatusOK, start.status, string(start.body))
 
@@ -382,7 +368,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 
 	token := cookieOf(t, complete)
 
-	// The registration completes once; the same passkey cannot back a second wallet.
 	replay := api.do(http.MethodPost, "/api/v1/auth/register/complete", completeBody, nil)
 	require.Equal(t, http.StatusGone, replay.status, string(replay.body))
 
@@ -398,7 +383,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 	require.Equal(t, http.StatusConflict, dup.status, string(dup.body))
 	require.Len(t, fake.allocations(), 1, "the clash is found before a second party is allocated")
 
-	// The gateway's view of the session: gRPC Authenticate, twice (the second one is a cache hit).
 	for range 2 {
 		user, err := identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: token})
 		require.NoError(t, err)
@@ -408,7 +392,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 		require.Equal(t, "Alice Smith", user.GetDisplayName())
 	}
 
-	// The routes behind the gateway, which sends the caller as headers.
 	caller := asCaller(me)
 
 	got := api.do(http.MethodGet, "/api/v1/me", "", caller)
@@ -422,8 +405,7 @@ func Test_Service_EndToEnd(t *testing.T) {
 	list := api.do(http.MethodGet, "/api/v1/makers", "", caller)
 	require.NoError(t, json.Unmarshal(list.body, &makers))
 	require.Equal(t, []map[string]string{
-		{"hint": "makerA", "displayName": "makerA"},
-		{"hint": "makerB", "displayName": "makerB"},
+		{"hint": "maker", "displayName": "maker"},
 	}, makers)
 
 	toggled := api.do(http.MethodPut, "/api/v1/me/maker-mode", `{"enabled":true}`, caller)
@@ -431,18 +413,17 @@ func Test_Service_EndToEnd(t *testing.T) {
 	require.Equal(t, true, toggled.json(t)["makerMode"])
 
 	resolved, err := identity.ResolveMakers(ctx, &identitypb.ResolveMakersInput{
-		Hints: []string{me["hint"].(string), "makerB", "nobody"},
+		Hints: []string{me["hint"].(string), "maker", "nobody"},
 	})
 	require.NoError(t, err)
 	require.Len(t, resolved.GetMakers(), 2)
 	require.Equal(t, me["hint"], resolved.GetMakers()[0].GetHint(), "in request order, now that maker mode is on")
-	require.Equal(t, "makerB", resolved.GetMakers()[1].GetHint())
+	require.Equal(t, "maker", resolved.GetMakers()[1].GetHint())
 
 	list = api.do(http.MethodGet, "/api/v1/makers", "", caller)
 	require.NoError(t, json.Unmarshal(list.body, &makers))
-	require.Len(t, makers, 2, "the caller is never in their own list")
+	require.Len(t, makers, 1, "the caller is never in their own list")
 
-	// Sign-in: challenge, sign it with the key, login. A challenge works once.
 	challenge := api.do(http.MethodPost, "/api/v1/auth/challenge", `{"credentialId":"cred-e2e"}`, nil)
 	require.Equal(t, http.StatusOK, challenge.status, string(challenge.body))
 	require.Equal(t, "blob-e2e", challenge.json(t)["encryptedBlob"])
@@ -475,7 +456,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 	laterToken := cookieOf(t, login)
 	require.NotEqual(t, token, laterToken)
 
-	// Sign-out ends that session and only that one, cache included.
 	_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: laterToken})
 	require.NoError(t, err)
 
@@ -492,7 +472,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 	stale := api.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]string{"Cookie": "otc_session=" + laterToken})
 	require.Equal(t, http.StatusNoContent, stale.status, "signing out twice is fine")
 
-	// Shutdown is graceful.
 	stop()
 
 	select {

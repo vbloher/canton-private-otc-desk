@@ -15,7 +15,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// expectQuoteSaved locks the RFQ, saves the new quote into *saved and tells the maker it is allocating.
 func (d deps) expectQuoteSaved(rfq domain.RFQ, saved *domain.Quote) {
 	d.postgres.EXPECT().GetRFQForUpdate(Any, rfq.ID).Return(rfq, nil)
 	d.postgres.EXPECT().CreateQuote(Any, Any).Run(func(_ context.Context, q domain.Quote) { *saved = q }).Return(nil)
@@ -41,7 +40,6 @@ func Test_SubmitQuote_AllocatesAsMaker(t *testing.T) {
 
 			return nil
 		})
-	// After the allocation the quote is read again under the locks: it is still live.
 	d.postgres.EXPECT().GetQuoteForUpdate(Any, Any).RunAndReturn(func(context.Context, uuid.UUID) (domain.Quote, error) {
 		return saved, nil
 	})
@@ -135,9 +133,6 @@ func Test_SubmitQuote_NotInvited(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
-// The quote is read again once its allocation is on the ledger. An RFQ that closed meanwhile
-// released the settlement before the allocation existed, so the quote releases it again; a quote
-// accepted meanwhile keeps the allocation its trade settles with.
 func Test_SubmitQuote_ReleasesAQuoteClosedDuringItsAllocation(t *testing.T) {
 	cases := []struct {
 		now     domain.QuoteStatus
@@ -182,8 +177,6 @@ func Test_SubmitQuote_ReleasesAQuoteClosedDuringItsAllocation(t *testing.T) {
 	}
 }
 
-// Allocate answered with an error, yet the allocation landed and a tick moved the quote on: an open
-// or accepted quote keeps the allocation it trades with; only a quote that is dead is released.
 func Test_SubmitQuote_FailedAllocationReleasesOnlyADeadQuote(t *testing.T) {
 	cases := []struct {
 		now     domain.QuoteStatus

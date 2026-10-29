@@ -1,9 +1,3 @@
-/**
- * Failures the application reasons about. Infrastructure throws them; the
- * presentation tells them apart without knowing where they came from.
- */
-
-/** A desk API call that answered with an error: HTTP status, `error` text, optional `code`. */
 export interface ApiFailure extends Error {
   readonly status: number;
   readonly code?: string;
@@ -13,7 +7,6 @@ export function isApiFailure(e: unknown): e is ApiFailure {
   return e instanceof Error && typeof (e as { status?: unknown }).status === "number";
 }
 
-/** The passkey works but cannot produce a PRF secret, so it cannot protect a wallet key. */
 export class PrfUnsupportedError extends Error {
   constructor() {
     super(
@@ -23,7 +16,6 @@ export class PrfUnsupportedError extends Error {
   }
 }
 
-/** The user dismissed the passkey prompt (or the platform refused it). */
 export class PasskeyCancelledError extends Error {
   constructor(what: string) {
     super(`${what} was cancelled`);
@@ -31,7 +23,6 @@ export class PasskeyCancelledError extends Error {
   }
 }
 
-/** A real passkey with no wallet behind it on this desk. */
 export class UnknownPasskeyError extends Error {
   readonly credentialId: string;
 
@@ -42,7 +33,6 @@ export class UnknownPasskeyError extends Error {
   }
 }
 
-/** The blob opened to a key that is not the wallet's public key. */
 export class KeyMismatchError extends Error {
   constructor() {
     super("This passkey unlocked a key that does not belong to this wallet.");

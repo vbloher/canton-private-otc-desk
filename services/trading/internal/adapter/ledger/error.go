@@ -12,8 +12,6 @@ import (
 
 const insufficientFunds = "insufficient funds"
 
-// wrap maps a LedgerV1 error onto the domain: FailedPrecondition "insufficient funds…" is
-// ErrInsufficientFunds, InvalidArgument is ErrValidation, anything else is ErrUpstream.
 func wrap(method string, err error) error {
 	st, ok := status.FromError(err)
 	if ok {

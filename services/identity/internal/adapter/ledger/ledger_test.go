@@ -14,7 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// fakeClient implements the three calls the adapter makes; any other call panics on the nil embed.
 type fakeClient struct {
 	pb.LedgerV1Client
 

@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// Desk reads the operator party and the instrument symbols.
 func (l *Ledger) Desk(ctx context.Context) (domain.Desk, error) {
 	ctx, span := tracer.Start(ctx, "adapter ledger Desk")
 	defer span.End()

@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// ResolveMakers returns the makers among the hints, in request order and each once. A hint that is
-// unknown, or whose owner has maker mode off, is left out.
 func (u *UseCase) ResolveMakers(ctx context.Context, input dto.ResolveMakersInput) (dto.ResolveMakersOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase ResolveMakers")
 	defer span.End()

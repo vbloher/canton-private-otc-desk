@@ -9,8 +9,6 @@ import (
 
 const bpsOne = 10_000
 
-// Price is the maker's price of one base in quote units: mid = usd[base] / usd[quote], plus the
-// spread when the taker buys and minus it when the taker sells.
 func Price(direction, base, quote string, usd map[string]decimal.Decimal, spreadBps int64) (decimal.Decimal, error) {
 	baseUSD, ok := usd[base]
 	if !ok {
@@ -42,7 +40,6 @@ func Price(direction, base, quote string, usd map[string]decimal.Decimal, spread
 	return price, nil
 }
 
-// Prices are USD reference prices by instrument symbol, PRICES_USD as "CBTC:100000,USDCx:1".
 type Prices map[string]decimal.Decimal
 
 func (p *Prices) UnmarshalText(text []byte) error {

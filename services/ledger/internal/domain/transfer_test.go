@@ -11,6 +11,5 @@ import (
 func Test_IncomingTransfer_SenderHint(t *testing.T) {
 	require.Equal(t, "makerA", domain.IncomingTransfer{Sender: "makerA::1220aa"}.SenderHint())
 
-	// A mint offer has no sending party: it comes from the faucet.
 	require.Equal(t, "faucet", domain.IncomingTransfer{Sender: ""}.SenderHint())
 }

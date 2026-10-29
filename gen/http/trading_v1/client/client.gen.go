@@ -123,7 +123,7 @@ type CreateRfqInput struct {
 	Base      string    `json:"base"`
 	Direction Direction `json:"direction"`
 
-	// Makers Example: ["makerA","makerB"]
+	// Makers Example: ["otc-desk-maker"]
 	Makers []string `json:"makers"`
 
 	// Qty Positive decimal with at most 10 fraction digits

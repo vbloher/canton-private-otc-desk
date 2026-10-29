@@ -18,7 +18,6 @@ import (
 )
 
 type Config struct {
-	// CookieSecure adds the Secure attribute to the session cookie: set it behind HTTPS.
 	CookieSecure bool `env:"COOKIE_SECURE" envDefault:"false"`
 }
 
@@ -53,7 +52,6 @@ func IdentityRouter(r *chi.Mux, uc *usecase.UseCase, m *metrics.HTTPServer, c Co
 		r.Use(otel.Middleware)
 		r.Use(logger.Middleware)
 		r.Use(metrics.NewMiddleware(m))
-		// The gateway authenticated the caller and sent X-User-*; routes that need one check for it.
 		r.Use(principal.Middleware)
 		r.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(spec, validatorOptions))
 

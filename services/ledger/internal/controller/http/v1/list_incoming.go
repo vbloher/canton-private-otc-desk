@@ -33,7 +33,7 @@ func (h *Handlers) ListIncoming(
 		transfers = append(transfers, http_server.IncomingTransfer{
 			ContractID: t.ContractID,
 			Sender:     t.SenderHint(),
-			Symbol:     t.InstrumentID,
+			Symbol:     t.Symbol,
 			Amount:     t.Amount.String(),
 		})
 	}

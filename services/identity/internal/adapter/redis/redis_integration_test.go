@@ -1,7 +1,5 @@
 //go:build integration
 
-// These tests run against the Redis of `make up` (override with REDIS_ADDR). Keys are random per
-// test, so they do not disturb a running service.
 package redis_test
 
 import (
@@ -179,7 +177,7 @@ func Test_SessionCache(t *testing.T) {
 	_, ok = r.GetCachedSession(t.Context(), hash)
 	require.False(t, ok, "dropped on logout")
 
-	r.DropCachedSession(t.Context(), hash) // dropping nothing is fine
+	r.DropCachedSession(t.Context(), hash)
 }
 
 func Test_SessionCache_Expires(t *testing.T) {

@@ -8,6 +8,6 @@ type CreateRFQInput struct {
 	Qty        string
 	Base       string
 	Quote      string
-	Makers     []string // hints
+	Makers     []string
 	TTLSeconds int
 }

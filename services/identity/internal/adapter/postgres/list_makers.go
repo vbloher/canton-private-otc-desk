@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// ListMakers returns every user with maker mode on, by name.
 func (p *Postgres) ListMakers(ctx context.Context) ([]domain.User, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListMakers")
 	defer span.End()

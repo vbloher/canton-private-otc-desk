@@ -14,7 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/maker-bot/internal/domain"
 )
 
-// SubmitQuote quotes the RFQ; a 409 is domain.ErrConflict.
 func (g *Gateway) SubmitQuote(
 	ctx context.Context, apiKey string, rfqID uuid.UUID, price decimal.Decimal, ttl time.Duration,
 ) error {

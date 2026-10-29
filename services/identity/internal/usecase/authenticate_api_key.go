@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// AuthenticateAPIKey resolves the API key of a bot (a house maker).
 func (u *UseCase) AuthenticateAPIKey(
 	ctx context.Context, input dto.AuthenticateAPIKeyInput,
 ) (dto.AuthenticateAPIKeyOutput, error) {

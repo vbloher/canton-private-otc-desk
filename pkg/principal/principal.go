@@ -1,6 +1,3 @@
-// Package principal carries the authenticated caller from the gateway to the services.
-// The gateway authenticates every request, strips whatever X-User-* headers the client sent
-// and sets its own; services behind it trust them.
 package principal
 
 import (
@@ -46,8 +43,6 @@ func From(ctx context.Context) (Principal, bool) {
 	return p, ok
 }
 
-// Middleware puts the principal into the request context when all three headers are valid.
-// It never rejects a request: handlers decide whether a caller is required.
 func Middleware(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		p, ok := fromHeaders(r.Header)

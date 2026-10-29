@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListTakerRFQs returns the taker's open RFQs and those closed since, newest first.
 func (p *Postgres) ListTakerRFQs(ctx context.Context, taker string, since time.Time) ([]domain.RFQ, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListTakerRFQs")
 	defer span.End()

@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/presentation/components/ui/button";
 
-/** Copies `value`; the icon ticks for a moment. */
 export function CopyButton({
   value,
   label,

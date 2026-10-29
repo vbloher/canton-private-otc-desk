@@ -1,9 +1,3 @@
-/**
- * Desk entities as the application sees them. Money is an exact decimal string
- * (see money.ts), every timestamp is epoch milliseconds, and party fields are
- * party hints ("makerA", "alice-3f9a1c") except `Me.partyId`.
- */
-
 export type Direction = "BUY" | "SELL";
 
 export type UserKind = "passkey" | "house";
@@ -23,15 +17,25 @@ export interface Maker {
 }
 
 export interface DeskTerms {
-  /** Desk fee in basis points of the notional, paid by the maker. */
   feeBps: number;
 }
 
 export interface Instrument {
   symbol: string;
   name: string;
-  /** Fraction digits to show. */
   decimals: number;
+}
+
+export type NetworkName = "devnet" | "testnet" | "mainnet";
+
+export interface Drip {
+  symbol: string;
+  amount: string;
+}
+
+export interface Network {
+  name: NetworkName;
+  faucet: Drip[];
 }
 
 export type RfqStatus = "open" | "filled" | "expired" | "cancelled";
@@ -39,7 +43,6 @@ export type RfqStatus = "open" | "filled" | "expired" | "cancelled";
 export interface Rfq {
   id: string;
   taker: string;
-  /** The taker's view: BUY = the taker buys `base`. */
   direction: Direction;
   qty: string;
   base: string;
@@ -65,20 +68,17 @@ export interface Quote {
   id: string;
   rfqId: string;
   maker: string;
-  /** Quote units per one base unit. */
   price: string;
   validUntil: number;
   status: QuoteStatus;
   createdAt: number;
 }
 
-/** A taker's RFQ with the quotes it received. */
 export interface RfqWithQuotes {
   rfq: Rfq;
   quotes: Quote[];
 }
 
-/** An RFQ a maker was asked to quote, with that maker's quote once there is one. */
 export interface IncomingRfq {
   rfq: Rfq;
   myQuote?: Quote;
@@ -98,7 +98,6 @@ export interface Trade {
   qty: string;
   price: string;
   notional: string;
-  /** "0.0" when the fee floors to zero. */
   fee: string;
   status: TradeStatus;
   reason?: string;
@@ -115,7 +114,6 @@ export interface Balance {
 
 export interface IncomingTransfer {
   contractId: string;
-  /** The sender's party hint. */
   sender: string;
   symbol: string;
   amount: string;
@@ -123,12 +121,10 @@ export interface IncomingTransfer {
 
 export type SignPurpose = "allocate" | "transfer-accept" | "transfer-out";
 
-/** A prepared ledger transaction waiting for the party key's signature. */
 export interface SignAction {
   id: string;
   purpose: SignPurpose;
   description: string;
-  /** The prepared-transaction hash to sign, raw bytes. */
   hash: Uint8Array;
   createdAt: number;
   expiresAt: number;
@@ -151,6 +147,5 @@ export interface NewQuote {
 export interface Withdrawal {
   symbol: string;
   amount: string;
-  /** The receiver's full party id (`hint::fingerprint`). */
   receiver: string;
 }

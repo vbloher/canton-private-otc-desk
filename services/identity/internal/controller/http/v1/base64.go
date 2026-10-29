@@ -6,7 +6,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// decodeBase64 reads a field that is sent as standard base64 (keys, signatures).
 func decodeBase64(field, value string) ([]byte, error) {
 	decoded, err := base64.StdEncoding.DecodeString(value)
 	if err != nil {

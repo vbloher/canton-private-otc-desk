@@ -1,6 +1,5 @@
 BEGIN;
 
--- Sign queue: prepared transactions of external parties waiting for their signature.
 CREATE TABLE IF NOT EXISTS actions
 (
     id                     UUID PRIMARY KEY,

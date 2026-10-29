@@ -32,7 +32,7 @@ func openRFQ(now time.Time, ttl time.Duration) domain.RFQ {
 
 func Test_NewQuote_ClampsToDeadline(t *testing.T) {
 	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
-	rfq := openRFQ(now.Add(-time.Minute), 90*time.Second) // deadline: now + 30 s
+	rfq := openRFQ(now.Add(-time.Minute), 90*time.Second)
 
 	quote, err := domain.NewQuote(rfq, maker, decimal.MustParse("100000"), 60*time.Second, now)
 	require.NoError(t, err)
@@ -47,7 +47,6 @@ func Test_NewQuote_ClampsToDeadline(t *testing.T) {
 	require.Equal(t, rfq.Deadline.Add(30*time.Minute), quote.SettlementDeadline())
 }
 
-// Postgres and Daml keep microseconds: a deadline must read back exactly as it was first used.
 func Test_Times_KeepMicroseconds(t *testing.T) {
 	now := time.Date(2026, 10, 21, 12, 0, 0, 123456789, time.UTC)
 	rfq := openRFQ(now, time.Hour)
@@ -112,8 +111,6 @@ func Test_QuoteStatus_LiveAndDead(t *testing.T) {
 	require.False(t, domain.QuoteAccepted.Live())
 	require.False(t, domain.QuoteExpired.Live())
 
-	// A dead quote never trades: its allocations are the desk's to release. An accepted or won
-	// quote is not live either, but its allocations belong to its trade.
 	for _, s := range []domain.QuoteStatus{domain.QuoteExpired, domain.QuoteCancelled, domain.QuoteLost, domain.QuoteFailed} {
 		require.True(t, s.Dead(), s)
 	}
@@ -134,8 +131,6 @@ func Test_Quote_OpenRecordsWhen(t *testing.T) {
 	require.Nil(t, quote.OpenedAt, "the original is left alone")
 }
 
-// A taker sees only quotes that were once a committed price: never an allocation that did not
-// land (its maker's price must stay private), and never a failed quote.
 func Test_Quote_VisibleToTaker(t *testing.T) {
 	at := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
 	allocating := domain.Quote{Status: domain.QuoteAllocating}
@@ -155,7 +150,6 @@ func Test_Quote_VisibleToTaker(t *testing.T) {
 	require.False(t, allocating.WithStatus(domain.QuoteFailed).VisibleToTaker())
 }
 
-// The quote is acceptable strictly before validUntil.
 func Test_Quote_AcceptableUntilValidUntil(t *testing.T) {
 	until := time.Date(2026, 10, 21, 12, 1, 0, 0, time.UTC)
 	quote := domain.Quote{Status: domain.QuoteOpen, ValidUntil: until}

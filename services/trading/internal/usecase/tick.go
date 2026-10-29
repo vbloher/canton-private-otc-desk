@@ -15,12 +15,6 @@ import (
 
 const settleTimedOut = "settlement timed out"
 
-// Tick advances the book; the worker runs it every WORKER_INTERVAL:
-//  1. live quotes past their validUntil expire and their allocations are released;
-//  2. open RFQs past their deadline without a settling trade expire, with their live quotes;
-//  3. one ledger read covers every allocating quote and settling trade: a quote whose maker has
-//     allocated opens, a trade whose parties have all allocated settles (its quote wins, the RFQ
-//     fills, the other live quotes lose), and a trade settling longer than SETTLE_TIMEOUT fails.
 func (u *UseCase) Tick(ctx context.Context, now time.Time) error {
 	ctx, span := tracer.Start(ctx, "usecase Tick")
 	defer span.End()
@@ -104,8 +98,6 @@ func (u *UseCase) expireRFQ(ctx context.Context, id uuid.UUID, now time.Time) er
 			return fmt.Errorf("postgres.ListQuotes: %w", err)
 		}
 
-		// ListExpiredRFQs leaves out RFQs with a settling trade, but an accept may have
-		// committed since: such an RFQ waits for its trade.
 		if settling(quotes) {
 			return nil
 		}
@@ -195,16 +187,11 @@ func (u *UseCase) advanceTrade(
 	case ok && domain.Allocated(legs, allocated[t.QuoteID]):
 		err := u.settle(ctx, t, legs, now)
 		if err != nil && timedOut {
-			// A settlement the ledger keeps refusing must not lock the parties' funds forever.
 			return errors.Join(fmt.Errorf("u.settle: %w", err), u.failTrade(ctx, t, settleTimedOut))
 		}
 
 		return wrapSettle(err)
 	case ok && domain.NoneAllocated(legs, allocated[t.QuoteID]):
-		// Every allocation is gone. While a trade settles only a settle consumes them (the desk
-		// cancels them once the trade has failed): an earlier settle landed and its answer or its
-		// record was lost. Settling again finds them gone and records the trade. A ledger failure
-		// waits for the next tick, never for the timeout, which would free the RFQ for a second fill.
 		return wrapSettle(u.settle(ctx, t, legs, now))
 	case timedOut:
 		return u.failTrade(ctx, t, settleTimedOut)
@@ -221,7 +208,6 @@ func wrapSettle(err error) error {
 	return nil
 }
 
-// settlementQueries are the legs of every allocating quote and settling trade, by settlement id.
 func (u *UseCase) settlementQueries(
 	ctx context.Context, quotes []domain.Quote, trades []domain.Trade, operator string,
 ) (map[uuid.UUID][]domain.Leg, error) {
@@ -264,7 +250,6 @@ func (u *UseCase) settlementQueries(
 	return queries, nil
 }
 
-// rfqsOf reads the RFQs of the quotes, by id.
 func (u *UseCase) rfqsOf(ctx context.Context, quotes []domain.Quote) (map[uuid.UUID]domain.RFQ, error) {
 	byID := make(map[uuid.UUID]domain.RFQ, len(quotes))
 	if len(quotes) == 0 {
@@ -316,10 +301,6 @@ type settlement struct {
 	done  bool
 }
 
-// settle settles the trade on the ledger and records it. A stopping worker starts no settlement,
-// but nothing cuts short one already started: once the ledger is asked to settle, the record must
-// follow, and so must the releases the record commits. A ledger failure leaves the trade settling:
-// the next tick tries again, until SETTLE_TIMEOUT fails it.
 func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.Leg, now time.Time) error {
 	err := ctx.Err()
 	if err != nil {
@@ -332,8 +313,6 @@ func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.
 
 	switch {
 	case errors.Is(err, domain.ErrSettlementGone):
-		// Only the desk's own settle consumes a settling trade's allocations (the desk cancels them
-		// only once the trade has failed): an earlier settle landed and its answer was lost.
 		log.Warn().Err(err).Stringer("trade", trade.ID).
 			Msg("usecase Tick: the settlement's allocations are consumed already, recorded as settled")
 	case err != nil:
@@ -354,7 +333,6 @@ func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.
 	return nil
 }
 
-// recordSettlement saves a settled trade: its quote won, its RFQ filled, every other live quote lost.
 func (u *UseCase) recordSettlement(ctx context.Context, trade domain.Trade, now time.Time) (settlement, error) {
 	s := settlement{trade: trade}
 
@@ -403,8 +381,6 @@ func (u *UseCase) recordSettlement(ctx context.Context, trade domain.Trade, now 
 	return s, nil
 }
 
-// unrecorded reports the ledger's answer to a settle (an update id, or allocations already gone)
-// for a trade that is no longer settling here.
 func unrecorded(trade domain.Trade, status domain.QuoteStatus) {
 	if status == domain.QuoteWon {
 		log.Warn().Stringer("trade", trade.ID).Str("update", trade.UpdateID).

@@ -17,8 +17,6 @@ func Test_ResolveMakers_LeavesUnknownHintsOut(t *testing.T) {
 	makerB := domain.User{ID: uuid.New(), Hint: "makerB", MakerMode: true}
 	bob := domain.User{ID: uuid.New(), Hint: "bob-aaaaaa", MakerMode: true}
 
-	// ListMakers returns the users whose maker mode is on, so a hint that is not there is either
-	// unknown or not a maker.
 	d.postgres.EXPECT().ListMakers(Any).Return([]domain.User{makerA, makerB, bob}, nil)
 
 	output, err := d.useCase().ResolveMakers(t.Context(), dto.ResolveMakersInput{
@@ -29,7 +27,7 @@ func Test_ResolveMakers_LeavesUnknownHintsOut(t *testing.T) {
 }
 
 func Test_ResolveMakers_NoHints(t *testing.T) {
-	d := newDeps(t) // no expectations: nothing to look up
+	d := newDeps(t)
 
 	output, err := d.useCase().ResolveMakers(t.Context(), dto.ResolveMakersInput{Hints: nil})
 	require.NoError(t, err)

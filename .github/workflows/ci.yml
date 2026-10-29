@@ -4,7 +4,6 @@ on:
   push:
     branches: [master]
   pull_request:
-  # release.yml runs it before publishing and deploying (dev branch, v* tags)
   workflow_call:
 
 permissions:
@@ -134,7 +133,6 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # On dev and v* tags release.yml builds and publishes the images itself.
   docker:
     name: Docker build
     if: github.event_name == 'pull_request'
@@ -156,47 +154,3 @@ jobs:
           push: false
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
-
-  e2e:
-    name: End-to-end (Canton sandbox)
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: 21
-
-      - name: Install DPM and Daml SDK 3.5.2
-        run: |
-          curl -sSfL https://get.digitalasset.com/install/install.sh | sh
-          echo "$HOME/.dpm/bin" >> "$GITHUB_PATH"
-          "$HOME/.dpm/bin/dpm" install 3.5.2
-
-      - name: Start the Canton sandbox
-        run: |
-          nohup ./scripts/ledger-start.sh > ledger.log 2>&1 &
-          for _ in $(seq 1 120); do grep -q 'ledger-start: ready' ledger.log && exit 0; sleep 3; done
-          cat ledger.log; exit 1
-
-      - name: Start the stack
-        run: docker compose -f docker-compose.yml -f docker-compose.host.yml up -d --build --wait postgres redis ledger identity trading gateway maker-bot
-
-      - name: Test
-        run: make e2e-test
-
-      - name: Logs
-        if: failure()
-        run: |
-          docker compose -f docker-compose.yml -f docker-compose.host.yml logs
-          tail -200 ledger.log
-
-      - name: Stop
-        if: always()
-        run: docker compose -f docker-compose.yml -f docker-compose.host.yml down

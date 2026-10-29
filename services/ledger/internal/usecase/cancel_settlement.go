@@ -11,12 +11,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// CancelSettlement cancels, as the operator, every allocation of a dead settlement that is
-// still active; an allocation already gone counts as cancelled. First it expires every
-// allocate action of the settlement still waiting for a signature: one signed after the
-// cancel would leave a committed allocation of a dead settlement behind. An execution in
-// flight holds its row until the ledger has answered, so its allocation is on the ledger,
-// and cancelled here, by the time the actions are expired.
 func (u *UseCase) CancelSettlement(
 	ctx context.Context, input dto.CancelSettlementInput,
 ) (dto.CancelSettlementOutput, error) {
@@ -46,26 +40,12 @@ func (u *UseCase) CancelSettlement(
 		return output, nil
 	}
 
-	rules, err := u.tokenRules(ctx)
-	if err != nil {
-		return output, fmt.Errorf("u.tokenRules: %w", err)
-	}
-
-	tokens, err := u.canton.Tokens(ctx, u.operator)
-	if err != nil {
-		return output, fmt.Errorf("canton.Tokens: %w", err)
-	}
-
-	output.Cancelled, err = u.cancelAll(ctx, rules, tokens, allocations)
+	output.Cancelled, err = u.cancelAll(ctx, allocations)
 
 	return output, err
 }
 
-// cancelAll cancels every allocation it can and tells their authorizers their holdings are
-// free again; the rest fail together.
-func (u *UseCase) cancelAll(ctx context.Context, rules domain.Disclosed, tokens []domain.Disclosed,
-	allocations []domain.Allocation,
-) (int, error) {
+func (u *UseCase) cancelAll(ctx context.Context, allocations []domain.Allocation) (int, error) {
 	var (
 		cancelled   int
 		errs        []error
@@ -73,7 +53,7 @@ func (u *UseCase) cancelAll(ctx context.Context, rules domain.Disclosed, tokens 
 	)
 
 	for _, a := range allocations {
-		err := u.cancel(ctx, rules, tokens, a.ContractID)
+		err := u.cancel(ctx, a)
 		if err != nil {
 			errs = append(errs, err)
 
@@ -94,7 +74,6 @@ func (u *UseCase) cancelAll(ctx context.Context, rules domain.Disclosed, tokens 
 	return cancelled, errors.Join(errs...)
 }
 
-// expireQueued expires the settlement's actions still waiting for a signature.
 func (u *UseCase) expireQueued(ctx context.Context, settlementID string) error {
 	expired, err := u.postgres.ExpireActionsByRef(ctx, settlementID)
 	if err != nil {
@@ -108,15 +87,24 @@ func (u *UseCase) expireQueued(ctx context.Context, settlementID string) error {
 	return nil
 }
 
-func (u *UseCase) cancel(ctx context.Context, rules domain.Disclosed, tokens []domain.Disclosed, cid string) error {
-	cmd, err := u.canton.CancelCommand(rules, tokens, cid, u.operator)
-	if err != nil {
-		return fmt.Errorf("canton.CancelCommand: %w", err)
+func (u *UseCase) cancel(ctx context.Context, allocation domain.Allocation) error {
+	registry, ok := u.config.Instruments.Registry(allocation.Admin)
+	if !ok {
+		return domain.Errorf(domain.ErrUnknownInstrument, "no instrument of %s", allocation.Admin)
 	}
 
-	_, err = u.canton.Submit(ctx, u.operator, "cancel:"+cid, cmd)
+	cmd, err := u.registry.CancelCommand(ctx, registry, allocation.ContractID, u.operator)
+	if errors.Is(err, domain.ErrContractGone) {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("registry.CancelCommand: %w", err)
+	}
+
+	_, err = u.canton.Submit(ctx, u.operator, "cancel:"+allocation.ContractID, cmd)
 	if err != nil && !errors.Is(err, domain.ErrContractGone) && !errors.Is(err, domain.ErrDuplicateCommand) {
-		return fmt.Errorf("canton.Submit cancel %s: %w", cid, err)
+		return fmt.Errorf("canton.Submit cancel %s: %w", allocation.ContractID, err)
 	}
 
 	return nil

@@ -1,8 +1,3 @@
-/**
- * The SPA: providers (ports → query cache → auto-signer → session → events →
- * signer feed) around the routes. /signin is public; /trade, /wallet and
- * /activity need a session.
- */
 import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 import type { Services } from "@/application/ports";
 import { Toaster } from "@/presentation/components/ui/sonner";

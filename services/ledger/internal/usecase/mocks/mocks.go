@@ -50,144 +50,6 @@ func (_m *Canton) EXPECT() *Canton_Expecter {
 	return &Canton_Expecter{mock: &_m.Mock}
 }
 
-// AcceptTransferCommand provides a mock function for the type Canton
-func (_mock *Canton) AcceptTransferCommand(rules domain.Disclosed, inputs []domain.Disclosed, transferCID string) (domain.Command, error) {
-	ret := _mock.Called(rules, inputs, transferCID)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AcceptTransferCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, string) (domain.Command, error)); ok {
-		return returnFunc(rules, inputs, transferCID)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, string) domain.Command); ok {
-		r0 = returnFunc(rules, inputs, transferCID)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, []domain.Disclosed, string) error); ok {
-		r1 = returnFunc(rules, inputs, transferCID)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_AcceptTransferCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptTransferCommand'
-type Canton_AcceptTransferCommand_Call struct {
-	*mock.Call
-}
-
-// AcceptTransferCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - inputs []domain.Disclosed
-//   - transferCID string
-func (_e *Canton_Expecter) AcceptTransferCommand(rules any, inputs any, transferCID any) *Canton_AcceptTransferCommand_Call {
-	return &Canton_AcceptTransferCommand_Call{Call: _e.mock.On("AcceptTransferCommand", rules, inputs, transferCID)}
-}
-
-func (_c *Canton_AcceptTransferCommand_Call) Run(run func(rules domain.Disclosed, inputs []domain.Disclosed, transferCID string)) *Canton_AcceptTransferCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 []domain.Disclosed
-		if args[1] != nil {
-			arg1 = args[1].([]domain.Disclosed)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_AcceptTransferCommand_Call) Return(command domain.Command, err error) *Canton_AcceptTransferCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_AcceptTransferCommand_Call) RunAndReturn(run func(rules domain.Disclosed, inputs []domain.Disclosed, transferCID string) (domain.Command, error)) *Canton_AcceptTransferCommand_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// AllocateCommand provides a mock function for the type Canton
-func (_mock *Canton) AllocateCommand(rules domain.Disclosed, in domain.AllocateSpec) (domain.Command, error) {
-	ret := _mock.Called(rules, in)
-
-	if len(ret) == 0 {
-		panic("no return value specified for AllocateCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.AllocateSpec) (domain.Command, error)); ok {
-		return returnFunc(rules, in)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.AllocateSpec) domain.Command); ok {
-		r0 = returnFunc(rules, in)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, domain.AllocateSpec) error); ok {
-		r1 = returnFunc(rules, in)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_AllocateCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllocateCommand'
-type Canton_AllocateCommand_Call struct {
-	*mock.Call
-}
-
-// AllocateCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - in domain.AllocateSpec
-func (_e *Canton_Expecter) AllocateCommand(rules any, in any) *Canton_AllocateCommand_Call {
-	return &Canton_AllocateCommand_Call{Call: _e.mock.On("AllocateCommand", rules, in)}
-}
-
-func (_c *Canton_AllocateCommand_Call) Run(run func(rules domain.Disclosed, in domain.AllocateSpec)) *Canton_AllocateCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 domain.AllocateSpec
-		if args[1] != nil {
-			arg1 = args[1].(domain.AllocateSpec)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_AllocateCommand_Call) Return(command domain.Command, err error) *Canton_AllocateCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_AllocateCommand_Call) RunAndReturn(run func(rules domain.Disclosed, in domain.AllocateSpec) (domain.Command, error)) *Canton_AllocateCommand_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // AllocateExternalParty provides a mock function for the type Canton
 func (_mock *Canton) AllocateExternalParty(ctx context.Context, synchronizerID string, transactions []string, signature []byte, fingerprint string) (string, error) {
 	ret := _mock.Called(ctx, synchronizerID, transactions, signature, fingerprint)
@@ -336,84 +198,6 @@ func (_c *Canton_Allocations_Call) Return(allocations []domain.Allocation, err e
 }
 
 func (_c *Canton_Allocations_Call) RunAndReturn(run func(ctx context.Context, executor string) ([]domain.Allocation, error)) *Canton_Allocations_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// CancelCommand provides a mock function for the type Canton
-func (_mock *Canton) CancelCommand(rules domain.Disclosed, tokens []domain.Disclosed, allocationCID string, executor string) (domain.Command, error) {
-	ret := _mock.Called(rules, tokens, allocationCID, executor)
-
-	if len(ret) == 0 {
-		panic("no return value specified for CancelCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, string, string) (domain.Command, error)); ok {
-		return returnFunc(rules, tokens, allocationCID, executor)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, string, string) domain.Command); ok {
-		r0 = returnFunc(rules, tokens, allocationCID, executor)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, []domain.Disclosed, string, string) error); ok {
-		r1 = returnFunc(rules, tokens, allocationCID, executor)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_CancelCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelCommand'
-type Canton_CancelCommand_Call struct {
-	*mock.Call
-}
-
-// CancelCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - tokens []domain.Disclosed
-//   - allocationCID string
-//   - executor string
-func (_e *Canton_Expecter) CancelCommand(rules any, tokens any, allocationCID any, executor any) *Canton_CancelCommand_Call {
-	return &Canton_CancelCommand_Call{Call: _e.mock.On("CancelCommand", rules, tokens, allocationCID, executor)}
-}
-
-func (_c *Canton_CancelCommand_Call) Run(run func(rules domain.Disclosed, tokens []domain.Disclosed, allocationCID string, executor string)) *Canton_CancelCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 []domain.Disclosed
-		if args[1] != nil {
-			arg1 = args[1].([]domain.Disclosed)
-		}
-		var arg2 string
-		if args[2] != nil {
-			arg2 = args[2].(string)
-		}
-		var arg3 string
-		if args[3] != nil {
-			arg3 = args[3].(string)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-			arg3,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_CancelCommand_Call) Return(command domain.Command, err error) *Canton_CancelCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_CancelCommand_Call) RunAndReturn(run func(rules domain.Disclosed, tokens []domain.Disclosed, allocationCID string, executor string) (domain.Command, error)) *Canton_CancelCommand_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -633,72 +417,6 @@ func (_c *Canton_Holdings_Call) RunAndReturn(run func(ctx context.Context, party
 	return _c
 }
 
-// OfferMintCommand provides a mock function for the type Canton
-func (_mock *Canton) OfferMintCommand(rules domain.Disclosed, in domain.OfferMintSpec) (domain.Command, error) {
-	ret := _mock.Called(rules, in)
-
-	if len(ret) == 0 {
-		panic("no return value specified for OfferMintCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.OfferMintSpec) (domain.Command, error)); ok {
-		return returnFunc(rules, in)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.OfferMintSpec) domain.Command); ok {
-		r0 = returnFunc(rules, in)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, domain.OfferMintSpec) error); ok {
-		r1 = returnFunc(rules, in)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_OfferMintCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'OfferMintCommand'
-type Canton_OfferMintCommand_Call struct {
-	*mock.Call
-}
-
-// OfferMintCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - in domain.OfferMintSpec
-func (_e *Canton_Expecter) OfferMintCommand(rules any, in any) *Canton_OfferMintCommand_Call {
-	return &Canton_OfferMintCommand_Call{Call: _e.mock.On("OfferMintCommand", rules, in)}
-}
-
-func (_c *Canton_OfferMintCommand_Call) Run(run func(rules domain.Disclosed, in domain.OfferMintSpec)) *Canton_OfferMintCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 domain.OfferMintSpec
-		if args[1] != nil {
-			arg1 = args[1].(domain.OfferMintSpec)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_OfferMintCommand_Call) Return(command domain.Command, err error) *Canton_OfferMintCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_OfferMintCommand_Call) RunAndReturn(run func(rules domain.Disclosed, in domain.OfferMintSpec) (domain.Command, error)) *Canton_OfferMintCommand_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Prepare provides a mock function for the type Canton
 func (_mock *Canton) Prepare(ctx context.Context, actAs string, commandID string, cmd domain.Command) (domain.Prepared, error) {
 	ret := _mock.Called(ctx, actAs, commandID, cmd)
@@ -894,78 +612,6 @@ func (_c *Canton_ResolveParty_Call) RunAndReturn(run func(ctx context.Context, h
 	return _c
 }
 
-// SettleCommand provides a mock function for the type Canton
-func (_mock *Canton) SettleCommand(rules domain.Disclosed, tokens []domain.Disclosed, in domain.SettleSpec) (domain.Command, error) {
-	ret := _mock.Called(rules, tokens, in)
-
-	if len(ret) == 0 {
-		panic("no return value specified for SettleCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, domain.SettleSpec) (domain.Command, error)); ok {
-		return returnFunc(rules, tokens, in)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, []domain.Disclosed, domain.SettleSpec) domain.Command); ok {
-		r0 = returnFunc(rules, tokens, in)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, []domain.Disclosed, domain.SettleSpec) error); ok {
-		r1 = returnFunc(rules, tokens, in)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_SettleCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SettleCommand'
-type Canton_SettleCommand_Call struct {
-	*mock.Call
-}
-
-// SettleCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - tokens []domain.Disclosed
-//   - in domain.SettleSpec
-func (_e *Canton_Expecter) SettleCommand(rules any, tokens any, in any) *Canton_SettleCommand_Call {
-	return &Canton_SettleCommand_Call{Call: _e.mock.On("SettleCommand", rules, tokens, in)}
-}
-
-func (_c *Canton_SettleCommand_Call) Run(run func(rules domain.Disclosed, tokens []domain.Disclosed, in domain.SettleSpec)) *Canton_SettleCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 []domain.Disclosed
-		if args[1] != nil {
-			arg1 = args[1].([]domain.Disclosed)
-		}
-		var arg2 domain.SettleSpec
-		if args[2] != nil {
-			arg2 = args[2].(domain.SettleSpec)
-		}
-		run(
-			arg0,
-			arg1,
-			arg2,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_SettleCommand_Call) Return(command domain.Command, err error) *Canton_SettleCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_SettleCommand_Call) RunAndReturn(run func(rules domain.Disclosed, tokens []domain.Disclosed, in domain.SettleSpec) (domain.Command, error)) *Canton_SettleCommand_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // Submit provides a mock function for the type Canton
 func (_mock *Canton) Submit(ctx context.Context, actAs string, commandID string, cmd domain.Command) (domain.Transaction, error) {
 	ret := _mock.Called(ctx, actAs, commandID, cmd)
@@ -1110,206 +756,6 @@ func (_c *Canton_SynchronizerID_Call) RunAndReturn(run func(ctx context.Context,
 	return _c
 }
 
-// TokenRules provides a mock function for the type Canton
-func (_mock *Canton) TokenRules(ctx context.Context, admin string) (domain.Disclosed, error) {
-	ret := _mock.Called(ctx, admin)
-
-	if len(ret) == 0 {
-		panic("no return value specified for TokenRules")
-	}
-
-	var r0 domain.Disclosed
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (domain.Disclosed, error)); ok {
-		return returnFunc(ctx, admin)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) domain.Disclosed); ok {
-		r0 = returnFunc(ctx, admin)
-	} else {
-		r0 = ret.Get(0).(domain.Disclosed)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, admin)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_TokenRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TokenRules'
-type Canton_TokenRules_Call struct {
-	*mock.Call
-}
-
-// TokenRules is a helper method to define mock.On call
-//   - ctx context.Context
-//   - admin string
-func (_e *Canton_Expecter) TokenRules(ctx any, admin any) *Canton_TokenRules_Call {
-	return &Canton_TokenRules_Call{Call: _e.mock.On("TokenRules", ctx, admin)}
-}
-
-func (_c *Canton_TokenRules_Call) Run(run func(ctx context.Context, admin string)) *Canton_TokenRules_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_TokenRules_Call) Return(disclosed domain.Disclosed, err error) *Canton_TokenRules_Call {
-	_c.Call.Return(disclosed, err)
-	return _c
-}
-
-func (_c *Canton_TokenRules_Call) RunAndReturn(run func(ctx context.Context, admin string) (domain.Disclosed, error)) *Canton_TokenRules_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// Tokens provides a mock function for the type Canton
-func (_mock *Canton) Tokens(ctx context.Context, admin string) ([]domain.Disclosed, error) {
-	ret := _mock.Called(ctx, admin)
-
-	if len(ret) == 0 {
-		panic("no return value specified for Tokens")
-	}
-
-	var r0 []domain.Disclosed
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) ([]domain.Disclosed, error)); ok {
-		return returnFunc(ctx, admin)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) []domain.Disclosed); ok {
-		r0 = returnFunc(ctx, admin)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]domain.Disclosed)
-		}
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, admin)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_Tokens_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'Tokens'
-type Canton_Tokens_Call struct {
-	*mock.Call
-}
-
-// Tokens is a helper method to define mock.On call
-//   - ctx context.Context
-//   - admin string
-func (_e *Canton_Expecter) Tokens(ctx any, admin any) *Canton_Tokens_Call {
-	return &Canton_Tokens_Call{Call: _e.mock.On("Tokens", ctx, admin)}
-}
-
-func (_c *Canton_Tokens_Call) Run(run func(ctx context.Context, admin string)) *Canton_Tokens_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_Tokens_Call) Return(discloseds []domain.Disclosed, err error) *Canton_Tokens_Call {
-	_c.Call.Return(discloseds, err)
-	return _c
-}
-
-func (_c *Canton_Tokens_Call) RunAndReturn(run func(ctx context.Context, admin string) ([]domain.Disclosed, error)) *Canton_Tokens_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// TransferCommand provides a mock function for the type Canton
-func (_mock *Canton) TransferCommand(rules domain.Disclosed, in domain.TransferSpec) (domain.Command, error) {
-	ret := _mock.Called(rules, in)
-
-	if len(ret) == 0 {
-		panic("no return value specified for TransferCommand")
-	}
-
-	var r0 domain.Command
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.TransferSpec) (domain.Command, error)); ok {
-		return returnFunc(rules, in)
-	}
-	if returnFunc, ok := ret.Get(0).(func(domain.Disclosed, domain.TransferSpec) domain.Command); ok {
-		r0 = returnFunc(rules, in)
-	} else {
-		r0 = ret.Get(0).(domain.Command)
-	}
-	if returnFunc, ok := ret.Get(1).(func(domain.Disclosed, domain.TransferSpec) error); ok {
-		r1 = returnFunc(rules, in)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Canton_TransferCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransferCommand'
-type Canton_TransferCommand_Call struct {
-	*mock.Call
-}
-
-// TransferCommand is a helper method to define mock.On call
-//   - rules domain.Disclosed
-//   - in domain.TransferSpec
-func (_e *Canton_Expecter) TransferCommand(rules any, in any) *Canton_TransferCommand_Call {
-	return &Canton_TransferCommand_Call{Call: _e.mock.On("TransferCommand", rules, in)}
-}
-
-func (_c *Canton_TransferCommand_Call) Run(run func(rules domain.Disclosed, in domain.TransferSpec)) *Canton_TransferCommand_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 domain.Disclosed
-		if args[0] != nil {
-			arg0 = args[0].(domain.Disclosed)
-		}
-		var arg1 domain.TransferSpec
-		if args[1] != nil {
-			arg1 = args[1].(domain.TransferSpec)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Canton_TransferCommand_Call) Return(command domain.Command, err error) *Canton_TransferCommand_Call {
-	_c.Call.Return(command, err)
-	return _c
-}
-
-func (_c *Canton_TransferCommand_Call) RunAndReturn(run func(rules domain.Disclosed, in domain.TransferSpec) (domain.Command, error)) *Canton_TransferCommand_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // TransferInstructions provides a mock function for the type Canton
 func (_mock *Canton) TransferInstructions(ctx context.Context, receiver string) ([]domain.IncomingTransfer, error) {
 	ret := _mock.Called(ctx, receiver)
@@ -1374,6 +820,390 @@ func (_c *Canton_TransferInstructions_Call) Return(incomingTransfers []domain.In
 }
 
 func (_c *Canton_TransferInstructions_Call) RunAndReturn(run func(ctx context.Context, receiver string) ([]domain.IncomingTransfer, error)) *Canton_TransferInstructions_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// NewRegistry creates a new instance of Registry. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
+// The first argument is typically a *testing.T value.
+func NewRegistry(t interface {
+	mock.TestingT
+	Cleanup(func())
+}) *Registry {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
+	mock := &Registry{}
+	mock.Mock.Test(t)
+
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
+
+	return mock
+}
+
+// Registry is an autogenerated mock type for the Registry type
+type Registry struct {
+	mock.Mock
+}
+
+type Registry_Expecter struct {
+	mock *mock.Mock
+}
+
+func (_m *Registry) EXPECT() *Registry_Expecter {
+	return &Registry_Expecter{mock: &_m.Mock}
+}
+
+// AcceptTransferCommand provides a mock function for the type Registry
+func (_mock *Registry) AcceptTransferCommand(ctx context.Context, registry string, transferCID string) (domain.Command, error) {
+	ret := _mock.Called(ctx, registry, transferCID)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AcceptTransferCommand")
+	}
+
+	var r0 domain.Command
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) (domain.Command, error)); ok {
+		return returnFunc(ctx, registry, transferCID)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string) domain.Command); ok {
+		r0 = returnFunc(ctx, registry, transferCID)
+	} else {
+		r0 = ret.Get(0).(domain.Command)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = returnFunc(ctx, registry, transferCID)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Registry_AcceptTransferCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AcceptTransferCommand'
+type Registry_AcceptTransferCommand_Call struct {
+	*mock.Call
+}
+
+// AcceptTransferCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - registry string
+//   - transferCID string
+func (_e *Registry_Expecter) AcceptTransferCommand(ctx any, registry any, transferCID any) *Registry_AcceptTransferCommand_Call {
+	return &Registry_AcceptTransferCommand_Call{Call: _e.mock.On("AcceptTransferCommand", ctx, registry, transferCID)}
+}
+
+func (_c *Registry_AcceptTransferCommand_Call) Run(run func(ctx context.Context, registry string, transferCID string)) *Registry_AcceptTransferCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *Registry_AcceptTransferCommand_Call) Return(command domain.Command, err error) *Registry_AcceptTransferCommand_Call {
+	_c.Call.Return(command, err)
+	return _c
+}
+
+func (_c *Registry_AcceptTransferCommand_Call) RunAndReturn(run func(ctx context.Context, registry string, transferCID string) (domain.Command, error)) *Registry_AcceptTransferCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// AllocateCommand provides a mock function for the type Registry
+func (_mock *Registry) AllocateCommand(ctx context.Context, in domain.AllocateSpec) (domain.Command, error) {
+	ret := _mock.Called(ctx, in)
+
+	if len(ret) == 0 {
+		panic("no return value specified for AllocateCommand")
+	}
+
+	var r0 domain.Command
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.AllocateSpec) (domain.Command, error)); ok {
+		return returnFunc(ctx, in)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.AllocateSpec) domain.Command); ok {
+		r0 = returnFunc(ctx, in)
+	} else {
+		r0 = ret.Get(0).(domain.Command)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.AllocateSpec) error); ok {
+		r1 = returnFunc(ctx, in)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Registry_AllocateCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'AllocateCommand'
+type Registry_AllocateCommand_Call struct {
+	*mock.Call
+}
+
+// AllocateCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in domain.AllocateSpec
+func (_e *Registry_Expecter) AllocateCommand(ctx any, in any) *Registry_AllocateCommand_Call {
+	return &Registry_AllocateCommand_Call{Call: _e.mock.On("AllocateCommand", ctx, in)}
+}
+
+func (_c *Registry_AllocateCommand_Call) Run(run func(ctx context.Context, in domain.AllocateSpec)) *Registry_AllocateCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 domain.AllocateSpec
+		if args[1] != nil {
+			arg1 = args[1].(domain.AllocateSpec)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Registry_AllocateCommand_Call) Return(command domain.Command, err error) *Registry_AllocateCommand_Call {
+	_c.Call.Return(command, err)
+	return _c
+}
+
+func (_c *Registry_AllocateCommand_Call) RunAndReturn(run func(ctx context.Context, in domain.AllocateSpec) (domain.Command, error)) *Registry_AllocateCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// CancelCommand provides a mock function for the type Registry
+func (_mock *Registry) CancelCommand(ctx context.Context, registry string, allocationCID string, executor string) (domain.Command, error) {
+	ret := _mock.Called(ctx, registry, allocationCID, executor)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CancelCommand")
+	}
+
+	var r0 domain.Command
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) (domain.Command, error)); ok {
+		return returnFunc(ctx, registry, allocationCID, executor)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, string, string) domain.Command); ok {
+		r0 = returnFunc(ctx, registry, allocationCID, executor)
+	} else {
+		r0 = ret.Get(0).(domain.Command)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = returnFunc(ctx, registry, allocationCID, executor)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Registry_CancelCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CancelCommand'
+type Registry_CancelCommand_Call struct {
+	*mock.Call
+}
+
+// CancelCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - registry string
+//   - allocationCID string
+//   - executor string
+func (_e *Registry_Expecter) CancelCommand(ctx any, registry any, allocationCID any, executor any) *Registry_CancelCommand_Call {
+	return &Registry_CancelCommand_Call{Call: _e.mock.On("CancelCommand", ctx, registry, allocationCID, executor)}
+}
+
+func (_c *Registry_CancelCommand_Call) Run(run func(ctx context.Context, registry string, allocationCID string, executor string)) *Registry_CancelCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 string
+		if args[2] != nil {
+			arg2 = args[2].(string)
+		}
+		var arg3 string
+		if args[3] != nil {
+			arg3 = args[3].(string)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+			arg3,
+		)
+	})
+	return _c
+}
+
+func (_c *Registry_CancelCommand_Call) Return(command domain.Command, err error) *Registry_CancelCommand_Call {
+	_c.Call.Return(command, err)
+	return _c
+}
+
+func (_c *Registry_CancelCommand_Call) RunAndReturn(run func(ctx context.Context, registry string, allocationCID string, executor string) (domain.Command, error)) *Registry_CancelCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// SettleCommand provides a mock function for the type Registry
+func (_mock *Registry) SettleCommand(ctx context.Context, in domain.SettleSpec) (domain.Command, error) {
+	ret := _mock.Called(ctx, in)
+
+	if len(ret) == 0 {
+		panic("no return value specified for SettleCommand")
+	}
+
+	var r0 domain.Command
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.SettleSpec) (domain.Command, error)); ok {
+		return returnFunc(ctx, in)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.SettleSpec) domain.Command); ok {
+		r0 = returnFunc(ctx, in)
+	} else {
+		r0 = ret.Get(0).(domain.Command)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.SettleSpec) error); ok {
+		r1 = returnFunc(ctx, in)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Registry_SettleCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SettleCommand'
+type Registry_SettleCommand_Call struct {
+	*mock.Call
+}
+
+// SettleCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in domain.SettleSpec
+func (_e *Registry_Expecter) SettleCommand(ctx any, in any) *Registry_SettleCommand_Call {
+	return &Registry_SettleCommand_Call{Call: _e.mock.On("SettleCommand", ctx, in)}
+}
+
+func (_c *Registry_SettleCommand_Call) Run(run func(ctx context.Context, in domain.SettleSpec)) *Registry_SettleCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 domain.SettleSpec
+		if args[1] != nil {
+			arg1 = args[1].(domain.SettleSpec)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Registry_SettleCommand_Call) Return(command domain.Command, err error) *Registry_SettleCommand_Call {
+	_c.Call.Return(command, err)
+	return _c
+}
+
+func (_c *Registry_SettleCommand_Call) RunAndReturn(run func(ctx context.Context, in domain.SettleSpec) (domain.Command, error)) *Registry_SettleCommand_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// TransferCommand provides a mock function for the type Registry
+func (_mock *Registry) TransferCommand(ctx context.Context, in domain.TransferSpec) (domain.Command, error) {
+	ret := _mock.Called(ctx, in)
+
+	if len(ret) == 0 {
+		panic("no return value specified for TransferCommand")
+	}
+
+	var r0 domain.Command
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransferSpec) (domain.Command, error)); ok {
+		return returnFunc(ctx, in)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.TransferSpec) domain.Command); ok {
+		r0 = returnFunc(ctx, in)
+	} else {
+		r0 = ret.Get(0).(domain.Command)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, domain.TransferSpec) error); ok {
+		r1 = returnFunc(ctx, in)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Registry_TransferCommand_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'TransferCommand'
+type Registry_TransferCommand_Call struct {
+	*mock.Call
+}
+
+// TransferCommand is a helper method to define mock.On call
+//   - ctx context.Context
+//   - in domain.TransferSpec
+func (_e *Registry_Expecter) TransferCommand(ctx any, in any) *Registry_TransferCommand_Call {
+	return &Registry_TransferCommand_Call{Call: _e.mock.On("TransferCommand", ctx, in)}
+}
+
+func (_c *Registry_TransferCommand_Call) Run(run func(ctx context.Context, in domain.TransferSpec)) *Registry_TransferCommand_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 domain.TransferSpec
+		if args[1] != nil {
+			arg1 = args[1].(domain.TransferSpec)
+		}
+		run(
+			arg0,
+			arg1,
+		)
+	})
+	return _c
+}
+
+func (_c *Registry_TransferCommand_Call) Return(command domain.Command, err error) *Registry_TransferCommand_Call {
+	_c.Call.Return(command, err)
+	return _c
+}
+
+func (_c *Registry_TransferCommand_Call) RunAndReturn(run func(ctx context.Context, in domain.TransferSpec) (domain.Command, error)) *Registry_TransferCommand_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1849,6 +1679,78 @@ func (_m *Redis) EXPECT() *Redis_Expecter {
 	return &Redis_Expecter{mock: &_m.Mock}
 }
 
+// ClaimFaucet provides a mock function for the type Redis
+func (_mock *Redis) ClaimFaucet(ctx context.Context, party string, cooldown time.Duration) (bool, error) {
+	ret := _mock.Called(ctx, party, cooldown)
+
+	if len(ret) == 0 {
+		panic("no return value specified for ClaimFaucet")
+	}
+
+	var r0 bool
+	var r1 error
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, time.Duration) (bool, error)); ok {
+		return returnFunc(ctx, party, cooldown)
+	}
+	if returnFunc, ok := ret.Get(0).(func(context.Context, string, time.Duration) bool); ok {
+		r0 = returnFunc(ctx, party, cooldown)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+	if returnFunc, ok := ret.Get(1).(func(context.Context, string, time.Duration) error); ok {
+		r1 = returnFunc(ctx, party, cooldown)
+	} else {
+		r1 = ret.Error(1)
+	}
+	return r0, r1
+}
+
+// Redis_ClaimFaucet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClaimFaucet'
+type Redis_ClaimFaucet_Call struct {
+	*mock.Call
+}
+
+// ClaimFaucet is a helper method to define mock.On call
+//   - ctx context.Context
+//   - party string
+//   - cooldown time.Duration
+func (_e *Redis_Expecter) ClaimFaucet(ctx any, party any, cooldown any) *Redis_ClaimFaucet_Call {
+	return &Redis_ClaimFaucet_Call{Call: _e.mock.On("ClaimFaucet", ctx, party, cooldown)}
+}
+
+func (_c *Redis_ClaimFaucet_Call) Run(run func(ctx context.Context, party string, cooldown time.Duration)) *Redis_ClaimFaucet_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		var arg0 context.Context
+		if args[0] != nil {
+			arg0 = args[0].(context.Context)
+		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
+		var arg2 time.Duration
+		if args[2] != nil {
+			arg2 = args[2].(time.Duration)
+		}
+		run(
+			arg0,
+			arg1,
+			arg2,
+		)
+	})
+	return _c
+}
+
+func (_c *Redis_ClaimFaucet_Call) Return(b bool, err error) *Redis_ClaimFaucet_Call {
+	_c.Call.Return(b, err)
+	return _c
+}
+
+func (_c *Redis_ClaimFaucet_Call) RunAndReturn(run func(ctx context.Context, party string, cooldown time.Duration) (bool, error)) *Redis_ClaimFaucet_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // GetSynchronizerID provides a mock function for the type Redis
 func (_mock *Redis) GetSynchronizerID(ctx context.Context) (string, bool) {
 	ret := _mock.Called(ctx)
@@ -1909,63 +1811,49 @@ func (_c *Redis_GetSynchronizerID_Call) RunAndReturn(run func(ctx context.Contex
 	return _c
 }
 
-// GetTokenRules provides a mock function for the type Redis
-func (_mock *Redis) GetTokenRules(ctx context.Context) (domain.Disclosed, bool) {
-	ret := _mock.Called(ctx)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetTokenRules")
-	}
-
-	var r0 domain.Disclosed
-	var r1 bool
-	if returnFunc, ok := ret.Get(0).(func(context.Context) (domain.Disclosed, bool)); ok {
-		return returnFunc(ctx)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context) domain.Disclosed); ok {
-		r0 = returnFunc(ctx)
-	} else {
-		r0 = ret.Get(0).(domain.Disclosed)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context) bool); ok {
-		r1 = returnFunc(ctx)
-	} else {
-		r1 = ret.Get(1).(bool)
-	}
-	return r0, r1
+// ReleaseFaucet provides a mock function for the type Redis
+func (_mock *Redis) ReleaseFaucet(ctx context.Context, party string) {
+	_mock.Called(ctx, party)
+	return
 }
 
-// Redis_GetTokenRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetTokenRules'
-type Redis_GetTokenRules_Call struct {
+// Redis_ReleaseFaucet_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ReleaseFaucet'
+type Redis_ReleaseFaucet_Call struct {
 	*mock.Call
 }
 
-// GetTokenRules is a helper method to define mock.On call
+// ReleaseFaucet is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *Redis_Expecter) GetTokenRules(ctx any) *Redis_GetTokenRules_Call {
-	return &Redis_GetTokenRules_Call{Call: _e.mock.On("GetTokenRules", ctx)}
+//   - party string
+func (_e *Redis_Expecter) ReleaseFaucet(ctx any, party any) *Redis_ReleaseFaucet_Call {
+	return &Redis_ReleaseFaucet_Call{Call: _e.mock.On("ReleaseFaucet", ctx, party)}
 }
 
-func (_c *Redis_GetTokenRules_Call) Run(run func(ctx context.Context)) *Redis_GetTokenRules_Call {
+func (_c *Redis_ReleaseFaucet_Call) Run(run func(ctx context.Context, party string)) *Redis_ReleaseFaucet_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		var arg0 context.Context
 		if args[0] != nil {
 			arg0 = args[0].(context.Context)
 		}
+		var arg1 string
+		if args[1] != nil {
+			arg1 = args[1].(string)
+		}
 		run(
 			arg0,
+			arg1,
 		)
 	})
 	return _c
 }
 
-func (_c *Redis_GetTokenRules_Call) Return(disclosed domain.Disclosed, b bool) *Redis_GetTokenRules_Call {
-	_c.Call.Return(disclosed, b)
+func (_c *Redis_ReleaseFaucet_Call) Return() *Redis_ReleaseFaucet_Call {
+	_c.Call.Return()
 	return _c
 }
 
-func (_c *Redis_GetTokenRules_Call) RunAndReturn(run func(ctx context.Context) (domain.Disclosed, bool)) *Redis_GetTokenRules_Call {
-	_c.Call.Return(run)
+func (_c *Redis_ReleaseFaucet_Call) RunAndReturn(run func(ctx context.Context, party string)) *Redis_ReleaseFaucet_Call {
+	_c.Run(run)
 	return _c
 }
 
@@ -2011,52 +1899,6 @@ func (_c *Redis_SetSynchronizerID_Call) Return() *Redis_SetSynchronizerID_Call {
 }
 
 func (_c *Redis_SetSynchronizerID_Call) RunAndReturn(run func(ctx context.Context, id string)) *Redis_SetSynchronizerID_Call {
-	_c.Run(run)
-	return _c
-}
-
-// SetTokenRules provides a mock function for the type Redis
-func (_mock *Redis) SetTokenRules(ctx context.Context, rules domain.Disclosed) {
-	_mock.Called(ctx, rules)
-	return
-}
-
-// Redis_SetTokenRules_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'SetTokenRules'
-type Redis_SetTokenRules_Call struct {
-	*mock.Call
-}
-
-// SetTokenRules is a helper method to define mock.On call
-//   - ctx context.Context
-//   - rules domain.Disclosed
-func (_e *Redis_Expecter) SetTokenRules(ctx any, rules any) *Redis_SetTokenRules_Call {
-	return &Redis_SetTokenRules_Call{Call: _e.mock.On("SetTokenRules", ctx, rules)}
-}
-
-func (_c *Redis_SetTokenRules_Call) Run(run func(ctx context.Context, rules domain.Disclosed)) *Redis_SetTokenRules_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 domain.Disclosed
-		if args[1] != nil {
-			arg1 = args[1].(domain.Disclosed)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Redis_SetTokenRules_Call) Return() *Redis_SetTokenRules_Call {
-	_c.Call.Return()
-	return _c
-}
-
-func (_c *Redis_SetTokenRules_Call) RunAndReturn(run func(ctx context.Context, rules domain.Disclosed)) *Redis_SetTokenRules_Call {
 	_c.Run(run)
 	return _c
 }

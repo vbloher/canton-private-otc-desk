@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// ListMakers returns the makers the caller can ask for quotes: everyone with maker mode on, but the caller.
 func (u *UseCase) ListMakers(ctx context.Context, input dto.ListMakersInput) (dto.ListMakersOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase ListMakers")
 	defer span.End()

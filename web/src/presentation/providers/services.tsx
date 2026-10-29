@@ -1,7 +1,3 @@
-/**
- * The application's ports, handed in by the composition root (main.tsx). The
- * presentation reaches the outside world only through these.
- */
 import { createContext, use, type ReactNode } from "react";
 import type { Services } from "@/application/ports";
 

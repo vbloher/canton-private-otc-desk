@@ -9,16 +9,17 @@ PROTOC_ARCH := $(shell uname -m | sed 's/arm64/aarch_64/;s/aarch64/aarch_64/')
 
 PROTOS := identity_v1 ledger_v1
 
-# On Linux the app containers share the host network to reach the sandbox on loopback.
-COMPOSE := docker compose -f docker-compose.yml $(if $(filter Linux,$(shell uname -s)),-f docker-compose.host.yml)
+SERVICES := gateway identity trading ledger maker-bot
 
-.PHONY: lint test integration-test e2e-test sandbox-test vuln ledger up up-all down clean web-dev generate grpc-gen \
+.PHONY: lint test integration-test vuln env up up-all down clean web-dev generate grpc-gen \
 	bin-deps protoc-install lint-install
 
-# run-identity, run-ledger, run-trading, run-gateway, run-maker-bot (creates services/<name>/.env from the example)
 run-%:
 	@test -f services/$*/.env || cp services/$*/.env.example services/$*/.env
 	cd services/$* && go run ./cmd/app
+
+env:
+	@for s in $(SERVICES); do test -f services/$$s/.env || cp services/$$s/.env.example services/$$s/.env; done
 
 lint:
 	$(LOCAL_BIN)/golangci-lint run ./...
@@ -26,33 +27,23 @@ lint:
 test:
 	go test -race -shuffle=on -cover ./...
 
-# black-box suite against the running stack (make ledger + make up-all)
-e2e-test:
-	go test -count=1 -v -tags=e2e ./test/e2e
-
-# ledger adapter against the running sandbox (make ledger)
-sandbox-test:
-	go test -count=1 -v -tags=sandbox ./services/ledger/internal/adapter/canton/...
+integration-test:
+	go test -count=1 -tags=integration ./services/...
 
 vuln:
 	go tool govulncheck ./...
 
-# local Canton sandbox with the test token rail and the demo seed (keep it running)
-ledger:
-	./scripts/ledger-start.sh
-
 up:
 	docker compose up -d --wait postgres redis
 
-up-all:
-	$(COMPOSE) up -d --build --wait
+up-all: env
+	docker compose up -d --build --wait
 
 down:
-	$(COMPOSE) down
+	docker compose down
 
-# also drops the databases: needed after restarting the in-memory sandbox (old wallets are gone)
 clean:
-	$(COMPOSE) down -v
+	docker compose down -v
 
 web-dev:
 	pnpm --dir web dev
@@ -85,7 +76,3 @@ protoc-install:
 
 lint-install:
 	curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(LOCAL_BIN) $(GOLANGCI_LINT_VERSION)
-
-# service tests against real Postgres and Redis (make up)
-integration-test:
-	go test -count=1 -tags=integration ./services/...

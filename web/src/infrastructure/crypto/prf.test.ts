@@ -3,12 +3,11 @@ import { PasskeyCancelledError, PrfUnsupportedError } from "@/application/errors
 import { unwrapSeed } from "./blob";
 import { createPasskeyVault, type WebAuthnEnv } from "./prf";
 
-const RAW_ID = Uint8Array.of(0xfb, 0xff, 0x01, 0x02); // base64url "-_8BAg"
+const RAW_ID = Uint8Array.of(0xfb, 0xff, 0x01, 0x02);
 const PRF_OUTPUT = new Uint8Array(32).fill(0x42);
 
 type Options = { publicKey: Record<string, unknown> };
 
-/** A fake authenticator: records the options it was given and answers like a browser would. */
 function fakeEnv(opts: { prf?: boolean; refuse?: boolean; capabilities?: Record<string, boolean> } = {}) {
   const seen: { create?: Options; get?: Options } = {};
   const answer = () => ({

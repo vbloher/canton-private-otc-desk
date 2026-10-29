@@ -14,7 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// jsonAPI answers one path with a status and body and records the request body it got.
 func jsonAPI(t *testing.T, path string, status int, body string) (*Canton, *[]byte) {
 	t.Helper()
 
@@ -44,18 +43,20 @@ func Test_Prepare_SendsTheCommandID(t *testing.T) {
 		`{"preparedTransaction":"tx","preparedTransactionHash":"aGFzaA==","hashingSchemeVersion":"HASHING_SCHEME_VERSION_V2"}`)
 
 	prepared, err := c.Prepare(t.Context(), "alice::1220", "allocate:s-1:alice::1220:CBTC", domain.Command{
-		Payload: json.RawMessage(`{"ExerciseCommand":{}}`), Disclosed: []domain.Disclosed{rules()}, SynchronizerID: "sync-1",
+		Commands: []json.RawMessage{json.RawMessage(`{"ExerciseCommand":{}}`)}, Disclosed: []domain.Disclosed{disclosed()},
+		SynchronizerID: "sync-1",
 	})
 	require.NoError(t, err)
-	require.Equal(t, domain.Prepared{Transaction: "tx", HashingSchemeVersion: "HASHING_SCHEME_VERSION_V2",
-		Hash: []byte("hash")}, prepared)
+	require.Equal(t, domain.Prepared{
+		Transaction: "tx", HashingSchemeVersion: "HASHING_SCHEME_VERSION_V2",
+		Hash: []byte("hash"),
+	}, prepared)
 
 	var body struct {
 		CommandID string   `json:"commandId"`
 		ActAs     []string `json:"actAs"`
 	}
 	require.NoError(t, json.Unmarshal(*got, &body))
-	// The deterministic id is what makes the ledger refuse a second execution of the same allocation.
 	require.Equal(t, "allocate:s-1:alice::1220:CBTC", body.CommandID)
 	require.Equal(t, []string{"alice::1220"}, body.ActAs)
 }
@@ -94,31 +95,60 @@ func Test_LedgerErrors_Classified(t *testing.T) {
 		kinds  []error
 		not    []error
 	}{
-		"duplicate command": {http.StatusConflict, `{"code":"DUPLICATE_COMMAND","cause":"Command submission already exists.","errorCategory":10}`,
-			[]error{domain.ErrLedger, domain.ErrDuplicateCommand}, []error{domain.ErrLedgerUnavailable, domain.ErrContractGone}},
-		"contract not found": {http.StatusNotFound, `{"code":"CONTRACT_NOT_FOUND","cause":"Contract could not be found","errorCategory":11}`,
-			[]error{domain.ErrLedger, domain.ErrContractGone}, []error{domain.ErrLedgerUnavailable}},
-		"inactive contracts": {http.StatusConflict, `{"code":"LOCAL_VERDICT_INACTIVE_CONTRACTS","cause":"inactive","errorCategory":2}`,
-			[]error{domain.ErrLedger, domain.ErrContractGone}, []error{domain.ErrLedgerUnavailable}},
-		// Measured on the sandbox: signed with another user's (valid) key.
-		"signature by another key": {http.StatusBadRequest, `{"code":"FAILED_TO_EXECUTE_TRANSACTION","cause":"The participant ` +
-			`failed to execute the transaction: Received 0 valid signatures from distinct keys (1 invalid), but expected at ` +
-			`least 1 valid for alice::1220…. Transaction hash to be signed: 1220e8f0. Ensure the correct transaction hash is ` +
-			`signed with the correct key(s).","errorCategory":8}`,
-			[]error{domain.ErrSignatureRejected}, []error{domain.ErrLedgerUnavailable, domain.ErrContractGone, domain.ErrDuplicateCommand}},
-		"execution failed otherwise": {http.StatusBadRequest, `{"code":"FAILED_TO_EXECUTE_TRANSACTION","cause":"The participant ` +
-			`failed to execute the transaction: the prepared transaction is malformed","errorCategory":8}`,
-			[]error{domain.ErrLedger}, []error{domain.ErrSignatureRejected, domain.ErrLedgerUnavailable}},
-		"transient category": {http.StatusConflict, `{"code":"SUBMISSION_ALREADY_IN_FLIGHT","cause":"in flight","errorCategory":2}`,
-			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable}, nil},
-		"unavailable category": {http.StatusServiceUnavailable, `{"code":"SERVICE_NOT_RUNNING","cause":"starting","errorCategory":1}`,
-			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable}, nil},
-		"deadline category": {http.StatusGatewayTimeout, `{"code":"REQUEST_TIME_OUT","cause":"timed out","errorCategory":3}`,
-			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable}, nil},
-		"5xx without a body": {http.StatusBadGateway, `upstream connect error`,
-			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable}, nil},
-		"4xx without a body": {http.StatusBadRequest, `Invalid value for: body`,
-			[]error{domain.ErrLedger}, []error{domain.ErrLedgerUnavailable}},
+		"duplicate command": {
+			http.StatusConflict, `{"code":"DUPLICATE_COMMAND","cause":"Command submission already exists.","errorCategory":10}`,
+			[]error{domain.ErrLedger, domain.ErrDuplicateCommand},
+			[]error{domain.ErrLedgerUnavailable, domain.ErrContractGone},
+		},
+		"contract not found": {
+			http.StatusNotFound, `{"code":"CONTRACT_NOT_FOUND","cause":"Contract could not be found","errorCategory":11}`,
+			[]error{domain.ErrLedger, domain.ErrContractGone},
+			[]error{domain.ErrLedgerUnavailable},
+		},
+		"inactive contracts": {
+			http.StatusConflict, `{"code":"LOCAL_VERDICT_INACTIVE_CONTRACTS","cause":"inactive","errorCategory":2}`,
+			[]error{domain.ErrLedger, domain.ErrContractGone},
+			[]error{domain.ErrLedgerUnavailable},
+		},
+		"signature by another key": {
+			http.StatusBadRequest, `{"code":"FAILED_TO_EXECUTE_TRANSACTION","cause":"The participant ` +
+				`failed to execute the transaction: Received 0 valid signatures from distinct keys (1 invalid), but expected at ` +
+				`least 1 valid for alice::1220…. Transaction hash to be signed: 1220e8f0. Ensure the correct transaction hash is ` +
+				`signed with the correct key(s).","errorCategory":8}`,
+			[]error{domain.ErrSignatureRejected},
+			[]error{domain.ErrLedgerUnavailable, domain.ErrContractGone, domain.ErrDuplicateCommand},
+		},
+		"execution failed otherwise": {
+			http.StatusBadRequest, `{"code":"FAILED_TO_EXECUTE_TRANSACTION","cause":"The participant ` +
+				`failed to execute the transaction: the prepared transaction is malformed","errorCategory":8}`,
+			[]error{domain.ErrLedger},
+			[]error{domain.ErrSignatureRejected, domain.ErrLedgerUnavailable},
+		},
+		"transient category": {
+			http.StatusConflict, `{"code":"SUBMISSION_ALREADY_IN_FLIGHT","cause":"in flight","errorCategory":2}`,
+			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable},
+			nil,
+		},
+		"unavailable category": {
+			http.StatusServiceUnavailable, `{"code":"SERVICE_NOT_RUNNING","cause":"starting","errorCategory":1}`,
+			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable},
+			nil,
+		},
+		"deadline category": {
+			http.StatusGatewayTimeout, `{"code":"REQUEST_TIME_OUT","cause":"timed out","errorCategory":3}`,
+			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable},
+			nil,
+		},
+		"5xx without a body": {
+			http.StatusBadGateway, `upstream connect error`,
+			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable},
+			nil,
+		},
+		"4xx without a body": {
+			http.StatusBadRequest, `Invalid value for: body`,
+			[]error{domain.ErrLedger},
+			[]error{domain.ErrLedgerUnavailable},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			c, _ := jsonAPI(t, "/v2/interactive-submission/executeAndWait", tc.status, tc.body)
@@ -140,7 +170,7 @@ func Test_TransportFailureIsUnavailable(t *testing.T) {
 	url := srv.URL
 	srv.Close()
 
-	err := New(Config{URL: url}).Execute(t.Context(), domain.Prepared{}, "alice::1220", nil)
+	err := New(Config{URL: url, UserID: "desk"}).Execute(t.Context(), domain.Prepared{}, "alice::1220", nil)
 	require.ErrorIs(t, err, domain.ErrLedger)
 	require.ErrorIs(t, err, domain.ErrLedgerUnavailable)
 }
@@ -154,6 +184,6 @@ func Test_ResolveParty_Ambiguous(t *testing.T) {
 	require.ErrorContains(t, err, "makerA::1220aa, makerA::1220bb")
 }
 
-func rules() domain.Disclosed {
-	return domain.Disclosed{TemplateID: "pkg:TokenRules", ContractID: "rules-cid", CreatedEventBlob: "blob", SynchronizerID: "sync-1"}
+func disclosed() domain.Disclosed {
+	return domain.Disclosed{TemplateID: "pkg:Rules", ContractID: "rules-cid", CreatedEventBlob: "blob", SynchronizerID: "sync-1"}
 }

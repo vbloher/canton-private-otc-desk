@@ -16,7 +16,6 @@ func (u *UseCase) GetDesk(ctx context.Context) dto.GetDeskOutput {
 	return dto.GetDeskOutput{FeeBps: u.config.FeeBps}
 }
 
-// desk returns the facts the ledger owns (operator, instruments), cached in Redis for a minute.
 func (u *UseCase) desk(ctx context.Context) (domain.Desk, error) {
 	desk, ok := u.redis.GetDesk(ctx)
 	if ok {

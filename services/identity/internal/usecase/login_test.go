@@ -20,13 +20,11 @@ func Test_Login_BadSignature(t *testing.T) {
 
 	user, _ := walletUser(t)
 
-	// Well-formed, but signed by a key that is not the wallet's.
 	_, otherKey, err := ed25519.GenerateKey(nil)
 	require.NoError(t, err)
 
 	d.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
 	d.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
-	// No CreateSession expectation: a bad signature must not leave a session behind.
 
 	output, err := d.useCase().Login(t.Context(), dto.LoginInput{
 		Challenge:    challenge,
@@ -123,7 +121,7 @@ func Test_Login_UserGone(t *testing.T) {
 }
 
 func Test_Login_MalformedSignatureKeepsTheChallenge(t *testing.T) {
-	d := newDeps(t) // no expectations: the challenge must not be consumed
+	d := newDeps(t)
 
 	_, err := d.useCase().Login(t.Context(), dto.LoginInput{
 		Challenge:    challenge,

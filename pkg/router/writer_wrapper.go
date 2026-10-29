@@ -28,8 +28,6 @@ func (w *Writer) Write(data []byte) (int, error) {
 	return w.ResponseWriter.Write(data) //nolint:wrapcheck
 }
 
-// Unwrap exposes the underlying writer to http.ResponseController, so a handler behind the
-// logging and metrics middlewares can still hijack the connection (WebSocket upgrades).
 func (w *Writer) Unwrap() http.ResponseWriter {
 	return w.ResponseWriter
 }

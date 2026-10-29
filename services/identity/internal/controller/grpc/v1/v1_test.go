@@ -93,7 +93,7 @@ func Test_Authenticate_UnknownOrExpiredSessionIsUnauthenticated(t *testing.T) {
 }
 
 func Test_Authenticate_NoTokenIsUnauthenticated(t *testing.T) {
-	f := newFixture(t) // no expectations
+	f := newFixture(t)
 
 	_, err := f.handlers.Authenticate(t.Context(), &pb.AuthenticateInput{})
 	requireCode(t, codes.Unauthenticated, err)
@@ -139,7 +139,7 @@ func Test_AuthenticateAPIKey_UnknownKeyIsUnauthenticated(t *testing.T) {
 }
 
 func Test_AuthenticateAPIKey_NoKeyIsUnauthenticated(t *testing.T) {
-	f := newFixture(t) // no expectations
+	f := newFixture(t)
 
 	_, err := f.handlers.AuthenticateAPIKey(t.Context(), &pb.AuthenticateAPIKeyInput{})
 	requireCode(t, codes.Unauthenticated, err)

@@ -13,15 +13,14 @@ import (
 //go:generate go tool mockery --config=../../.mockery.yml
 
 type Config struct {
-	Makers   domain.Makers `env:"MAKER_KEYS" envDefault:"demo-key-a:15,demo-key-b:40"`
-	Prices   domain.Prices `env:"PRICES_USD" envDefault:"CBTC:100000,CETH:4000,USDCx:1"`
-	QuoteTTL time.Duration `env:"QUOTE_TTL"  envDefault:"60s"`
+	APIKey   string        `env:"MAKER_API_KEY,notEmpty"`
+	Spread   domain.Spread `env:"MAKER_SPREAD_BPS"       envDefault:"15"`
+	Prices   domain.Prices `env:"PRICES_USD"             envDefault:"CBTC:100000,USDCx:1,CC:0.15"`
+	QuoteTTL time.Duration `env:"QUOTE_TTL"              envDefault:"60s"`
 }
 
-// Gateway is the desk's public API, called as the maker the API key belongs to.
 type Gateway interface {
 	ListIncomingRFQs(ctx context.Context, apiKey string) ([]domain.RFQ, error)
-	// SubmitQuote returns domain.ErrConflict when the desk refuses the quote (HTTP 409).
 	SubmitQuote(ctx context.Context, apiKey string, rfqID uuid.UUID, price decimal.Decimal, ttl time.Duration) error
 }
 

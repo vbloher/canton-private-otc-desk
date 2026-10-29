@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -20,7 +21,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/usecase"
 )
 
-// minSessionTTL keeps the cookie's Max-Age (whole seconds) from rounding down to a cookie that is gone at once.
 const minSessionTTL = time.Minute
 
 var ErrInvalid = errors.New("invalid config")
@@ -38,7 +38,6 @@ type Config struct {
 }
 
 func New() (Config, error) {
-	// The ports and the service name have no envDefault in pkg/: each service presets its own.
 	config := Config{
 		HTTP: httpserver.Config{Port: "8081"},
 		GRPC: grpcserver.Config{Port: "9081"},
@@ -57,6 +56,15 @@ func New() (Config, error) {
 
 	if config.UseCase.SessionTTL < minSessionTTL {
 		return config, fmt.Errorf("%w: SESSION_TTL must be at least %s", ErrInvalid, minSessionTTL)
+	}
+
+	maker := config.UseCase
+	if (maker.MakerParty == "") != (maker.MakerAPIKey == "") {
+		return config, fmt.Errorf("%w: MAKER_PARTY and MAKER_API_KEY go together", ErrInvalid)
+	}
+
+	if maker.MakerParty != "" && !strings.Contains(maker.MakerParty, "::") {
+		return config, fmt.Errorf("%w: MAKER_PARTY must be a full party id", ErrInvalid)
 	}
 
 	return config, nil

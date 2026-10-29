@@ -17,8 +17,6 @@ type instrumentID struct {
 	ID    string `json:"id"`
 }
 
-// Holdings are the token-standard holdings the party sees, read through the Holding v1
-// interface; seeing a holding does not make it the party's.
 func (c *Canton) Holdings(ctx context.Context, party string) ([]domain.Holding, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton Holdings")
 	defer span.End()
@@ -41,7 +39,6 @@ func holdingsOf(contracts []activeContract) ([]domain.Holding, error) {
 				InstrumentID instrumentID `json:"instrumentId"`
 				Amount       string       `json:"amount"`
 				Lock         *struct {
-					// Only expiresAt makes a lock lapse: TestTokenV2 ignores expiresAfter.
 					ExpiresAt *time.Time `json:"expiresAt"`
 				} `json:"lock"`
 			}
@@ -76,7 +73,6 @@ func holdingsOf(contracts []activeContract) ([]domain.Holding, error) {
 	return holdings, nil
 }
 
-// Allocations are the v2 allocations the executor sees: every allocation of its settlements.
 func (c *Canton) Allocations(ctx context.Context, executor string) ([]domain.Allocation, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton Allocations")
 	defer span.End()
@@ -135,8 +131,6 @@ func allocationsOf(contracts []activeContract) ([]domain.Allocation, error) {
 	return allocations, nil
 }
 
-// TransferInstructions are the pending transfers addressed to the receiver. The receiver
-// also sees the ones it sends, so the view's receiver decides, never the template.
 func (c *Canton) TransferInstructions(ctx context.Context, receiver string) ([]domain.IncomingTransfer, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton TransferInstructions")
 	defer span.End()
@@ -149,8 +143,6 @@ func (c *Canton) TransferInstructions(ctx context.Context, receiver string) ([]d
 	return transfersOf(contracts, receiver)
 }
 
-// noOwnerHint is how CIP-112 renders, in a v1 view, an account without an owner: the mint
-// account a faucet offer comes from. It is no party to show or to notify.
 const noOwnerHint = "cip-112_no-owner"
 
 func senderOf(party string) string {
@@ -168,11 +160,10 @@ func transfersOf(contracts []activeContract, receiver string) ([]domain.Incoming
 		for _, raw := range contract.CreatedEvent.views() {
 			var view struct {
 				Transfer struct {
-					Sender           string       `json:"sender"`
-					Receiver         string       `json:"receiver"`
-					Amount           string       `json:"amount"`
-					InstrumentID     instrumentID `json:"instrumentId"`
-					InputHoldingCids []string     `json:"inputHoldingCids"`
+					Sender       string       `json:"sender"`
+					Receiver     string       `json:"receiver"`
+					Amount       string       `json:"amount"`
+					InstrumentID instrumentID `json:"instrumentId"`
 				} `json:"transfer"`
 			}
 
@@ -196,62 +187,9 @@ func transfersOf(contracts []activeContract, receiver string) ([]domain.Incoming
 				Admin:        view.Transfer.InstrumentID.Admin,
 				InstrumentID: view.Transfer.InstrumentID.ID,
 				Amount:       amount,
-				Inputs:       view.Transfer.InputHoldingCids,
 			})
 		}
 	}
 
 	return transfers, nil
-}
-
-// TokenRules is the sandbox registry stand-in: the factory for allocate, settle and
-// transfer, disclosed to every party that exercises it.
-func (c *Canton) TokenRules(ctx context.Context, admin string) (domain.Disclosed, error) {
-	ctx, span := tracer.Start(ctx, "adapter canton TokenRules")
-	defer span.End()
-
-	contracts, err := c.activeContracts(ctx, templateFormat(admin, tokenRulesTemplate))
-	if err != nil {
-		return domain.Disclosed{}, fmt.Errorf("c.activeContracts: %w", err)
-	}
-
-	disclosed := disclosedOf(contracts)
-	if len(disclosed) == 0 {
-		return domain.Disclosed{}, fmt.Errorf("%w: no TokenRules for %s: is the sandbox seeded?", domain.ErrLedger, admin)
-	}
-
-	return disclosed[0], nil
-}
-
-// Tokens are every holding contract of the admin's instruments, disclosed for settle and
-// cancel: the executor is no stakeholder of the locked holdings they touch.
-func (c *Canton) Tokens(ctx context.Context, admin string) ([]domain.Disclosed, error) {
-	ctx, span := tracer.Start(ctx, "adapter canton Tokens")
-	defer span.End()
-
-	contracts, err := c.activeContracts(ctx, templateFormat(admin, tokenTemplate))
-	if err != nil {
-		return nil, fmt.Errorf("c.activeContracts: %w", err)
-	}
-
-	return disclosedOf(contracts), nil
-}
-
-func disclosedOf(contracts []activeContract) []domain.Disclosed {
-	disclosed := make([]domain.Disclosed, 0, len(contracts))
-
-	for _, contract := range contracts {
-		if contract.CreatedEvent.CreatedEventBlob == "" {
-			continue
-		}
-
-		disclosed = append(disclosed, domain.Disclosed{
-			TemplateID:       contract.CreatedEvent.TemplateID,
-			ContractID:       contract.CreatedEvent.ContractID,
-			CreatedEventBlob: contract.CreatedEvent.CreatedEventBlob,
-			SynchronizerID:   contract.SynchronizerID,
-		})
-	}
-
-	return disclosed
 }

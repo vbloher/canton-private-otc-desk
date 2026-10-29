@@ -14,7 +14,6 @@ import (
 const userColumns = `id, party_id, hint, display_name, kind, public_key, credential_id, encrypted_blob, api_key_hash,
                     maker_mode, created_at`
 
-// scanUser reads one row of userColumns.
 func scanUser(row pgx.Row) (domain.User, error) {
 	var (
 		user          domain.User
@@ -52,7 +51,6 @@ func scanUser(row pgx.Row) (domain.User, error) {
 	return user, nil
 }
 
-// getUser runs a query that selects userColumns of at most one user.
 func (p *Postgres) getUser(ctx context.Context, sql string, args ...any) (domain.User, error) {
 	txOrPool := p.tx.TryExtractTX(ctx)
 
@@ -68,7 +66,6 @@ func (p *Postgres) getUser(ctx context.Context, sql string, args ...any) (domain
 	return user, nil
 }
 
-// nullText stores an absent value as NULL, which the unique constraints on these columns need.
 func nullText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }

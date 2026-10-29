@@ -1,5 +1,3 @@
-// Package ws serves the events WebSocket: the hub fans events out to the sockets of the addressed party,
-// the handler upgrades authenticated requests and registers their sockets.
 package ws
 
 import (
@@ -13,18 +11,13 @@ import (
 )
 
 const (
-	// PingInterval is how often the hub pings every socket.
 	PingInterval = 30 * time.Second
 
-	// pongTimeout is how long a socket may take to answer a ping before it counts as dead.
-	pongTimeout = 10 * time.Second
-	// writeTimeout bounds one frame write.
+	pongTimeout  = 10 * time.Second
 	writeTimeout = 10 * time.Second
-	// queueSize is how many events may wait for one socket; a socket that falls further behind is dropped.
-	queueSize = 64
+	queueSize    = 64
 )
 
-// Conn is the part of a WebSocket the hub needs; *websocket.Conn implements it.
 type Conn interface {
 	Write(ctx context.Context, typ websocket.MessageType, p []byte) error
 	Ping(ctx context.Context) error
@@ -33,21 +26,15 @@ type Conn interface {
 
 var _ Conn = (*websocket.Conn)(nil)
 
-// Hub delivers each event to every socket of the party it is addressed to.
-//
-// Every socket has its own goroutine, queue and ping timer, so the single goroutine feeding Deliver
-// never waits for a client: a client that cannot keep up is closed and expected to reconnect
-// (delivery is at-most-once and the UI re-fetches over REST anyway).
 type Hub struct {
 	pingInterval time.Duration
 
 	mu      sync.RWMutex
 	parties map[string]map[*client]struct{}
 	closed  bool
-	wg      sync.WaitGroup // one per running socket goroutine
+	wg      sync.WaitGroup
 }
 
-// NewHub pings sockets every pingInterval (PingInterval when it is not positive).
 func NewHub(pingInterval time.Duration) *Hub {
 	if pingInterval <= 0 {
 		pingInterval = PingInterval
@@ -59,10 +46,6 @@ func NewHub(pingInterval time.Duration) *Hub {
 	}
 }
 
-// Register adds the socket to the party and starts serving it.
-// ctx is the socket's lifetime: once it is done the socket is closed and forgotten, and it bounds every write and ping.
-// The returned function does the same on demand; it is safe to call more than once.
-// A socket registered after Close is closed right away.
 func (h *Hub) Register(ctx context.Context, partyID string, conn Conn) func() {
 	c := &client{
 		partyID: partyID,
@@ -97,8 +80,6 @@ func (h *Hub) Register(ctx context.Context, partyID string, conn Conn) func() {
 	return func() { c.shutdown(websocket.StatusNormalClosure, "") }
 }
 
-// Deliver queues the payload for every socket of the party. It never blocks and the payload must not be
-// modified afterwards: all sockets share it.
 func (h *Hub) Deliver(partyID string, payload []byte) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -112,7 +93,6 @@ func (h *Hub) Deliver(partyID string, payload []byte) {
 	}
 }
 
-// Close says goodbye to every socket and waits until they are closed.
 func (h *Hub) Close() {
 	h.mu.Lock()
 
@@ -163,11 +143,10 @@ type client struct {
 	stop    chan struct{}
 
 	once        sync.Once
-	closeCode   websocket.StatusCode // why the socket is closed; written before stop is closed
+	closeCode   websocket.StatusCode
 	closeReason string
 }
 
-// shutdown asks the socket goroutine to close the socket. The first reason wins.
 func (c *client) shutdown(code websocket.StatusCode, reason string) {
 	c.once.Do(func() {
 		c.closeCode = code
@@ -177,21 +156,18 @@ func (c *client) shutdown(code websocket.StatusCode, reason string) {
 	})
 }
 
-// run writes queued events and pings until the socket is asked to stop, its context is done or it turns out
-// to be dead. It returns how the socket is to be closed.
 func (c *client) run(ctx context.Context, pingInterval time.Duration) (code websocket.StatusCode, reason string) {
 	ticker := time.NewTicker(pingInterval)
 	defer ticker.Stop()
 
 	for {
-		// Checked before anything else, so queued events are not written to a socket after it was let go.
 		stopCode, stopReason, stop := c.stopped(ctx)
 		if stop {
 			return stopCode, stopReason
 		}
 
 		select {
-		case <-c.stop: // handled by stopped on the next round
+		case <-c.stop:
 		case <-ctx.Done():
 		case payload := <-c.send:
 			err := c.write(ctx, payload)
@@ -211,7 +187,6 @@ func (c *client) run(ctx context.Context, pingInterval time.Duration) (code webs
 	}
 }
 
-// stopped tells whether the socket was asked to stop or its context is done, and how to close it then.
 func (c *client) stopped(ctx context.Context) (code websocket.StatusCode, reason string, stopped bool) {
 	select {
 	case <-c.stop:

@@ -1,10 +1,9 @@
 import { cn } from "@/presentation/lib/utils";
 
-/** Known test instruments get their usual hue; anything else a stable one from its symbol. */
 const HUE: Record<string, string> = {
   CBTC: "#f7931a",
   USDCX: "#2775ca",
-  CETH: "#627eea",
+  CC: "#b8860b",
 };
 
 function hueOf(symbol: string): string {
@@ -13,7 +12,6 @@ function hueOf(symbol: string): string {
   return `hsl(${h} 45% 40%)`;
 }
 
-/** A monogram disc for a token. */
 export function TokenIcon({ symbol, className }: { symbol: string; className?: string }) {
   const key = symbol.toUpperCase();
   const monogram = key.replace(/[^A-Z0-9]/g, "").slice(0, 2) || "?";

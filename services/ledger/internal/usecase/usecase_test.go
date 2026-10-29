@@ -23,39 +23,36 @@ const (
 	Any = mock.Anything
 
 	operator = "operator::1220aa"
-	makerA   = "makerA::1220aa"
-	makerB   = "makerB::1220aa"
-	alice    = "alice-3f9a1c::1220bb" // an external party: it signs its own transactions
+	maker    = "maker::1220aa"
+	bob      = "bob::1220ee"
+	alice    = "alice-3f9a1c::1220bb"
+	faucet   = "faucet::1220aa"
+	dso      = "DSO::1220dd"
 	syncID   = "synchronizer-1::1220cc"
+
+	registryURL = "https://registry.test/operator/registry"
+	scanURL     = "https://scan.test/registry"
 )
-
-// noInputs: a mint offer locks no holding of a sender, so its accept discloses none.
-//
-//nolint:gochecknoglobals
-var noInputs []domain.Disclosed
-
-//nolint:gochecknoglobals
-var rules = domain.Disclosed{
-	TemplateID:       "pkg:Splice.Testing.Tokens.TestTokenV2:TokenRules",
-	ContractID:       "rules-cid",
-	CreatedEventBlob: "rules-blob",
-	SynchronizerID:   syncID,
-}
 
 func config(t *testing.T) usecase.Config {
 	t.Helper()
 
 	var instruments domain.InstrumentList
-	require.NoError(t, instruments.UnmarshalText([]byte("CBTC:Bitcoin:8,USDCx:USD Coin:2,CETH:Ether:6")))
+	require.NoError(t, instruments.UnmarshalText([]byte(
+		"CBTC|Bitcoin|8|CBTC|"+operator+"|"+registryURL+","+
+			"USDCx|USD Coin|2|USDCx|"+operator+"|"+registryURL+","+
+			"CC|Canton Coin|4|Amulet|"+dso+"|"+scanURL)))
 
 	return usecase.Config{
-		OperatorHint: "operator",
-		HouseParties: []string{"makerA", "makerB"},
-		Instruments:  instruments,
+		Network:       domain.NetworkDevNet,
+		OperatorParty: operator,
+		MakerParty:    maker,
+		Instruments:   instruments,
 		FaucetAmounts: domain.Amounts{
 			"CBTC":  decimal.MustParse("1"),
 			"USDCx": decimal.MustParse("100000"),
 		},
+		FaucetCooldown:  time.Hour,
 		ActionTTL:       10 * time.Minute,
 		StartupTimeout:  5 * time.Second,
 		StartupInterval: time.Millisecond,
@@ -67,6 +64,7 @@ type deps struct {
 	postgres *mocks.Postgres
 	redis    *mocks.Redis
 	canton   *mocks.Canton
+	registry *mocks.Registry
 	events   *mocks.Events
 }
 
@@ -85,6 +83,7 @@ func newDeps(t *testing.T) deps {
 		postgres: mocks.NewPostgres(t),
 		redis:    mocks.NewRedis(t),
 		canton:   mocks.NewCanton(t),
+		registry: mocks.NewRegistry(t),
 		events:   mocks.NewEvents(t),
 	}
 }
@@ -92,26 +91,20 @@ func newDeps(t *testing.T) deps {
 func (d deps) useCase(t *testing.T) *usecase.UseCase {
 	t.Helper()
 
-	return usecase.New(config(t), d.tx, d.postgres, d.redis, d.canton, d.events)
+	return usecase.New(config(t), d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
 }
 
-// expectWarmUp is what Init does once the parties are known: it refreshes the caches, so
-// a ledger restarted with new contract ids cannot serve stale ones.
 func (d deps) expectWarmUp() {
-	d.canton.EXPECT().TokenRules(Any, operator).Return(rules, nil).Once()
-	d.redis.EXPECT().SetTokenRules(Any, rules).Once()
 	d.canton.EXPECT().SynchronizerID(Any, operator).Return(syncID, nil).Once()
 	d.redis.EXPECT().SetSynchronizerID(Any, syncID).Once()
 }
 
-// started is a use case after Init against a ledger that is up and seeded.
 func (d deps) started(t *testing.T) *usecase.UseCase {
 	t.Helper()
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
-	d.canton.EXPECT().ResolveParty(Any, "operator").Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerA").Return(makerA, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerB").Return(makerB, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 	d.expectWarmUp()
 
 	u := d.useCase(t)
@@ -120,11 +113,6 @@ func (d deps) started(t *testing.T) *usecase.UseCase {
 	return u
 }
 
-func (d deps) cachedRules() {
-	d.redis.EXPECT().GetTokenRules(Any).Return(rules, true)
-}
-
-// event matches a published event by its JSON form, e.g. `{"actionId":"…"}` for data.
 func event(typ, data string) any {
 	want := fmt.Sprintf(`{"type":%q,"data":%s}`, typ, data)
 
@@ -153,7 +141,6 @@ func holding(cid, owner, instrument, amount string) domain.Holding {
 	}
 }
 
-// tradeLegs: the taker buys 1 CBTC from the maker at 100000 USDCx, the maker pays a 100 USDCx fee.
 func tradeLegs(maker, taker string) []dto.TransferLeg {
 	return []dto.TransferLeg{
 		{ID: "base", Sender: maker, Receiver: taker, Instrument: "CBTC", Amount: "1.0"},
@@ -163,7 +150,7 @@ func tradeLegs(maker, taker string) []dto.TransferLeg {
 }
 
 func command(name string) domain.Command {
-	return domain.Command{Payload: json.RawMessage(`{"name":"` + name + `"}`), Disclosed: []domain.Disclosed{rules}}
+	return domain.Command{Commands: []json.RawMessage{json.RawMessage(`{"name":"` + name + `"}`)}}
 }
 
 func prepared(hash string) domain.Prepared {

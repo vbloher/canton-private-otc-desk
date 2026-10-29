@@ -7,7 +7,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// Logout answers 204 and clears the cookie whether or not the cookie held a live session.
 func (h *Handlers) Logout(
 	ctx context.Context, request http_server.LogoutRequestObject,
 ) (http_server.LogoutResponseObject, error) {

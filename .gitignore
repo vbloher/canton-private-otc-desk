@@ -8,22 +8,14 @@ bin/
 *.pprof
 *.log
 
-# Daml build output and sandbox logs
-daml/**/.daml/
-daml/log/
-
-# web
 web/node_modules/
 web/dist/
 web/*.tsbuildinfo
 
-# local agent scratch
 .superpowers/
 
-# browser automation output
 .playwright-mcp/
 
-# agent docs and instructions (local only)
 docs/superpowers/
 CLAUDE.md
 AGENTS.md

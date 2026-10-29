@@ -14,9 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// SubmitQuote records the maker's quote as allocating and asks the ledger for the maker's
-// committed allocations; the quote opens once they are on the ledger (Tick). When the ledger
-// refuses, the quote fails and the error is returned.
 func (u *UseCase) SubmitQuote(ctx context.Context, input dto.SubmitQuoteInput) (domain.Quote, error) {
 	ctx, span := tracer.Start(ctx, "usecase SubmitQuote")
 	defer span.End()
@@ -43,7 +40,6 @@ func (u *UseCase) SubmitQuote(ctx context.Context, input dto.SubmitQuoteInput) (
 
 	u.publishQuote(ctx, d.rfq.TakerParty, d.quote)
 
-	// The quote is saved: its allocation goes ahead even when the caller goes away.
 	ctx = context.WithoutCancel(ctx)
 
 	err = u.ledger.Allocate(ctx, d.quote.ID, d.quote.SettlementDeadline(), d.legs, input.Maker.ID,
@@ -57,9 +53,6 @@ func (u *UseCase) SubmitQuote(ctx context.Context, input dto.SubmitQuoteInput) (
 	return u.releaseIfDead(ctx, d.quote), nil
 }
 
-// releaseIfDead reads the quote again once its allocation is on the ledger. A quote that died
-// meanwhile (its RFQ closed, say) was released before the allocation existed: release it again.
-// It returns the quote as it is now.
 func (u *UseCase) releaseIfDead(ctx context.Context, quote domain.Quote) domain.Quote {
 	var current domain.Quote
 
@@ -124,10 +117,6 @@ func (u *UseCase) saveQuote(
 	return d, nil
 }
 
-// failQuote fails a quote whose allocation the ledger refused, and releases whatever of it landed
-// once the quote is dead: failed here, or closed meanwhile by a close that may have come before
-// part of the allocation landed. An error from Allocate can be ambiguous: when a tick has seen the
-// allocation land and opened the quote, or the taker accepted it, the quote keeps its allocation.
 func (u *UseCase) failQuote(ctx context.Context, quote domain.Quote) {
 	rfq, current, done, err := u.transition(ctx, quote, func(q domain.Quote) (domain.Quote, bool) {
 		return q.WithStatus(domain.QuoteFailed), q.Status == domain.QuoteAllocating
