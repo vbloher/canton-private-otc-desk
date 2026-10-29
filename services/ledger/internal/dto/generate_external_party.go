@@ -4,7 +4,7 @@ import "github.com/vbloher/canton-private-otc-desk/services/ledger/internal/doma
 
 type GenerateExternalPartyInput struct {
 	Hint      string
-	PublicKey []byte // raw Ed25519, 32 bytes
+	PublicKey []byte
 }
 
 type GenerateExternalPartyOutput struct {

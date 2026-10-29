@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/config"
 )
 
-// isolate keeps the developer's shell and a local .env out of the test, and sets what has no default.
 func isolate(t *testing.T) {
 	t.Helper()
 

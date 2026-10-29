@@ -32,8 +32,8 @@ describe("parseDecimal", () => {
     ".5",
     "1.",
     "0x10",
-    "0.00000000001", // 11 fraction digits: below the ledger's scale
-    "1" + "0".repeat(28), // 29 integer digits
+    "0.00000000001",
+    "1" + "0".repeat(28),
   ])("rejects %j", (text) => {
     expect(() => parseDecimal(text)).toThrow(/decimal/);
   });
@@ -84,7 +84,6 @@ describe("mulBps", () => {
   it("takes basis points of an amount and floors", () => {
     expect(mulBps("50000", 10)).toBe("50.0");
     expect(mulBps("100000", 10)).toBe("100.0");
-    // 1000 units × 10 / 10000 = 1 unit; 1 unit × 10 / 10000 floors to zero
     expect(mulBps("0.0000001", 10)).toBe("0.0000000001");
     expect(mulBps("0.0000000001", 10)).toBe("0.0");
     expect(mulBps("1234.5", 0)).toBe("0.0");

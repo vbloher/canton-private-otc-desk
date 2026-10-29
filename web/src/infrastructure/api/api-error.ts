@@ -1,6 +1,5 @@
 import type { ApiFailure } from "@/application/errors";
 
-/** A desk API error: the HTTP status, the body's `error` text and its optional `code`. */
 export class ApiError extends Error implements ApiFailure {
   readonly status: number;
   readonly code?: string;
@@ -22,7 +21,6 @@ function fallbackMessage(status: number): string {
   return `Request failed (${status}).`;
 }
 
-/** The error a non-2xx answer stands for; the API's own wording when it sent one. */
 export function apiErrorFrom(status: number, body: unknown): ApiError {
   if (isErrorBody(body) && body.error !== "") {
     return new ApiError(status, body.error, typeof body.code === "string" ? body.code : undefined);
@@ -30,7 +28,6 @@ export function apiErrorFrom(status: number, body: unknown): ApiError {
   return new ApiError(status, fallbackMessage(status));
 }
 
-/** fetch rejects with a TypeError when the request never got an answer (network down, refused, CORS). */
 export function isNetworkFailure(e: unknown): e is TypeError {
   return e instanceof TypeError;
 }

@@ -1,4 +1,3 @@
-/** Transfers offered to this wallet; accepting one is a ledger action the browser signs. */
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -30,12 +29,9 @@ export function IncomingTransfers() {
   );
 }
 
-/** Each row owns its mutation, so several transfers can be accepted at once. */
 function TransferRow({ transfer }: { transfer: IncomingTransfer }) {
   const accept = useAcceptIncoming();
   const instrument = useInstrument();
-  // The POST only queues the signature: the row stays busy until the inbox stops listing the
-  // transfer, or until its action fails, expires or disappears (then it can be accepted again).
   const [queued, setQueued] = useState<readonly string[] | null>(null);
   useSignDropped((actionId) => {
     if (queued?.includes(actionId) === true) setQueued(null);

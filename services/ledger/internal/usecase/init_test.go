@@ -1,7 +1,6 @@
 package usecase_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -14,13 +13,11 @@ import (
 func Test_Init_WaitsForParties(t *testing.T) {
 	d := newDeps(t)
 
-	// /readyz turns green before the seed script has allocated the parties.
 	d.canton.EXPECT().Ready(Any).Return(false).Once()
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
-	d.canton.EXPECT().ResolveParty(Any, "operator").Return("", domain.ErrNotFound).Once()
-	d.canton.EXPECT().ResolveParty(Any, "operator").Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerA").Return(makerA, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerB").Return(makerB, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, operator).Return("", domain.ErrNotFound).Once()
+	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 	d.expectWarmUp()
 
 	u := d.useCase(t)
@@ -36,33 +33,43 @@ func Test_Init_GivesUpOnMissingParties(t *testing.T) {
 	d := newDeps(t)
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
-	d.canton.EXPECT().ResolveParty(Any, "operator").Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerA").Return(makerA, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerB").Return("", domain.ErrNotFound)
+	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, maker).Return("", domain.ErrNotFound)
 
 	c := config(t)
 	c.StartupTimeout = 50 * time.Millisecond
 
-	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.events)
+	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
 
 	err := u.Init(t.Context())
-	require.ErrorContains(t, err, "makerB")
+	require.ErrorContains(t, err, maker)
 }
 
-func Test_Init_FailsAtOnceOnAnAmbiguousParty(t *testing.T) {
+func Test_Init_WithoutAMaker(t *testing.T) {
 	d := newDeps(t)
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
-	d.canton.EXPECT().ResolveParty(Any, "operator").Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerA").
-		Return("", fmt.Errorf("%w: %q names makerA::1220aa, makerA::1220bb", domain.ErrAmbiguousParty, "makerA")).Once()
-	d.canton.EXPECT().ResolveParty(Any, "makerB").Return(makerB, nil).Maybe()
+	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
+	d.expectWarmUp()
 
-	// The ledger was seeded twice: waiting cannot fix that.
-	start := time.Now()
-	err := d.useCase(t).Init(t.Context())
+	c := config(t)
+	c.MakerParty = ""
 
-	require.ErrorIs(t, err, domain.ErrAmbiguousParty)
-	require.ErrorContains(t, err, "makerA::1220aa, makerA::1220bb")
-	require.Less(t, time.Since(start), time.Second)
+	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
+	require.NoError(t, u.Init(t.Context()))
+}
+
+func Test_Init_RejectsAHint(t *testing.T) {
+	d := newDeps(t)
+
+	d.canton.EXPECT().Ready(Any).Return(true).Once()
+
+	c := config(t)
+	c.OperatorParty = "otc-desk-operator"
+
+	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
+
+	err := u.Init(t.Context())
+	require.ErrorIs(t, err, domain.ErrValidation)
+	require.ErrorContains(t, err, `"otc-desk-operator" is not a full party id`)
 }

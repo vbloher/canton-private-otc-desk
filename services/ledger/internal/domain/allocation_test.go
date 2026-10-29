@@ -12,13 +12,12 @@ func Test_MatchSlots_PartyStatus(t *testing.T) {
 	plan := domain.Plan([]domain.TransferLeg{
 		leg("base", "maker", "taker", "CBTC", "1.0"),
 		leg("quote", "taker", "maker", "USDCx", "100000.0"),
-	}, "operator")
+	})
 
 	allocs := []domain.Allocation{
 		{ContractID: "maker-cbtc", SettlementID: "s-1", Authorizer: "maker", Admin: "operator", InstrumentIDs: []string{"CBTC"}},
 		{ContractID: "maker-usdcx", SettlementID: "s-1", Authorizer: "maker", Admin: "operator", InstrumentIDs: []string{"USDCx"}},
 		{ContractID: "taker-cbtc", SettlementID: "s-1", Authorizer: "taker", Admin: "operator", InstrumentIDs: []string{"CBTC"}},
-		// Strays that must not fill the taker's USDCx slot: another settlement, another admin.
 		{ContractID: "other-settlement", SettlementID: "s-2", Authorizer: "taker", Admin: "operator", InstrumentIDs: []string{"USDCx"}},
 		{ContractID: "other-admin", SettlementID: "s-1", Authorizer: "taker", Admin: "someone", InstrumentIDs: []string{"USDCx"}},
 	}

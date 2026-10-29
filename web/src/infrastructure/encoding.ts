@@ -1,5 +1,3 @@
-/** Byte encodings of the wire: base64 for keys, hashes and signatures; base64url for credential ids. */
-
 export function toBase64(bytes: Uint8Array): string {
   let binary = "";
   for (const b of bytes) binary += String.fromCharCode(b);
@@ -22,7 +20,6 @@ export function fromBase64Url(b64url: string): Uint8Array<ArrayBuffer> {
   return fromBase64(b64.padEnd(Math.ceil(b64.length / 4) * 4, "="));
 }
 
-/** A copy backed by a plain ArrayBuffer, which is what WebCrypto and WebAuthn accept. */
 export function bytes(view: Uint8Array): Uint8Array<ArrayBuffer> {
   return new Uint8Array(view);
 }

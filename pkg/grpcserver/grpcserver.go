@@ -1,4 +1,3 @@
-// Package grpcserver is the template's gRPC controller bootstrap, shared by every service.
 package grpcserver
 
 import (
@@ -15,8 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/logger"
 )
 
-// Config has no default port: each service presets its own before parsing the environment.
-// An empty Host listens on every interface (containers); set GRPC_HOST=127.0.0.1 on a shared host.
 type Config struct {
 	Host string `env:"GRPC_HOST"`
 	Port string `env:"GRPC_PORT"`

@@ -20,7 +20,6 @@ function Toaster(props: ToasterProps) {
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
-          // close button in the top-right corner (sonner's default is top-left)
           "--toast-close-button-start": "auto",
           "--toast-close-button-end": "0",
           "--toast-close-button-transform": "translate(35%, -35%)",

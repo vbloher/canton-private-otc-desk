@@ -10,8 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// ListIncomingRFQs returns the RFQs the maker was asked to quote, open ones and those closed in
-// the last hour, newest first, each with the maker's own quote once there is one.
 func (u *UseCase) ListIncomingRFQs(ctx context.Context, maker domain.Party) ([]dto.IncomingRFQ, error) {
 	ctx, span := tracer.Start(ctx, "usecase ListIncomingRFQs")
 	defer span.End()

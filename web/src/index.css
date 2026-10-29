@@ -3,7 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Radix state attributes as short variants (the shadcn radix-nova set). */
 @custom-variant data-open {
   &:where([data-state="open"]),
   &:where([data-open]:not([data-open="false"])) {
@@ -81,7 +80,6 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Warm ink with an amber accent; the desk is dark only. */
 :root {
   color-scheme: dark;
   --radius: 0.5rem;
@@ -120,13 +118,11 @@
   }
   html {
     @apply font-sans;
-    /* a larger base: every rem-derived size scales with it */
     font-size: 120%;
   }
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
   }
-  /* Tailwind's preflight leaves buttons on cursor:default — every enabled control gets the pointer. */
   button:not(:disabled),
   [role="button"]:not(:disabled),
   [role="switch"]:not([data-disabled]),
@@ -137,12 +133,10 @@
 }
 
 @layer utilities {
-  /* amounts, prices, party ids: monospace with lined-up digits */
   .tabular {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
   }
-  /* caps labels for section heads */
   .label-caps {
     font-size: 0.6875rem;
     letter-spacing: 0.06em;

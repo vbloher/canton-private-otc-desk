@@ -10,5 +10,5 @@ type SubmitQuoteInput struct {
 	Maker      domain.Party
 	RFQID      uuid.UUID
 	Price      string
-	TTLSeconds *int // nil means the default
+	TTLSeconds *int
 }

@@ -1,4 +1,3 @@
-// Package grpcclient dials another service with the template's client options.
 package grpcclient
 
 import (
@@ -12,9 +11,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// New connects lazily (grpc.NewClient does not block); every unary call gets the timeout.
-// Reconnect backoff is capped at a few seconds (gRPC's default grows to two minutes), so a
-// service that restarts is reachable again almost as soon as it is up.
 func New(addr string, timeout time.Duration) (*grpc.ClientConn, error) {
 	conn, err := grpc.NewClient(addr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),

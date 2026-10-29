@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// UpdateRFQ saves the mutable part of an RFQ: its status and when it closed.
 func (p *Postgres) UpdateRFQ(ctx context.Context, rfq domain.RFQ) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres UpdateRFQ")
 	defer span.End()

@@ -30,7 +30,6 @@ func (l *Ledger) GenerateExternalParty(
 		Transactions: output.GetTopologyTransactions(),
 	}
 
-	// Without all four the browser would sign nothing the ledger can allocate from.
 	if topology.PartyID == "" || topology.Fingerprint == "" ||
 		len(topology.MultiHash) == 0 || len(topology.Transactions) == 0 {
 		return domain.Topology{}, fmt.Errorf("%w: incomplete topology for %q", domain.ErrLedger, hint)

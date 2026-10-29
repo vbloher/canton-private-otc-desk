@@ -16,8 +16,8 @@ import (
 
 type acceptFixture struct {
 	rfq     domain.RFQ
-	quote   domain.Quote // makerA's open quote, the one accepted
-	sibling domain.Quote // makerB's open quote
+	quote   domain.Quote
+	sibling domain.Quote
 }
 
 func newAcceptFixture(now time.Time) acceptFixture {
@@ -30,8 +30,6 @@ func newAcceptFixture(now time.Time) acceptFixture {
 	}
 }
 
-// expectLocked reads the quote, then locks its RFQ and then the quote: the order every transaction
-// keeps. It returns the RFQ lock, for later locks of the same quote to come after.
 func (d deps) expectLocked(rfq domain.RFQ, quote domain.Quote) *mock.Call {
 	read := d.postgres.EXPECT().GetQuote(Any, quote.ID).Return(quote, nil).Call
 	lockRFQ := d.postgres.EXPECT().GetRFQForUpdate(Any, rfq.ID).Return(rfq, nil).NotBefore(read)
@@ -40,7 +38,6 @@ func (d deps) expectLocked(rfq domain.RFQ, quote domain.Quote) *mock.Call {
 	return lockRFQ
 }
 
-// expectAccepted accepts f.quote and saves the new settling trade into *trade; it returns the RFQ lock.
 func (d deps) expectAccepted(f acceptFixture, trade *domain.Trade) *mock.Call {
 	d.cachedDesk()
 	lockRFQ := d.expectLocked(f.rfq, f.quote)
@@ -65,7 +62,6 @@ func Test_AcceptQuote_AllocatesTakerAndOperator(t *testing.T) {
 
 	legs := legsOf(t, f.rfq, f.quote)
 	deadline := at(f.quote.ValidUntil.Add(30 * time.Minute))
-	// The operator first: it is hosted and allocates at once, so its failure leaves no taker action behind.
 	operatorCall := d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), operator, Any).Return(nil).Once()
 	d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), taker.ID, Any).Return(nil).Once().
 		NotBefore(operatorCall)
@@ -149,8 +145,6 @@ func Test_AcceptQuote_NotTheTaker(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrForbidden)
 }
 
-// expectTradeFailed: the failure locks the RFQ and the quote again, finds the quote still accepted,
-// fails the trade (saved into *failed) and the quote, and releases the settlement.
 func (d deps) expectTradeFailed(f acceptFixture, lockRFQ *mock.Call, trade, failed *domain.Trade) {
 	d.postgres.EXPECT().GetQuoteForUpdate(Any, f.quote.ID).Return(f.quote.WithStatus(domain.QuoteAccepted), nil).
 		Once().NotBefore(lockRFQ)
@@ -182,7 +176,6 @@ func Test_AcceptQuote_AllocationFails(t *testing.T) {
 	require.Equal(t, "insufficient funds", failedTrade.Reason)
 }
 
-// The operator's allocation fails: the taker is never asked for its own, so no action is parked.
 func Test_AcceptQuote_OperatorFailureLeavesTheTakerAlone(t *testing.T) {
 	d := newDeps(t)
 	f := newAcceptFixture(time.Now())
@@ -200,7 +193,6 @@ func Test_AcceptQuote_OperatorFailureLeavesTheTakerAlone(t *testing.T) {
 	require.Equal(t, "allocation failed", failedTrade.Reason)
 }
 
-// The quote is checked against the clock after its row lock is granted, not before.
 func Test_AcceptQuote_ChecksTheClockAfterLocking(t *testing.T) {
 	d := newDeps(t)
 	f := newAcceptFixture(time.Now())
@@ -209,7 +201,6 @@ func Test_AcceptQuote_ChecksTheClockAfterLocking(t *testing.T) {
 	d.cachedDesk()
 	d.postgres.EXPECT().GetQuote(Any, f.quote.ID).Return(f.quote, nil)
 	d.postgres.EXPECT().GetRFQForUpdate(Any, f.rfq.ID).Return(f.rfq, nil)
-	// Another transaction holds the quote row until after its validUntil.
 	d.postgres.EXPECT().GetQuoteForUpdate(Any, f.quote.ID).RunAndReturn(
 		func(context.Context, uuid.UUID) (domain.Quote, error) {
 			time.Sleep(60 * time.Millisecond)

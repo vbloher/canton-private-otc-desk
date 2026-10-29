@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// ExpireActions marks the actions nobody signed within ACTION_TTL as expired; their
-// parties drop them from the queue.
 func (u *UseCase) ExpireActions(ctx context.Context) (dto.ExpireActionsOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase ExpireActions")
 	defer span.End()

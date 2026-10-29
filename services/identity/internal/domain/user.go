@@ -21,11 +21,6 @@ const (
 	displayNameMax = 32
 )
 
-// User is a desk participant: a passkey wallet (an external party whose key lives in the browser)
-// or a house maker (a hosted party with an API key).
-//
-// The json tags describe the copy kept in the session cache; the wrapped key and the API key hash
-// are never serialized, so a user read back from the cache lacks them.
 type User struct {
 	ID            uuid.UUID `json:"id"`
 	PartyID       string    `json:"party_id"`
@@ -75,8 +70,6 @@ func NewPasskeyUser(
 	}, nil
 }
 
-// ValidateCredential checks what a wallet needs to sign in again: the credential id of its passkey
-// and the key wrapped with it. The registration checks it before the ledger allocates the party.
 func ValidateCredential(credentialID, encryptedBlob string) error {
 	switch {
 	case credentialID == "":
@@ -88,7 +81,6 @@ func ValidateCredential(credentialID, encryptedBlob string) error {
 	return nil
 }
 
-// NewHouseUser is a hosted maker the desk signs for; it signs in with its API key and is a maker from the start.
 func NewHouseUser(partyID, hint, apiKey string) (User, error) {
 	if partyID == "" || hint == "" || apiKey == "" {
 		return User{}, Invalidf("house maker needs a party id, a hint and an API key")

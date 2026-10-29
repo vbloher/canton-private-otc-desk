@@ -17,7 +17,6 @@ func NewPublisher(client *redis.Client) *Publisher {
 	return &Publisher{redis: client}
 }
 
-// Publish sends the event once to every distinct party; empty party ids are skipped.
 func (p *Publisher) Publish(ctx context.Context, ev Event, partyIDs ...string) error {
 	ctx, span := tracer.Start(ctx, "events Publish "+ev.Type)
 	defer span.End()

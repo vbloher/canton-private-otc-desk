@@ -34,7 +34,7 @@ func Test_CancelRFQ_CancelsLiveQuotes(t *testing.T) {
 	}
 
 	d.events.EXPECT().Publish(Any, quoteEvent(open, domain.QuoteCancelled), parties(taker, makerA)).Return(nil)
-	d.events.EXPECT().Publish(Any, quoteEvent(allocating, domain.QuoteCancelled), parties(makerB)).Return(nil) // never opened
+	d.events.EXPECT().Publish(Any, quoteEvent(allocating, domain.QuoteCancelled), parties(makerB)).Return(nil)
 
 	d.events.EXPECT().Publish(Any, rfqUpdated(rfq), parties(taker, makerA, makerB, makerC)).Return(nil)
 
@@ -69,7 +69,7 @@ func Test_CancelRFQ_Rejects(t *testing.T) {
 		name   string
 		caller domain.Party
 		rfq    domain.RFQ
-		quotes []domain.Quote // nil: the use case must not get as far as listing them
+		quotes []domain.Quote
 		err    error
 	}{
 		{"not the taker", makerA, base, nil, domain.ErrForbidden},
@@ -94,7 +94,6 @@ func Test_CancelRFQ_Rejects(t *testing.T) {
 	}
 }
 
-// The caller goes away the moment the cancel commits: the allocations are released all the same.
 func Test_CancelRFQ_ReleasesAfterTheCallerLeft(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()

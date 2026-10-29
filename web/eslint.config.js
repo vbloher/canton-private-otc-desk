@@ -5,10 +5,8 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 
-/** Browser and I/O globals a pure layer must not touch: its ports are the way out. */
 const IO_GLOBALS = ["fetch", "WebSocket", "window", "document", "localStorage", "sessionStorage", "navigator", "crypto"];
 
-/** Clean architecture: each layer may import only from layers inside it. */
 function layer(files, forbidden, message, extra = {}) {
   return {
     files,
@@ -41,7 +39,6 @@ export default defineConfig([
       eqeqeq: ["error", "always"],
     },
   },
-  // Test doubles answer with plain async functions.
   {
     files: ["**/*.test.ts"],
     rules: { "@typescript-eslint/require-await": "off" },
@@ -55,7 +52,6 @@ export default defineConfig([
     files: ["vite.config.ts"],
     languageOptions: { globals: globals.node },
   },
-  // shadcn primitives export their variants, providers their hooks, next to the components.
   {
     files: ["src/presentation/components/ui/**", "src/presentation/providers/**"],
     rules: { "react-refresh/only-export-components": "off" },

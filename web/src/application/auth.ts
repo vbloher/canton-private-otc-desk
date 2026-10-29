@@ -1,18 +1,3 @@
-/**
- * Browser identity flows. The wallet is an external Canton party whose Ed25519
- * seed is generated here and wrapped with a passkey's PRF output; the server
- * only ever stores the wrapped blob.
- *
- * - createWallet: passkey → PRF unlock (the PRF secret only comes with get())
- *   → fresh seed → register/start → sign the multi-hash → register/complete.
- * - connectWallet: PRF unlock of any discoverable passkey → challenge → unwrap
- *   → sign the challenge's UTF-8 bytes → login.
- * - unlock: after a reload the session cookie survives but the seed does not.
- *   It runs the connect flow again, offering the passkey this browser last
- *   used for the user. Signing in again guarantees the session belongs to the
- *   key just unlocked: a passkey of another wallet signs in as that wallet,
- *   and the caller sees the identity change.
- */
 import type { Me } from "@/domain/types";
 import { isApiFailure, KeyMismatchError, UnknownPasskeyError } from "./errors";
 import type { AuthApi, CredentialStore, KeyVault, LoginChallenge, PartyKeys, UnlockedPasskey } from "./ports";
@@ -24,10 +9,8 @@ export interface AuthDeps {
   credentials: CredentialStore;
 }
 
-/** Progress of createWallet: the two passkey prompts, then the party allocation. */
 export type CreateStep = "passkey" | "unlock" | "party";
 
-/** A signed-in user with the party seed unlocked in this tab. */
 export interface Wallet {
   me: Me;
   seed: Uint8Array;
@@ -36,7 +19,6 @@ export interface Wallet {
 export interface AuthFlows {
   createWallet(displayName: string, onStep?: (step: CreateStep) => void): Promise<Wallet>;
   connectWallet(): Promise<Wallet>;
-  /** The wallet whose key the passkey opened — normally `me`'s, but check `me.id`. */
   unlock(me: Me): Promise<Wallet>;
   logout(): Promise<void>;
 }
@@ -45,11 +27,6 @@ const equalBytes = (a: Uint8Array, b: Uint8Array): boolean =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
 export function createAuthFlows(deps: AuthDeps): AuthFlows {
-  /**
-   * A passkey created by a sign-up that failed later (a cancelled second prompt,
-   * a ledger error). Nothing was registered, so a retry under the same name
-   * reuses it instead of leaving another orphan in the authenticator.
-   */
   let orphan: { name: string; credentialId: string } | undefined;
 
   async function challengeFor(passkey: UnlockedPasskey): Promise<LoginChallenge> {
@@ -61,7 +38,6 @@ export function createAuthFlows(deps: AuthDeps): AuthFlows {
     }
   }
 
-  /** Unwrap the blob and make sure it is the key the server knows for this passkey. */
   async function openSeed(passkey: UnlockedPasskey, challenge: LoginChallenge): Promise<Uint8Array> {
     const seed = await passkey.unwrap(challenge.encryptedBlob);
     if (!equalBytes(await deps.keys.publicKey(seed), challenge.publicKey)) {
@@ -71,7 +47,6 @@ export function createAuthFlows(deps: AuthDeps): AuthFlows {
     return seed;
   }
 
-  /** Challenge → unwrap → sign → login; the passkey is remembered only once the login succeeded. */
   async function signInWith(passkey: UnlockedPasskey): Promise<Wallet> {
     const challenge = await challengeFor(passkey);
     const seed = await openSeed(passkey, challenge);

@@ -20,7 +20,7 @@ func (u *UseCase) GetBalances(ctx context.Context, input dto.GetBalancesInput) (
 		return output, fmt.Errorf("canton.Holdings: %w", err)
 	}
 
-	balances := domain.Balances(holdings, input.PartyID, u.operator, u.config.Instruments, locksAsOf())
+	balances := domain.Balances(holdings, input.PartyID, u.config.Instruments, locksAsOf())
 
 	return dto.GetBalancesOutput{Balances: balances}, nil
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListRFQHistory returns the taker's RFQs that closed without a fill, newest first.
 func (u *UseCase) ListRFQHistory(ctx context.Context, taker domain.Party) ([]domain.RFQ, error) {
 	ctx, span := tracer.Start(ctx, "usecase ListRFQHistory")
 	defer span.End()

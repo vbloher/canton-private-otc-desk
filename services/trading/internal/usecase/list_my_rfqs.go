@@ -12,8 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// ListMyRFQs returns the taker's open RFQs and those closed in the last hour, newest first,
-// each with the quotes the taker may see.
 func (u *UseCase) ListMyRFQs(ctx context.Context, taker domain.Party) ([]dto.RFQWithQuotes, error) {
 	ctx, span := tracer.Start(ctx, "usecase ListMyRFQs")
 	defer span.End()
@@ -45,7 +43,6 @@ func (u *UseCase) ListMyRFQs(ctx context.Context, taker domain.Party) ([]dto.RFQ
 	return out, nil
 }
 
-// quotesOf groups the quotes of the RFQs by RFQ id.
 func (u *UseCase) quotesOf(ctx context.Context, rfqs []domain.RFQ) (map[uuid.UUID][]domain.Quote, error) {
 	if len(rfqs) == 0 {
 		return map[uuid.UUID][]domain.Quote{}, nil

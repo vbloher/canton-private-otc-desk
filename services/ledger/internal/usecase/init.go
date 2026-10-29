@@ -13,10 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// Init waits for the ledger and its seeded parties (/readyz turns green before the seed
-// script has run), resolves the operator and the house parties, and refreshes the caches
-// so a re-created sandbox cannot be served stale contract ids. It gives up after
-// StartupTimeout.
 func (u *UseCase) Init(ctx context.Context) error {
 	ctx, span := tracer.Start(ctx, "usecase Init")
 	defer span.End()
@@ -37,48 +33,72 @@ func (u *UseCase) Init(ctx context.Context) error {
 		return fmt.Errorf("the ledger is not ready: %w", err)
 	}
 
-	ids, err := u.resolveParties(ctx)
+	err = u.awaitParties(ctx)
 	if err != nil {
 		return err
 	}
 
-	u.operator = ids[u.config.OperatorHint]
+	u.operator = u.config.OperatorParty
 
-	for _, id := range ids {
-		u.hosted[id] = true
+	for _, party := range u.parties() {
+		u.hosted[party] = true
 	}
 
-	log.Info().Str("operator", u.operator).Strs("house", u.config.HouseParties).Msg("ledger: parties resolved")
+	if u.config.faucetEnabled() {
+		u.faucet = u.config.FaucetParty
+	} else if u.config.FaucetParty != "" {
+		log.Warn().Str("network", string(u.config.Network)).
+			Msg("ledger: the faucet needs CANTON_NETWORK=devnet and FAUCET_AMOUNTS, it stays off")
+	}
+
+	log.Info().Str("network", string(u.config.Network)).Str("operator", u.operator).
+		Str("maker", u.config.MakerParty).Str("faucet", u.faucet).Msg("ledger: parties found")
 
 	return u.warmUp(ctx)
 }
 
-func (u *UseCase) resolveParties(ctx context.Context) (map[string]string, error) {
-	hints := append([]string{u.config.OperatorHint}, u.config.HouseParties...)
-	ids := make(map[string]string, len(hints))
+func (u *UseCase) parties() []string {
+	parties := []string{u.config.OperatorParty}
+
+	if u.config.MakerParty != "" {
+		parties = append(parties, u.config.MakerParty)
+	}
+
+	if u.config.faucetEnabled() {
+		parties = append(parties, u.config.FaucetParty)
+	}
+
+	return parties
+}
+
+func (u *UseCase) awaitParties(ctx context.Context) error {
+	parties := u.parties()
+
+	for _, party := range parties {
+		if !strings.Contains(party, "::") {
+			return domain.Errorf(domain.ErrValidation, "%q is not a full party id", party)
+		}
+	}
+
+	found := make(map[string]bool, len(parties))
 
 	var missing []string
 
 	err := u.poll(ctx, func(ctx context.Context) (bool, error) {
 		missing = missing[:0]
 
-		for _, hint := range hints {
-			if ids[hint] != "" {
+		for _, party := range parties {
+			if found[party] {
 				continue
 			}
 
-			id, err := u.resolveHint(ctx, hint)
-			if err != nil {
-				return false, err
-			}
-
-			if id == "" {
-				missing = append(missing, hint)
+			if u.onLedger(ctx, party) {
+				found[party] = true
 
 				continue
 			}
 
-			ids[hint] = id
+			missing = append(missing, party)
 		}
 
 		if len(missing) > 0 {
@@ -89,59 +109,23 @@ func (u *UseCase) resolveParties(ctx context.Context) (map[string]string, error)
 
 		return true, nil
 	})
-	if errors.Is(err, domain.ErrAmbiguousParty) {
-		return nil, err
-	}
-
 	if err != nil {
-		return nil, fmt.Errorf("parties not found on the ledger: %s (is it seeded?): %w",
-			strings.Join(missing, ", "), err)
+		return fmt.Errorf("parties not on the participant: %s: %w", strings.Join(missing, ", "), err)
 	}
 
-	return ids, nil
+	return nil
 }
 
-// resolveHint is the party's id, or "" while it is not there yet. Only an ambiguous hint (a
-// ledger seeded twice) is an error: waiting cannot fix that.
-func (u *UseCase) resolveHint(ctx context.Context, hint string) (string, error) {
-	id, err := u.canton.ResolveParty(ctx, hint)
-
-	switch {
-	case err == nil:
-		return id, nil
-	case errors.Is(err, domain.ErrAmbiguousParty):
-		return "", fmt.Errorf("canton.ResolveParty: %w", err)
-	case !errors.Is(err, domain.ErrNotFound):
-		log.Warn().Err(err).Str("hint", hint).Msg("ledger: canton.ResolveParty")
+func (u *UseCase) onLedger(ctx context.Context, party string) bool {
+	id, err := u.canton.ResolveParty(ctx, party)
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
+		log.Warn().Err(err).Str("party", party).Msg("ledger: canton.ResolveParty")
 	}
 
-	return "", nil
+	return err == nil && id == party
 }
 
-// warmUp caches the TokenRules (the seed creates them right after the parties) and the
-// synchronizer.
 func (u *UseCase) warmUp(ctx context.Context) error {
-	var (
-		rules   domain.Disclosed
-		lastErr error
-	)
-
-	err := u.poll(ctx, func(ctx context.Context) (bool, error) {
-		rules, lastErr = u.canton.TokenRules(ctx, u.operator)
-		if lastErr != nil {
-			log.Info().Err(lastErr).Msg("ledger: waiting for TokenRules")
-
-			return false, nil //nolint:nilerr // the seed creates them right after the parties: wait
-		}
-
-		return true, nil
-	})
-	if err != nil {
-		return fmt.Errorf("canton.TokenRules: %w", errors.Join(err, lastErr))
-	}
-
-	u.redis.SetTokenRules(ctx, rules)
-
 	id, err := u.canton.SynchronizerID(ctx, u.operator)
 	if err != nil {
 		return fmt.Errorf("canton.SynchronizerID: %w", err)
@@ -152,7 +136,6 @@ func (u *UseCase) warmUp(ctx context.Context) error {
 	return nil
 }
 
-// poll calls done every StartupInterval until it reports true, fails, or ctx ends.
 func (u *UseCase) poll(ctx context.Context, done func(ctx context.Context) (bool, error)) error {
 	ticker := time.NewTicker(u.config.startupInterval())
 	defer ticker.Stop()

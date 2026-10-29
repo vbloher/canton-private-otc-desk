@@ -1,4 +1,3 @@
-// Package worker runs the bot: usecase.Tick every POLL_INTERVAL.
 package worker
 
 import (

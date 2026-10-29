@@ -1,4 +1,3 @@
-// Package migrate applies a service's embedded SQL migrations on start.
 package migrate
 
 import (
@@ -14,7 +13,6 @@ import (
 	gomigrate "github.com/golang-migrate/migrate/v4"
 )
 
-// Up runs every migration under the "postgres" directory of fsys against dsn.
 func Up(dsn string, fsys fs.FS) error {
 	source, err := iofs.New(fsys, "postgres")
 	if err != nil {

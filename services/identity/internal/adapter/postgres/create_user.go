@@ -39,7 +39,6 @@ func (p *Postgres) CreateUser(ctx context.Context, user domain.User) error {
 
 	_, err := txOrPool.Exec(ctx, sql, args...)
 	if err != nil {
-		// Two registrations with the same passkey can both pass the check before the insert.
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation && pgErr.ConstraintName == "users_credential_id_key" {
 			return domain.ErrCredentialTaken

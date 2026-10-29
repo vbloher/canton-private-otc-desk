@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// UpdateTrade saves the outcome of a trade: status, failure reason, settling update and time.
 func (p *Postgres) UpdateTrade(ctx context.Context, t domain.Trade) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres UpdateTrade")
 	defer span.End()

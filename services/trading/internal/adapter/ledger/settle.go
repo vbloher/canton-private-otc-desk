@@ -13,8 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// Settle settles every leg atomically and returns the ledger update id. NotFound, the ledger
-// finding an allocation of the settlement gone, is domain.ErrSettlementGone.
 func (l *Ledger) Settle(ctx context.Context, settlementID uuid.UUID, legs []domain.Leg) (string, error) {
 	ctx, span := tracer.Start(ctx, "adapter ledger Settle")
 	defer span.End()

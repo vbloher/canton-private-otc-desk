@@ -1,16 +1,12 @@
-/**
- * Test tokens on the local sandbox: the desk mints an offer per instrument and
- * this browser accepts each one (a signature apiece, done by the auto-signer).
- */
 import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/presentation/components/ui/button";
 import { Card, CardContent } from "@/presentation/components/ui/card";
-import { useFaucet, useInstruments, useUnlockThen } from "@/presentation/hooks/queries";
+import { useFaucet, useNetwork, useUnlockThen } from "@/presentation/hooks/queries";
 
 export function FaucetCard() {
   const faucet = useFaucet();
-  const symbols = (useInstruments().data ?? []).map((i) => i.symbol);
+  const drips = useNetwork().data?.faucet ?? [];
 
   const { act, locked, unlocking } = useUnlockThen(() =>
     faucet.mutate(undefined, {
@@ -18,11 +14,13 @@ export function FaucetCard() {
         toast.success("Test tokens on the way", {
           description:
             actions.length > 0
-              ? `Your browser accepts ${actions.length === 1 ? "the mint" : `all ${actions.length} mints`} — balances update in a moment.`
+              ? `Your browser accepts ${actions.length === 1 ? "the transfer" : `all ${actions.length} transfers`} — balances update in a moment.`
               : "Balances update in a moment.",
         }),
     }),
   );
+
+  if (drips.length === 0) return null;
 
   return (
     <Card className="bg-primary/5 ring-primary/40">
@@ -30,7 +28,7 @@ export function FaucetCard() {
         <div className="min-w-0 space-y-1">
           <p className="font-heading text-base leading-snug font-medium">Test tokens</p>
           <p className="text-sm text-muted-foreground">
-            Mint {symbols.length > 0 ? symbols.join(", ") : "test tokens"} to your party — local sandbox only.
+            Get {drips.map((d) => `${d.amount} ${d.symbol}`).join(", ")} from the desk's DevNet faucet.
           </p>
         </div>
         <Button
@@ -40,7 +38,7 @@ export function FaucetCard() {
         >
           {faucet.isPending ? (
             <>
-              <Loader2 className="animate-spin" /> Minting…
+              <Loader2 className="animate-spin" /> Sending…
             </>
           ) : locked ? (
             "Unlock to get test tokens"

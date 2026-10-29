@@ -1,7 +1,5 @@
 //go:build integration
 
-// These tests run against the Postgres of `make up` (override with POSTGRES_* variables). Each test
-// gets its own throwaway database, migrated with the embedded migrations.
 package postgres_test
 
 import (
@@ -145,7 +143,6 @@ func Test_CreateUser_Duplicates(t *testing.T) {
 func Test_CreateUser_RejectsHalfBuiltUsers(t *testing.T) {
 	p := newPostgres(t)
 
-	// A passkey user needs its key, credential and wrapped blob; a house user needs an API key.
 	err := p.CreateUser(t.Context(), domain.User{
 		ID: uuid.New(), PartyID: "p::1", Hint: "p", DisplayName: "P", Kind: domain.KindPasskey, CreatedAt: time.Now(),
 	})
@@ -171,7 +168,6 @@ func Test_UpsertHouseUser(t *testing.T) {
 	require.Nil(t, byKey.PublicKey)
 	require.Empty(t, byKey.CredentialID)
 
-	// A restart seeds again: same id, up-to-date party and key, maker mode back on.
 	_, err = p.SetMakerMode(t.Context(), maker.ID, false)
 	require.NoError(t, err)
 
@@ -195,7 +191,6 @@ func Test_UpsertHouseUser_NeverOverwritesAWallet(t *testing.T) {
 	wallet := passkeyUser(t, "alice-3f9a1c", "cred-1")
 	require.NoError(t, p.CreateUser(t.Context(), wallet))
 
-	// The hint belongs to a wallet: nothing may change, and the seed must not look successful.
 	err := p.UpsertHouseUser(t.Context(), houseUser(t, "alice-3f9a1c", "some-key"))
 	require.Error(t, err)
 	require.ErrorContains(t, err, "alice-3f9a1c")

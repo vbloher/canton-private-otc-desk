@@ -13,11 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// Allocate creates (hosted party) or queues for signature (external party) every
-// allocation the party owes the settlement: one per slot of the plan, funded by holdings
-// picked for every sending slot before anything is submitted. It is idempotent: each slot
-// carries a deterministic command id, and an external party whose allocations still wait
-// for its signature gets those actions back.
 func (u *UseCase) Allocate(ctx context.Context, input dto.AllocateInput) (dto.AllocateOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase Allocate")
 	defer span.End()
@@ -58,20 +53,13 @@ func (u *UseCase) Allocate(ctx context.Context, input dto.AllocateInput) (dto.Al
 	return dto.AllocateOutput{Executed: u.hosted[input.PartyID], ActionIDs: actionIDs(actions)}, nil
 }
 
-// allocateSlots submits, or prepares, one allocation per slot under its deterministic
-// command id.
 func (u *UseCase) allocateSlots(ctx context.Context, input dto.AllocateInput, slots []domain.Slot, inputs [][]string,
 ) ([]domain.Action, error) {
-	rules, err := u.tokenRules(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("u.tokenRules: %w", err)
-	}
-
 	requestedAt := time.Now().Add(-clockSkew)
 	actions := make([]domain.Action, 0, len(slots))
 
 	for i, slot := range slots {
-		cmd, err := u.canton.AllocateCommand(rules, domain.AllocateSpec{
+		cmd, err := u.registry.AllocateCommand(ctx, domain.AllocateSpec{
 			Operator:     u.operator,
 			SettlementID: input.SettlementID,
 			Slot:         slot,
@@ -80,7 +68,7 @@ func (u *UseCase) allocateSlots(ctx context.Context, input dto.AllocateInput, sl
 			Inputs:       inputs[i],
 		})
 		if err != nil {
-			return nil, fmt.Errorf("canton.AllocateCommand: %w", err)
+			return nil, fmt.Errorf("registry.AllocateCommand: %w", err)
 		}
 
 		intent := domain.Intent{
@@ -127,7 +115,7 @@ func (u *UseCase) slotsToAllocate(input dto.AllocateInput) ([]domain.Slot, error
 		return nil, err
 	}
 
-	slots := domain.SlotsOf(domain.Plan(legs, u.operator), input.PartyID)
+	slots := domain.SlotsOf(domain.Plan(legs), input.PartyID)
 	if len(slots) == 0 {
 		return nil, domain.Errorf(domain.ErrValidation, "%s has no leg in settlement %s", input.PartyID,
 			input.SettlementID)
@@ -136,7 +124,6 @@ func (u *UseCase) slotsToAllocate(input dto.AllocateInput) ([]domain.Slot, error
 	return slots, nil
 }
 
-// allocationInputs picks the holdings of every sending slot; a pure receiver funds nothing.
 func (u *UseCase) allocationInputs(ctx context.Context, party string, slots []domain.Slot) ([][]string, error) {
 	inputs := make([][]string, len(slots))
 
@@ -165,11 +152,10 @@ func (u *UseCase) allocationInputs(ctx context.Context, party string, slots []do
 	return inputs, nil
 }
 
-// slotDescription is what the signer reads, e.g. "Allocate 0.1 CBTC for quote 3f2c…".
 func slotDescription(slot domain.Slot, about string) string {
-	text := "Allocate receipt of " + slot.InstrumentID
+	text := "Allocate receipt of " + slot.Symbol
 	if slot.Send.IsPositive() {
-		text = "Allocate " + slot.Send.String() + " " + slot.InstrumentID
+		text = "Allocate " + slot.Send.String() + " " + slot.Symbol
 	}
 
 	if about != "" {

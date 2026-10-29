@@ -19,7 +19,6 @@ const LABEL: Record<string, string> = {
   accepted: "settling",
 };
 
-/** A status word in the desk's accent: amber in flight, green done, red failed, muted otherwise. */
 export function StatusBadge({ status, className }: { status: string; className?: string }) {
   return (
     <Badge

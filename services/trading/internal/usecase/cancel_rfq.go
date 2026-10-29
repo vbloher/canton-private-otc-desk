@@ -12,7 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// CancelRFQ closes the taker's open RFQ and its live quotes; not while a trade on it settles.
 func (u *UseCase) CancelRFQ(ctx context.Context, input dto.CancelRFQInput) error {
 	ctx, span := tracer.Start(ctx, "usecase CancelRFQ")
 	defer span.End()

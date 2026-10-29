@@ -22,7 +22,7 @@ func Test_Logout_DeletesTheSessionAndItsCacheEntry(t *testing.T) {
 }
 
 func Test_Logout_WithoutACookieDoesNothing(t *testing.T) {
-	d := newDeps(t) // no expectations
+	d := newDeps(t)
 
 	require.NoError(t, d.useCase().Logout(t.Context(), dto.LogoutInput{Token: ""}))
 }
@@ -33,7 +33,6 @@ func Test_Logout_KeepsTheCacheWhenTheDeleteFails(t *testing.T) {
 	boom := errors.New("connection reset")
 
 	d.postgres.EXPECT().DeleteSession(Any, domain.HashSessionToken("token")).Return(boom)
-	// No DropCachedSession expectation: the session is still valid, so the cache keeps it.
 
 	err := d.useCase().Logout(t.Context(), dto.LogoutInput{Token: "token"})
 	require.ErrorIs(t, err, boom)

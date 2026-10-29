@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ResolveMakers returns the users in maker mode among the hints; unknown hints are left out.
 func (i *Identity) ResolveMakers(ctx context.Context, hints []string) ([]domain.Party, error) {
 	ctx, span := tracer.Start(ctx, "adapter identity ResolveMakers")
 	defer span.End()

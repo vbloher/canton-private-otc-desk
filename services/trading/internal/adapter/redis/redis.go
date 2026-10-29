@@ -21,7 +21,6 @@ func New(client *redis.Client) *Redis {
 	}
 }
 
-// desk is the cached form of domain.Desk.
 type desk struct {
 	Operator    string   `json:"operator"`
 	Instruments []string `json:"instruments"`

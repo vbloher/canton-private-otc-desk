@@ -10,7 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 )
 
-// SaveChallenge remembers which wallet a challenge was issued to.
 func (r *Redis) SaveChallenge(ctx context.Context, challenge string, userID uuid.UUID, ttl time.Duration) error {
 	ctx, span := tracer.Start(ctx, "adapter redis SaveChallenge")
 	defer span.End()

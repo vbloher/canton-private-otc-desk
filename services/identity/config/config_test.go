@@ -12,14 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vbloher/canton-private-otc-desk/services/identity/config"
-	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// leftUnset starts the test with key unset and puts the environment back as it was when the test
-// ends, whoever sets the key in between: godotenv writes what a .env file holds into the process
-// environment and never takes it back. t.Setenv records the original state (unset, or the old value)
-// and restores it; the Unsetenv is there because godotenv leaves a key alone while the environment
-// has it, even with an empty value.
 func leftUnset(t *testing.T, key string) {
 	t.Helper()
 
@@ -32,7 +26,6 @@ type envVar struct {
 	set   bool
 }
 
-// environment is the state of the given variables.
 func environment(keys []string) map[string]envVar {
 	state := make(map[string]envVar, len(keys))
 
@@ -68,10 +61,8 @@ func Test_New_Defaults(t *testing.T) {
 	require.Equal(t, "localhost:9083", c.Ledger.Addr)
 	require.Equal(t, 168*time.Hour, c.UseCase.SessionTTL)
 	require.False(t, c.Router.CookieSecure)
-	require.Equal(t, domain.HouseMakers{
-		{Hint: "makerA", APIKey: "demo-key-a"},
-		{Hint: "makerB", APIKey: "demo-key-b"},
-	}, c.UseCase.HouseMakers)
+	require.Empty(t, c.UseCase.MakerParty)
+	require.Empty(t, c.UseCase.MakerAPIKey)
 }
 
 func Test_New_Overrides(t *testing.T) {
@@ -83,7 +74,8 @@ func Test_New_Overrides(t *testing.T) {
 	t.Setenv("LEDGER_GRPC_ADDR", "ledger:9083")
 	t.Setenv("SESSION_TTL", "2h")
 	t.Setenv("COOKIE_SECURE", "true")
-	t.Setenv("HOUSE_MAKERS", "bot:secret")
+	t.Setenv("MAKER_PARTY", "bot::1220ab")
+	t.Setenv("MAKER_API_KEY", "secret")
 
 	c, err := config.New()
 	require.NoError(t, err)
@@ -94,7 +86,8 @@ func Test_New_Overrides(t *testing.T) {
 	require.Equal(t, "ledger:9083", c.Ledger.Addr)
 	require.Equal(t, 2*time.Hour, c.UseCase.SessionTTL)
 	require.True(t, c.Router.CookieSecure)
-	require.Equal(t, domain.HouseMakers{{Hint: "bot", APIKey: "secret"}}, c.UseCase.HouseMakers)
+	require.Equal(t, "bot::1220ab", c.UseCase.MakerParty)
+	require.Equal(t, "secret", c.UseCase.MakerAPIKey)
 }
 
 func Test_New_ReadsDotEnv(t *testing.T) {
@@ -122,8 +115,6 @@ func Test_New_ReadsDotEnv(t *testing.T) {
 		require.Equal(t, 3*time.Hour, c.UseCase.SessionTTL)
 	})
 
-	// The subtest is over and its cleanups have run. What the file put into the environment must be
-	// gone, or the tests that run after this one (shuffle, -count) would read port 7000 as the default.
 	require.Equal(t, before, environment(keys), "loading a .env file must leave the process environment as it was")
 }
 
@@ -136,24 +127,21 @@ func Test_New_MissingRequired(t *testing.T) {
 	require.ErrorContains(t, err, "REDIS_ADDR")
 }
 
-// Every case is a subtest: t.Setenv is undone when it ends, so a case sees only its own bad value
-// and nothing an earlier case set. The error must also say what is wrong and where, so a case cannot
-// pass because of some other failure.
 func Test_New_Rejects(t *testing.T) {
 	cases := []struct {
 		name string
 		env  map[string]string
-		want []string // all of these must appear in the error
+		want []string
 	}{
 		{
-			name: "house maker without a key",
-			env:  map[string]string{"HOUSE_MAKERS": "makerA"},
-			want: []string{`field "HouseMakers"`, "must look like hint:key"},
+			name: "maker without a key",
+			env:  map[string]string{"MAKER_PARTY": "maker::1220ab"},
+			want: []string{"MAKER_PARTY and MAKER_API_KEY go together"},
 		},
 		{
-			name: "repeated house maker key",
-			env:  map[string]string{"HOUSE_MAKERS": "a:k,b:k"},
-			want: []string{`field "HouseMakers"`, "repeats a hint or a key"},
+			name: "maker by hint",
+			env:  map[string]string{"MAKER_PARTY": "maker", "MAKER_API_KEY": "k"},
+			want: []string{"MAKER_PARTY must be a full party id"},
 		},
 		{
 			name: "session shorter than 1m",

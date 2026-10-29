@@ -11,8 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Config has no default port: each service presets its own before parsing the environment.
-// An empty Host listens on every interface (containers); set HTTP_HOST=127.0.0.1 on a shared host.
 type Config struct {
 	Host string `env:"HTTP_HOST"`
 	Port string `env:"HTTP_PORT"`

@@ -36,7 +36,6 @@ linters:
     paths:
       - _test.go
       - gen/
-      - test/e2e/
       - web/
 
     rules:

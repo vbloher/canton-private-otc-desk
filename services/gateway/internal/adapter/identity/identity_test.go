@@ -20,7 +20,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/domain"
 )
 
-// server answers every call with the configured user or error and remembers what it was asked.
 type server struct {
 	pb.UnimplementedIdentityV1Server
 
@@ -43,7 +42,6 @@ func (s *server) AuthenticateAPIKey(_ context.Context, in *pb.AuthenticateAPIKey
 	return s.user, s.err
 }
 
-// dial runs srv behind a real gRPC connection, so the status codes travel the way they do in production.
 func dial(t *testing.T, srv pb.IdentityV1Server) *identity.Identity {
 	t.Helper()
 

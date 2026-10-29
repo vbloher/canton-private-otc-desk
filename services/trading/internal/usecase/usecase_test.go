@@ -58,7 +58,6 @@ func newDeps(t *testing.T) deps {
 func (d deps) useCase(t *testing.T) *usecase.UseCase {
 	t.Helper()
 
-	// Like pgx, a transaction cannot begin on a context that is done.
 	tx := mocks.NewTransactor(t)
 	tx.EXPECT().Wrap(Any, Any).RunAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
 		if ctx.Err() != nil {
@@ -71,7 +70,6 @@ func (d deps) useCase(t *testing.T) *usecase.UseCase {
 	return usecase.New(config, tx, d.postgres, d.ledger, d.identity, d.redis, d.events)
 }
 
-// useCaseLeftAfterCommit is the use case of a caller that goes away as soon as a transaction commits.
 func (d deps) useCaseLeftAfterCommit(t *testing.T, leave context.CancelFunc) *usecase.UseCase {
 	t.Helper()
 
@@ -94,7 +92,6 @@ func (d deps) cachedDesk() {
 	d.redis.EXPECT().GetDesk(Any).Return(desk, true)
 }
 
-// openRFQ: alice buys 0.5 CBTC for USDCx from makers A, B and C, deadline five minutes after created.
 func openRFQ(created time.Time) domain.RFQ {
 	return domain.RFQ{
 		ID:         uuid.New(),
@@ -112,7 +109,6 @@ func openRFQ(created time.Time) domain.RFQ {
 	}
 }
 
-// quoteOf is a quote that opened when its RFQ was created, unless it is still allocating.
 func quoteOf(
 	rfq domain.RFQ, maker domain.Party, price string, status domain.QuoteStatus, validUntil time.Time,
 ) domain.Quote {
@@ -134,14 +130,12 @@ func quoteOf(
 	return q
 }
 
-// neverOpened is the quote as one whose allocation never landed before it closed.
 func neverOpened(q domain.Quote) domain.Quote {
 	q.OpenedAt = nil
 
 	return q
 }
 
-// show renders legs as text: decimals compare by value, not by their big.Int internals.
 func show(legs []domain.Leg) []string {
 	out := make([]string, 0, len(legs))
 

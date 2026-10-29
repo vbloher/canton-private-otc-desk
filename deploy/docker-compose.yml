@@ -1,15 +1,3 @@
-# The stack on a VPS, from the images release.yml publishes. Not for local use: see ../docker-compose.yml.
-#
-# The deploy job renders this file — the IMAGE_PREFIX and IMAGE_TAG placeholders become the registry path
-# and the deployed version — and copies it to ~/otc-desk-<environment>/ on the server, with postgres/init.sql and
-# .env.example. It never touches .env there: the settings are edited by hand on the server (start from
-# .env.example). A docker-compose.override.yml next to it is picked up by docker compose and kept too.
-#
-# Only the web app is published, on 127.0.0.1:${WEB_PORT}: a reverse proxy on the host (Caddy) terminates
-# TLS for the domain and forwards to it. Postgres, Redis and the services stay on the compose network;
-# identity, trading and ledger trust the X-User-* headers the gateway sets, so nothing but the gateway may
-# reach them.
-
 x-logging: &logging
   logging:
     driver: json-file
@@ -48,7 +36,6 @@ services:
       - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - pg-data:/var/lib/postgresql
     healthcheck:
-      # TCP, not the socket: the entrypoint's temporary init server answers on the socket only.
       test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U "$$POSTGRES_USER" -d ledger']
       interval: 2s
       timeout: 5s
@@ -58,7 +45,6 @@ services:
     <<: *logging
     image: redis:8-alpine
     restart: unless-stopped
-    # sessions live here: a volume keeps them across deploys
     volumes:
       - redis-data:/data
     healthcheck:
@@ -70,23 +56,27 @@ services:
   ledger:
     <<: *go-service
     image: ${IMAGE_PREFIX}/ledger:${IMAGE_TAG}
-    # a participant on this host is reachable as host.docker.internal
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
     environment:
       <<: *db-env
       OTEL_SERVICE_NAME: ledger
       HTTP_PORT: '8083'
       GRPC_PORT: '9083'
       POSTGRES_DB_NAME: ledger
+      CANTON_NETWORK: ${CANTON_NETWORK:?set CANTON_NETWORK in .env}
       CANTON_URL: ${CANTON_URL:?set CANTON_URL in .env}
       CANTON_USER_ID: ${CANTON_USER_ID:-}
-      OPERATOR_HINT: ${OPERATOR_HINT:-}
-      HOUSE_PARTIES: ${HOUSE_PARTIES:-}
-      INSTRUMENTS: ${INSTRUMENTS:-}
+      CANTON_AUTH_TOKEN_URL: ${CANTON_AUTH_TOKEN_URL:-}
+      CANTON_AUTH_CLIENT_ID: ${CANTON_AUTH_CLIENT_ID:-}
+      CANTON_AUTH_CLIENT_SECRET: ${CANTON_AUTH_CLIENT_SECRET:-}
+      CANTON_AUTH_AUDIENCE: ${CANTON_AUTH_AUDIENCE:-}
+      CANTON_AUTH_SCOPE: ${CANTON_AUTH_SCOPE:-}
+      OPERATOR_PARTY: ${OPERATOR_PARTY:?set OPERATOR_PARTY in .env}
+      MAKER_PARTY: ${MAKER_PARTY:-}
+      INSTRUMENTS: ${INSTRUMENTS:?set INSTRUMENTS in .env}
+      FAUCET_PARTY: ${FAUCET_PARTY:-}
       FAUCET_AMOUNTS: ${FAUCET_AMOUNTS:-}
+      FAUCET_COOLDOWN: ${FAUCET_COOLDOWN:-}
       ACTION_TTL: ${ACTION_TTL:-}
-    # an in-flight settle or cancel is one ledger call of up to 30 s
     stop_grace_period: 45s
     depends_on:
       postgres:
@@ -109,9 +99,9 @@ services:
       GRPC_PORT: '9081'
       POSTGRES_DB_NAME: identity
       LEDGER_GRPC_ADDR: ledger:9083
-      HOUSE_MAKERS: ${HOUSE_MAKERS:?set HOUSE_MAKERS in .env}
+      MAKER_PARTY: ${MAKER_PARTY:-}
+      MAKER_API_KEY: ${MAKER_API_KEY:-}
       SESSION_TTL: ${SESSION_TTL:-}
-      # the browser reaches the desk over HTTPS only
       COOKIE_SECURE: 'true'
     depends_on:
       postgres:
@@ -135,7 +125,6 @@ services:
       FEE_BPS: ${FEE_BPS:-}
       WORKER_INTERVAL: ${WORKER_INTERVAL:-}
       SETTLE_TIMEOUT: ${SETTLE_TIMEOUT:-}
-    # the worker finishes an in-flight settlement (one ledger call of up to 30 s) before exiting
     stop_grace_period: 45s
     depends_on:
       postgres:
@@ -168,11 +157,13 @@ services:
   maker-bot:
     <<: *go-service
     image: ${IMAGE_PREFIX}/maker-bot:${IMAGE_TAG}
+    profiles: [demo]
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: maker-bot
       GATEWAY_URL: http://gateway:8080
-      MAKER_KEYS: ${MAKER_KEYS:?set MAKER_KEYS in .env}
+      MAKER_API_KEY: ${MAKER_API_KEY:-}
+      MAKER_SPREAD_BPS: ${MAKER_SPREAD_BPS:-}
       PRICES_USD: ${PRICES_USD:-}
       QUOTE_TTL: ${QUOTE_TTL:-}
       POLL_INTERVAL: ${POLL_INTERVAL:-}

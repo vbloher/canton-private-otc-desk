@@ -12,7 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// SaveActions inserts the actions in one statement: a batch is queued whole or not at all.
 func (p *Postgres) SaveActions(ctx context.Context, actions ...domain.Action) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres SaveActions")
 	defer span.End()
@@ -41,7 +40,6 @@ func (p *Postgres) SaveActions(ctx context.Context, actions ...domain.Action) er
 		})
 	}
 
-	// Prepared: the hash is binary, so it travels as a parameter, never inlined.
 	sql, args, err := goqu.Dialect("postgres").Insert("actions").Prepared(true).Rows(rows...).ToSQL()
 	if err != nil {
 		return fmt.Errorf("goqu.Insert.ToSQL: %w", err)

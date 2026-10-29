@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListSettlingTrades returns every trade still settling, oldest first.
 func (p *Postgres) ListSettlingTrades(ctx context.Context) ([]domain.Trade, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListSettlingTrades")
 	defer span.End()

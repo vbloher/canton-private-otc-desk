@@ -7,20 +7,16 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/decimal"
 )
 
-// Holding is a token-standard holding as the Holding interface shows it.
 type Holding struct {
 	ContractID   string
 	Owner        string
 	Admin        string
 	InstrumentID string
 	Amount       decimal.Decimal
-	Locked       bool      // funds a pending transfer or allocation
-	LockedUntil  time.Time // when the lock lapses; zero for a lock that never does
+	Locked       bool
+	LockedUntil  time.Time
 }
 
-// LockedAt reports whether the holding is locked at now. A lock lapses at its expiry (an
-// allocation's settlement deadline, a transfer's execute-before): from then on the ledger
-// accepts the holding as an unlocked input again. A lock without an expiry never lapses.
 func (h Holding) LockedAt(now time.Time) bool {
 	return h.Locked && (h.LockedUntil.IsZero() || now.Before(h.LockedUntil))
 }
@@ -31,9 +27,6 @@ type Balance struct {
 	Locked    decimal.Decimal
 }
 
-// SelectHoldings picks the owner's holdings of one instrument that are unlocked at now,
-// largest first, until they cover need. Visibility is not ownership: the receiver of a
-// pending transfer may see the sender's locked holding, so only owned holdings count.
 func SelectHoldings(hs []Holding, owner, admin, instrument string, need decimal.Decimal, now time.Time,
 ) ([]string, error) {
 	candidates := make([]Holding, 0, len(hs))
@@ -69,20 +62,18 @@ func SelectHoldings(hs []Holding, owner, admin, instrument string, need decimal.
 	return picked, nil
 }
 
-// Balances sums the owner's holdings of the admin's instruments, in instrument order, zeros
-// included; a holding whose lock has lapsed by now is available again.
-func Balances(hs []Holding, owner, admin string, instruments []Instrument, now time.Time) []Balance {
+func Balances(hs []Holding, owner string, instruments []Instrument, now time.Time) []Balance {
 	balances := make([]Balance, len(instruments))
 	index := make(map[string]int, len(instruments))
 
 	for i, inst := range instruments {
 		balances[i] = Balance{Symbol: inst.Symbol}
-		index[inst.Symbol] = i
+		index[inst.Admin+"|"+inst.ID] = i
 	}
 
 	for _, h := range hs {
-		i, ok := index[h.InstrumentID]
-		if !ok || h.Owner != owner || h.Admin != admin {
+		i, ok := index[h.Admin+"|"+h.InstrumentID]
+		if !ok || h.Owner != owner {
 			continue
 		}
 

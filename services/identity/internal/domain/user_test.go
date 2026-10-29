@@ -111,7 +111,6 @@ func Test_HashAPIKey(t *testing.T) {
 	require.Regexp(t, regexp.MustCompile(`^[0-9a-f]{64}$`), hash)
 	require.Equal(t, hash, domain.HashAPIKey("demo-key-a"))
 	require.NotEqual(t, hash, domain.HashAPIKey("demo-key-b"))
-	// Pinned to `printf demo-key-a | shasum -a 256`: the stored hash must be plain hex sha256.
 	require.Equal(t, "f15424e984f66fb993b9d8e6444ade02adcc714a58b3b50106e98750e4244bfe", hash)
 }
 

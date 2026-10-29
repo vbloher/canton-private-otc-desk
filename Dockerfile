@@ -1,4 +1,3 @@
-# One image per Go service: docker build --build-arg SERVICE=identity .
 FROM --platform=$BUILDPLATFORM golang:1.27.3-alpine3.24 AS build
 
 WORKDIR /app

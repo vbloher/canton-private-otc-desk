@@ -7,7 +7,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// toSignActions never returns nil: a hosted party's list is empty, not null.
 func toSignActions(actions []domain.Action) []http_server.SignAction {
 	out := make([]http_server.SignAction, 0, len(actions))
 

@@ -65,10 +65,10 @@ type LoginInput struct {
 
 // Maker defines model for Maker.
 type Maker struct {
-	// DisplayName Example: makerA
+	// DisplayName Example: otc-desk-maker
 	DisplayName string `json:"displayName"`
 
-	// Hint Example: makerA
+	// Hint Example: otc-desk-maker
 	Hint string `json:"hint"`
 }
 

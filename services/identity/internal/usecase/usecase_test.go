@@ -17,14 +17,11 @@ import (
 const Any = mock.Anything
 
 var testConfig = usecase.Config{
-	SessionTTL: 24 * time.Hour,
-	HouseMakers: domain.HouseMakers{
-		{Hint: "makerA", APIKey: "demo-key-a"},
-		{Hint: "makerB", APIKey: "demo-key-b"},
-	},
+	SessionTTL:  24 * time.Hour,
+	MakerParty:  "otc-desk-maker::1220ab",
+	MakerAPIKey: "maker-key",
 }
 
-// deps holds a strict mock of every port: a call nobody expected fails the test.
 type deps struct {
 	postgres *mocks.Postgres
 	redis    *mocks.Redis
@@ -47,7 +44,6 @@ func (d deps) useCase() *usecase.UseCase {
 	return usecase.New(d.postgres, d.redis, d.ledger, testConfig)
 }
 
-// walletUser is a registered passkey wallet together with the private key of its browser.
 func walletUser(t *testing.T) (domain.User, ed25519.PrivateKey) {
 	t.Helper()
 

@@ -12,7 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// maxPartyPages stops a JSON API that keeps answering with a next page token.
 const maxPartyPages = 1000
 
 type signature struct {
@@ -22,7 +21,6 @@ type signature struct {
 	SigningAlgorithmSpec string `json:"signingAlgorithmSpec"`
 }
 
-// ed25519Signature is a raw Ed25519 signature by the key with the given fingerprint.
 func ed25519Signature(sig []byte, fingerprint string) signature {
 	return signature{
 		Format:               "SIGNATURE_FORMAT_RAW",
@@ -32,7 +30,6 @@ func ed25519Signature(sig []byte, fingerprint string) signature {
 	}
 }
 
-// Ready is the participant's readiness probe.
 func (c *Canton) Ready(ctx context.Context) bool {
 	ctx, span := tracer.Start(ctx, "adapter canton Ready")
 	defer span.End()
@@ -40,7 +37,6 @@ func (c *Canton) Ready(ctx context.Context) bool {
 	return c.call(ctx, http.MethodGet, "/readyz", nil, nil, readyTimeout) == nil
 }
 
-// ResolveParty finds the full id of the party allocated with this hint.
 func (c *Canton) ResolveParty(ctx context.Context, hint string) (string, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton ResolveParty")
 	defer span.End()
@@ -68,8 +64,6 @@ type partiesPage struct {
 	NextPageToken string `json:"nextPageToken"`
 }
 
-// partiesByHint pages through the parties; filter-party is a prefix filter ("maker" lists
-// makerA and makerB), so only the hint itself or "<hint>::…" counts.
 func (c *Canton) partiesByHint(ctx context.Context, hint string) ([]string, error) {
 	var (
 		ids   []string
@@ -102,8 +96,6 @@ func (c *Canton) partiesByHint(ctx context.Context, hint string) ([]string, erro
 	return ids, nil
 }
 
-// SynchronizerID is the first synchronizer the party is connected to; external-party
-// onboarding is pinned to it.
 func (c *Canton) SynchronizerID(ctx context.Context, party string) (string, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton SynchronizerID")
 	defer span.End()
@@ -127,8 +119,6 @@ func (c *Canton) SynchronizerID(ctx context.Context, party string) (string, erro
 	return out.ConnectedSynchronizers[0].SynchronizerID, nil
 }
 
-// GenerateExternalParty builds the onboarding topology of a party whose Ed25519 key lives
-// outside the participant; the key signs MultiHash.
 func (c *Canton) GenerateExternalParty(ctx context.Context, synchronizerID, hint string, publicKey []byte,
 ) (domain.Topology, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton GenerateExternalParty")
@@ -179,13 +169,16 @@ func (c *Canton) GenerateExternalParty(ctx context.Context, synchronizerID, hint
 	}, nil
 }
 
-// AllocateExternalParty onboards the party with its key's signature over the multi-hash;
-// the desk's user gets the rights to prepare and read for it.
 func (c *Canton) AllocateExternalParty(ctx context.Context, synchronizerID string, transactions []string,
 	sig []byte, fingerprint string,
 ) (string, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton AllocateExternalParty")
 	defer span.End()
+
+	user, err := c.user()
+	if err != nil {
+		return "", err
+	}
 
 	type signedTransaction struct {
 		Transaction string      `json:"transaction"`
@@ -207,7 +200,7 @@ func (c *Canton) AllocateExternalParty(ctx context.Context, synchronizerID strin
 		Synchronizer:           synchronizerID,
 		OnboardingTransactions: onboarding,
 		MultiHashSignatures:    []signature{ed25519Signature(sig, fingerprint)},
-		UserID:                 c.userID,
+		UserID:                 user,
 		WaitForAllocation:      true,
 	}
 
@@ -215,7 +208,7 @@ func (c *Canton) AllocateExternalParty(ctx context.Context, synchronizerID strin
 		PartyID string `json:"partyId"`
 	}
 
-	err := c.call(ctx, http.MethodPost, "/v2/parties/external/allocate", in, &out, submitTimeout)
+	err = c.call(ctx, http.MethodPost, "/v2/parties/external/allocate", in, &out, submitTimeout)
 	if err != nil {
 		return "", fmt.Errorf("external/allocate: %w", err)
 	}

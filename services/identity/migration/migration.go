@@ -1,4 +1,3 @@
-// Package migration embeds the SQL migrations of the identity database.
 package migration
 
 import "embed"

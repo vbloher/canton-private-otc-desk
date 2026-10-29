@@ -14,8 +14,9 @@ with a passkey (WebAuthn PRF) and never leaves it. Every ledger action of a user
 interactive submission — the desk prepares it, the browser signs it, the desk executes it.
 
 This repository is a deliberately small open-source implementation: Go microservices built on
-[Clean Architecture](https://github.com/vbloher/go-clean-architecture-template), a layered React
-SPA, and a local Canton sandbox with the token-standard test rail.
+[Clean Architecture](https://github.com/vbloher/go-clean-architecture-template) and a layered React
+SPA. It runs against a real Canton network — DevNet, TestNet or MainNet — through your own
+validator's JSON Ledger API and the instruments' token-standard registries.
 
 ## Features
 
@@ -27,9 +28,10 @@ SPA, and a local Canton sandbox with the token-standard test rail.
   accept adds the taker's; the desk settles every leg in one `SettlementFactory_SettleBatch`
   transaction. All or nothing.
 - **Maker mode** — any wallet can become a maker and quote from the browser; bots quote over
-  the same API with an API key. A demo maker bot quotes for the two house makers.
-- **Wallet** — balances (available and locked), test-token faucet, deposits (accept incoming
-  transfers) and withdrawals to any Canton party.
+  the same API with an API key. The desk's own maker is one hosted party with one API key; a demo
+  maker bot quotes for it on DevNet.
+- **Wallet** — balances (available and locked), deposits (accept incoming transfers),
+  withdrawals to any Canton party, and on DevNet a test-token faucet.
 - **Live updates** — a WebSocket pushes RFQ, quote, trade and signing events.
 
 ## Architecture
@@ -46,7 +48,8 @@ graph LR
   T -->|gRPC| L
   T -->|gRPC| I
   I -->|gRPC| L
-  L -->|JSON Ledger API v2| C[(Canton sandbox)]
+  L -->|JSON Ledger API v2 + OAuth2| C[(Canton validator)]
+  L -->|token-standard HTTP API| REG[(Token registries)]
   I --- PG[(Postgres)]
   T --- PG
   L --- PG
@@ -59,16 +62,16 @@ graph LR
 | Service | Responsibility | Ports |
 |---|---|---|
 | `gateway` | single public origin: authenticates the session cookie or API key, forwards the caller to the services, hosts the WebSocket fed by Redis pub/sub | HTTP 8080 |
-| `identity` | passkey wallets, sessions, challenges, house makers, maker mode | HTTP 8081 · gRPC 9081 |
+| `identity` | passkey wallets, sessions, challenges, the house maker, maker mode | HTTP 8081 · gRPC 9081 |
 | `trading` | RFQs, quotes, trades and the settlement worker | HTTP 8082 |
 | `ledger` | everything Canton: parties, holdings, transfers, allocations, settlement, the sign queue | HTTP 8083 · gRPC 9083 |
-| `maker-bot` | demo market maker for `makerA` and `makerB` | — |
+| `maker-bot` | demo market maker: quotes for the house maker over the public API | — |
 | `web` | the SPA behind nginx, which also proxies `/api` | 3000 |
 
 Each service follows the template's layout — `cmd/app`, `config`, `internal/{app,domain,dto,
 usecase,adapter,controller}`, `migration` — with ports declared by the use cases and implemented
 by adapters. Postgres holds one database per service; Redis is the cache (sessions, desk facts,
-the registry contract), the store for one-shot challenges and the event bus. HTTP contracts are
+the synchronizer id), the store for one-shot challenges and faucet cooldowns, and the event bus. HTTP contracts are
 OpenAPI (`api/http`, servers and clients generated with oapi-codegen); internal contracts are
 protobuf (`api/grpc`).
 
@@ -79,39 +82,64 @@ protobuf (`api/grpc`).
    a quote is always funded; the taker sees it once it lands.
 3. The taker accepts. The taker (and, for the fee, the desk) allocate their sides.
 4. The desk, the settlement's only executor, settles every leg — base, quote notional and the
-   desk fee — in one transaction. Losing quotes are cancelled and their funds released.
+   desk fee — in one transaction: one `SettlementFactory_SettleBatch` per instrument admin, all
+   in a single submission. Losing quotes are cancelled and their funds released.
+
+Every factory and choice context comes from the instrument's registry (DA Utilities for CBTC
+and USDCx, Splice Scan for Canton Coin), so the desk holds no token logic of its own.
 
 The fee (`FEE_BPS`, default 10) is paid by the maker in the quote asset. Amounts are exact
 decimals with ten fraction digits, floored like Daml's `Numeric 10`.
 
+## Networks
+
+The desk needs a validator on the network it trades on and an OAuth2 client of that validator's
+identity provider (client credentials; the token's `sub` is the ledger user unless
+`CANTON_USER_ID` says otherwise). On that participant:
+
+1. Allocate the hosted parties the desk signs for — the operator, the house maker and, on DevNet,
+   the faucet reservoir — and grant the ledger user `actAs` on each (`POST /v2/parties`,
+   `POST /v2/users/{user}/rights`). Put their full party ids in `OPERATOR_PARTY`, `MAKER_PARTY` and
+   `FAUCET_PARTY`. The ledger service waits for them on start and names the ones it cannot find.
+2. Give the ledger user the rights to allocate external parties: every wallet is one.
+3. Vet the [DA Utility Registry DARs](https://get.digitalasset.com/utility-dars/) so its parties
+   can hold CBTC and USDCx.
+4. Fund the house maker and the faucet reservoir with the instruments they quote and hand out.
+
+`INSTRUMENTS` lists what the desk trades, one `SYMBOL|Name|decimals|instrumentId|admin|registryURL`
+entry per instrument, comma-separated. The registry URL is the root of the token-standard API,
+ending in `/registry`; a registry's `GET <root>/metadata/v1/info` names its admin. The templates
+carry the DevNet values (CBTC and USDCx on the DA Utilities registries, CC on Splice Scan) and the
+MainNet value for CC.
+
+| Network | Template | Faucet |
+|---|---|---|
+| DevNet | [`deploy/.env.devnet.example`](deploy/.env.devnet.example), [`services/ledger/.env.example`](services/ledger/.env.example) | `FAUCET_PARTY` + `FAUCET_AMOUNTS`, one drip per `FAUCET_COOLDOWN` |
+| MainNet | [`deploy/.env.mainnet.example`](deploy/.env.mainnet.example) | off |
+
 ## Quick start
 
-Requirements: Docker, [DPM](https://docs.digitalasset.com) with Daml SDK 3.5.2
-(`curl https://get.digitalasset.com/install/install.sh | sh`, then `dpm install 3.5.2`, Java 21),
-and a browser with passkeys that support the PRF extension (Chrome, Edge, Safari 18+).
+Requirements: Docker, the validator access above, and a browser with passkeys that support the
+PRF extension (Chrome, Edge, Safari 18+).
 
 ```bash
-make ledger    # terminal 1: Canton sandbox + test tokens + demo parties (keep it running)
-make up-all    # terminal 2: Postgres, Redis, the services, the maker bot and the web app
+make env       # services/<name>/.env from the examples
+$EDITOR services/ledger/.env services/identity/.env services/maker-bot/.env
+make up-all    # Postgres, Redis, the services, the maker bot and the web app
 ```
 
-`make up-all` works on macOS (Docker Desktop, OrbStack) and Linux: on Linux it adds
-[`docker-compose.host.yml`](docker-compose.host.yml), which puts the app containers on the host
-network — bound to 127.0.0.1 — so they can reach the sandbox on the host's loopback. Either way
-nothing listens beyond 127.0.0.1: the web app (:3000), the gateway (:8080), Postgres (:5432) and
-Redis (:6379) — and on Linux also the services' own ports (8081–8083, 9081, 9083), which any
-local process can reach, so run it on a single-user machine.
-
-The sandbox keeps its ledger in memory. If you restart `make ledger`, the wallets in the
-database point at parties that no longer exist: run `make clean` (drops the databases) and
-`make up-all` again.
+In `services/ledger/.env` fill in `CANTON_URL`, the `CANTON_AUTH_*` client and the party ids
+(`OPERATOR_PARTY`, `MAKER_PARTY`, `FAUCET_PARTY`). The house maker signs in with an API key: put
+the same `MAKER_PARTY` and a key (`openssl rand -hex 32`) in `services/identity/.env`, and that key
+in `MAKER_API_KEY` of `services/maker-bot/.env`. Compose reads every
+service's `.env` and overrides only the addresses. Nothing listens beyond 127.0.0.1: the web app
+(:3000), the gateway (:8080), Postgres (:5432) and Redis (:6379).
 
 Open <http://localhost:3000>:
 
 1. **Create wallet** — pick a name and confirm the passkey prompt.
-2. **Wallet → Get test tokens** — 1 CBTC, 100 000 USDCx and 10 CETH arrive once the
-   auto-signer accepts the offers.
-3. **Request quotes** — e.g. buy 0.1 CBTC for USDCx from `makerA` and `makerB`. The maker bot
+2. **Wallet → Get test tokens** — the faucet's drip arrives once the auto-signer accepts it.
+3. **Request quotes** — e.g. buy 0.001 CBTC for USDCx from the house maker. The maker bot
    answers within a second.
 4. **Accept** the best quote and watch the trade settle; balances move in one transaction.
 5. Optional: turn **maker mode** on in a second browser profile and quote from the UI.
@@ -123,7 +151,6 @@ Requirements: Go 1.27.3, Node 24 with `corepack enable` (pnpm's version is pinne
 
 ```bash
 make bin-deps            # protoc and golangci-lint into ./bin
-make ledger              # Canton sandbox
 make up                  # Postgres and Redis only (127.0.0.1)
 make run-ledger          # each in its own terminal: run-ledger, run-identity, run-trading,
 make run-identity        # run-gateway, run-maker-bot (each creates services/<name>/.env from the example)
@@ -134,8 +161,6 @@ make web-dev             # Vite on :3000, proxying /api to the gateway on :8080
 |---|---|
 | `make test` | Go unit tests (race detector, shuffled like CI) |
 | `make integration-test` | service tests against real Postgres and Redis (`make up`) |
-| `make sandbox-test` | ledger adapter tests against the running sandbox |
-| `make e2e-test` | black-box end-to-end suite against the running stack |
 | `make lint` | golangci-lint |
 | `make generate` | regenerate protobuf, OpenAPI servers/clients and mocks |
 | `make vuln` | govulncheck (pinned as a Go tool) |
@@ -148,13 +173,11 @@ To change an HTTP API, edit `api/http/<name>_v1.yaml` and run `make generate` (a
 ## API
 
 Everything is served by the gateway under `/api/v1`. Browsers authenticate with the
-`otc_session` cookie; bots send `X-API-Key`. The sandbox's house makers have the keys
-`demo-key-a` (`makerA`) and `demo-key-b` (`makerB`).
+`otc_session` cookie; the maker sends `X-API-Key: $MAKER_API_KEY`.
 
 ```bash
-# a bot looks for RFQs it was asked to quote and answers one
-curl -s -H 'X-API-Key: demo-key-a' localhost:8080/api/v1/rfqs/incoming
-curl -s -H 'X-API-Key: demo-key-a' -H 'content-type: application/json' \
+curl -s -H "X-API-Key: $KEY" localhost:8080/api/v1/rfqs/incoming
+curl -s -H "X-API-Key: $KEY" -H 'content-type: application/json' \
   -d '{"price":"100150.0","ttlSeconds":60}' localhost:8080/api/v1/rfqs/<rfqId>/quotes
 ```
 
@@ -176,26 +199,30 @@ Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (i
 
 | Service | Variables (defaults) |
 |---|---|
-| identity | `GRPC_PORT` (9081), `LEDGER_GRPC_ADDR` (localhost:9083), `HOUSE_MAKERS` (makerA:demo-key-a,makerB:demo-key-b), `SESSION_TTL` (168h), `COOKIE_SECURE` (false) |
-| ledger | `GRPC_PORT` (9083), `CANTON_URL` (http://localhost:6864), `CANTON_USER_ID` (participant_admin), `OPERATOR_HINT` (operator), `HOUSE_PARTIES` (makerA,makerB), `INSTRUMENTS` (CBTC:Bitcoin:8,USDCx:USD Coin:2,CETH:Ether:6), `FAUCET_AMOUNTS` (CBTC:1,USDCx:100000,CETH:10), `ACTION_TTL` (10m) |
+| identity | `GRPC_PORT` (9081), `LEDGER_GRPC_ADDR` (localhost:9083), `MAKER_PARTY` and `MAKER_API_KEY` (none — no house maker), `SESSION_TTL` (168h), `COOKIE_SECURE` (false) |
+| ledger | `GRPC_PORT` (9083), `CANTON_NETWORK` (devnet; testnet, mainnet), `CANTON_URL` (required), `CANTON_USER_ID` (the token's `sub`), `CANTON_AUTH_TOKEN_URL`, `CANTON_AUTH_CLIENT_ID`, `CANTON_AUTH_CLIENT_SECRET`, `CANTON_AUTH_AUDIENCE`, `CANTON_AUTH_SCOPE` (no auth without a token URL), `OPERATOR_PARTY` (required), `MAKER_PARTY` (none), `INSTRUMENTS` (required), `FAUCET_PARTY` (none — faucet off), `FAUCET_AMOUNTS` (none — `SYMBOL:amount`), `FAUCET_COOLDOWN` (1h), `ACTION_TTL` (10m) |
 | trading | `LEDGER_GRPC_ADDR` (localhost:9083), `IDENTITY_GRPC_ADDR` (localhost:9081), `FEE_BPS` (10), `WORKER_INTERVAL` (1s), `SETTLE_TIMEOUT` (10m) |
 | gateway | `IDENTITY_GRPC_ADDR` (localhost:9081), `IDENTITY_URL`, `TRADING_URL`, `LEDGER_URL` (localhost:8081–8083) |
-| maker-bot | `GATEWAY_URL` (http://localhost:8080), `MAKER_KEYS` (demo-key-a:15,demo-key-b:40 — key:spread bps), `PRICES_USD` (CBTC:100000,CETH:4000,USDCx:1), `QUOTE_TTL` (60s), `POLL_INTERVAL` (1s) |
+| maker-bot | `GATEWAY_URL` (http://localhost:8080), `MAKER_API_KEY` (required), `MAKER_SPREAD_BPS` (15), `PRICES_USD` (CBTC:100000,USDCx:1,CC:0.15), `QUOTE_TTL` (60s), `POLL_INTERVAL` (1s) |
 
 ## Deployment
 
 Two environments, each on a VPS that runs the whole stack with Docker Compose:
 
-| Trigger | Images (`ghcr.io/<owner>/<repo>/<image>`) | Environment |
-|---|---|---|
-| push to `dev` | `dev`, `sha-<short>` | `dev` |
-| tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` | `prod` |
+| Trigger | Images (`ghcr.io/<owner>/<repo>/<image>`) | Environment | Network |
+|---|---|---|---|
+| push to `dev` | `dev`, `sha-<short>` | `dev` | DevNet |
+| tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` | `prod` | MainNet |
 
 [`release.yml`](.github/workflows/release.yml) runs CI, publishes the six images (multi-arch, public
 like the repository) and deploys over SSH: it copies the rendered
-[`deploy/docker-compose.yml`](deploy/docker-compose.yml), `postgres/init.sql` and `.env.example` to
-`~/otc-desk-<environment>/` on the server, then runs `docker compose pull` and
-`docker compose up -d --wait`. The job fails when a container does not come up healthy.
+[`deploy/docker-compose.yml`](deploy/docker-compose.yml), `postgres/init.sql` and the network's
+template as `.env.example` to `~/otc-desk-<environment>/` on the server, checks that the server's
+`.env` sets `CANTON_NETWORK` to the environment's network, then runs `docker compose pull` and
+`docker compose up -d --wait`. The job fails when a container does not come up healthy. The maker
+bot is in the `demo` profile: the DevNet template turns it on with `COMPOSE_PROFILES=demo`, and
+without that profile the deploy stops a bot left running. On MainNet the job refuses to deploy
+while the profile is on.
 
 Only the web app is published, on `127.0.0.1:${WEB_PORT}`; its nginx serves the SPA and proxies
 `/api/` and the WebSocket to the gateway. A reverse proxy on the host terminates TLS for the
@@ -227,7 +254,6 @@ are a good idea) with these secrets:
 | `SSH_HOST` | server address |
 | `SSH_USER` | user that runs `docker` |
 | `SSH_KEY` | private key of a key pair whose public half is in that user's `authorized_keys` |
-| `SSH_KNOWN_HOSTS` | output of `ssh-keyscan <host>` |
 | `SSH_PORT` | optional, 22 by default |
 
 Then create the `dev` branch. The deployment's settings are not in GitHub.
@@ -242,8 +268,9 @@ cp .env.example .env
 $EDITOR .env
 ```
 
-Fill in at least `POSTGRES_PASSWORD`, `CANTON_URL`, `HOUSE_MAKERS` and `MAKER_KEYS`, then re-run the
-job (**Actions → the run → Re-run failed jobs**). The deploy job never writes `.env`; when a release
+Fill in at least `POSTGRES_PASSWORD`, `CANTON_URL`, the `CANTON_AUTH_*` client, `OPERATOR_PARTY`,
+`MAKER_PARTY` with `MAKER_API_KEY` and on DevNet `FAUCET_PARTY`, then re-run the job
+(**Actions → the run → Re-run failed jobs**). The deploy job never writes `.env`; when a release
 adds a setting, it shows up in `.env.example` next to it. Local changes to the stack go into
 `docker-compose.override.yml` in the same directory, which Compose reads and the job leaves alone;
 `docker-compose.yml` itself is replaced on every deploy.
@@ -263,31 +290,23 @@ pkg/            shared infrastructure (logger, metrics, otel, postgres, redis, t
                 decimal money math, events, principal headers, gRPC helpers, migrations)
 services/       gateway, identity, trading, ledger, maker-bot
 web/            React SPA: domain / application / infrastructure / presentation
-daml/           vendored token-standard DARs, the sandbox test token, the demo seed
-deploy/         the stack for a VPS (docker-compose.yml, .env.example), Postgres init script
-scripts/        sandbox start script
-test/e2e/       end-to-end suite
+deploy/         the stack for a VPS (docker-compose.yml, .env.<network>.example), Postgres init script
 docs/           design and plan
 ```
 
 ## Limits
 
-This is a reference implementation for a local sandbox, kept small on purpose:
+This is a reference implementation, kept small on purpose:
 
-- One target: a Canton sandbox, where a `TokenRules` contract plays the token registry.
-  Real networks need OAuth for the ledger and the registries' HTTP APIs, so a deployment
-  (`CANTON_URL`) still needs a participant set up like the sandbox.
-- It is not a hardened deployment: locally the house makers' API keys are public defaults,
-  anyone signed in can mint test tokens, and identity, trading and ledger trust the caller
-  headers the gateway sets — never expose them (or the sandbox) beyond the compose network.
+- Instruments are configured, not discovered: `INSTRUMENTS` names each admin and registry.
+- Identity, trading and ledger trust the caller headers the gateway sets — never expose them
+  beyond the compose network.
 - The browser signs prepared-transaction hashes without decoding them; a production wallet
   should show the user what it signs. A prepared transaction waits for its signature for up to
-  `ACTION_TTL` (10 min); the sandbox accepted signatures 90 s after preparation in testing, but
-  real networks may enforce a shorter window.
+  `ACTION_TTL` (10 min); a network may enforce a shorter window.
 - Losing your passkey loses the wallet: there is no backup phrase or recovery.
-- No invites, rate limiting, e-mail or KYC.
+- No invites, rate limiting beyond the faucet cooldown, e-mail or KYC.
 
 ## License
 
-[GPL-3.0](LICENSE). `daml/deps` and `daml/test-token-v2` are vendored from
-[Splice](https://github.com/hyperledger-labs/splice) under Apache-2.0.
+[GPL-3.0](LICENSE).

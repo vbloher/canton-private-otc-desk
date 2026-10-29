@@ -2,7 +2,6 @@ import { Progress } from "@/presentation/components/ui/progress";
 import { useNow } from "@/presentation/hooks/use-now";
 import { formatCountdown } from "@/presentation/lib/format";
 
-/** Time left until `until`, with a bar that empties from `from`. */
 export function Countdown({ from, until }: { from: number; until: number }) {
   const now = useNow();
   const left = Math.max(0, until - now);
@@ -15,7 +14,6 @@ export function Countdown({ from, until }: { from: number; until: number }) {
   );
 }
 
-/** "valid 45s" for a quote, "expired" once it is not. */
 export function TimeLeft({ until, prefix = "" }: { until: number; prefix?: string }) {
   const left = Math.max(0, until - useNow());
   return (

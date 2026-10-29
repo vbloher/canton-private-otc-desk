@@ -33,11 +33,8 @@ import (
 
 const wait = 10 * time.Second
 
-// ranOnce: app.Run registers global Prometheus collectors, which panics on a second registration,
-// so it can run once per process. `go test -count=N` repeats tests inside one process.
 var ranOnce atomic.Bool //nolint:gochecknoglobals
 
-// identityServer knows the sessions "alice-session" and "bob-session".
 type identityServer struct {
 	pb.UnimplementedIdentityV1Server
 
@@ -79,7 +76,6 @@ func freePort(t *testing.T) string {
 	return strconv.Itoa(port)
 }
 
-// watch opens the socket and reports its frames (dropped when nobody reads) and how it ended.
 func watch(t *testing.T, url, session string) (frames <-chan []byte, ended <-chan error) {
 	t.Helper()
 
@@ -113,9 +109,6 @@ func watch(t *testing.T, url, session string) (frames <-chan []byte, ended <-cha
 	return f, e
 }
 
-// Test_Run_ServesProxyAndEvents starts the whole gateway on real sockets against a local Redis:
-// requests are authenticated through a fake identity gRPC server and proxied to fake services, Redis events
-// reach the WebSockets of the addressed party only, and cancelling the context shuts everything down.
 func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	redisAddr := os.Getenv("REDIS_ADDR")
 	if redisAddr == "" {
@@ -148,7 +141,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 
 	t.Cleanup(grpcServer.Stop)
 
-	// Every service answers with the caller it was told about.
 	service := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"path":  r.URL.Path,
@@ -176,7 +168,7 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	base := "127.0.0.1:" + port
 
 	require.Eventually(t, func() bool {
-		resp, err := http.Get("http://" + base + "/live") //nolint:noctx,bodyclose // polling until the port is open
+		resp, err := http.Get("http://" + base + "/live") //nolint:noctx,bodyclose
 		if err != nil {
 			return false
 		}
@@ -186,7 +178,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 		return resp.StatusCode == http.StatusOK
 	}, wait, 50*time.Millisecond, "the gateway did not start")
 
-	// Authentication and proxying.
 	get := func(session string) (int, map[string]string) {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://"+base+"/api/v1/trades", nil)
 		require.NoError(t, err)
@@ -212,7 +203,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	code, _ = get("forged-session")
 	require.Equal(t, http.StatusUnauthorized, code)
 
-	// Events: Redis -> subscriber -> hub -> the party's socket.
 	aliceFrames, aliceEnded := watch(t, "ws://"+base+"/api/v1/ws", "alice-session")
 	bobFrames, bobEnded := watch(t, "ws://"+base+"/api/v1/ws", "bob-session")
 
@@ -227,8 +217,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	wantAlice, err := json.Marshal(forAlice)
 	require.NoError(t, err)
 
-	// The sockets are registered a moment after the upgrade and the subscription a moment after start-up
-	// (delivery is at-most-once), so keep publishing until the first event arrives.
 	var gotAlice []byte
 
 	require.Eventually(t, func() bool {
@@ -244,7 +232,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	require.JSONEq(t, string(wantAlice), string(gotAlice))
 	require.Equal(t, string(wantAlice), string(gotAlice), "forwarded verbatim")
 
-	// Bob has been connected all along and was not addressed: his first frame is the one meant for him.
 	forBob := events.Event{Type: events.WalletUpdated, Data: struct{}{}}
 	wantBob, err := json.Marshal(forBob)
 	require.NoError(t, err)
@@ -263,7 +250,6 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 	}, wait, 50*time.Millisecond, "bob never got his event")
 	require.Equal(t, string(wantBob), string(gotBob), "bob must not see alice's events")
 
-	// Shutdown: the context ends, sockets get a going-away close, Run returns cleanly.
 	cancel()
 
 	for name, ended := range map[string]<-chan error{"alice": aliceEnded, "bob": bobEnded} {

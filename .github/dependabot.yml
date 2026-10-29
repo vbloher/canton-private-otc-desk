@@ -13,7 +13,6 @@ updates:
     directory: /web
     schedule:
       interval: weekly
-    # web/pnpm-workspace.yaml refuses releases younger than 14 days
     cooldown:
       default-days: 14
     labels: [dependencies, web]

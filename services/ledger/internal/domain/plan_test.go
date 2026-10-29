@@ -16,7 +16,7 @@ func leg(id, sender, receiver, instrument, amount string) domain.TransferLeg {
 		ID:         id,
 		Sender:     sender,
 		Receiver:   receiver,
-		Instrument: instrument,
+		Instrument: domain.Instrument{Symbol: instrument, ID: instrument, Admin: "operator", Registry: "https://r/" + instrument},
 		Amount:     decimal.MustParse(amount),
 	}
 }
@@ -46,7 +46,7 @@ func Test_Plan_TakerBuys(t *testing.T) {
 		leg("fee", "makerA", "operator", "USDCx", "100.0"),
 	}
 
-	plan := domain.Plan(legs, "operator")
+	plan := domain.Plan(legs)
 
 	require.Equal(t, []string{
 		"makerA|operator|CBTC",
@@ -81,7 +81,7 @@ func Test_Plan_NoFeeLeg(t *testing.T) {
 		leg("quote", "makerB", "taker", "USDCx", "10000.0"),
 	}
 
-	plan := domain.Plan(legs, "operator")
+	plan := domain.Plan(legs)
 
 	require.Equal(t, []string{
 		"makerB|operator|CETH",
@@ -95,10 +95,56 @@ func Test_Plan_NoFeeLeg(t *testing.T) {
 }
 
 func Test_Plan_ByteOrder(t *testing.T) {
-	// Upper case sorts before lower case in byte order, unlike a locale collation.
 	legs := []domain.TransferLeg{leg("base", "bob", "Zed", "CBTC", "1.0")}
 
-	require.Equal(t, []string{"Zed|operator|CBTC", "bob|operator|CBTC"}, keys(domain.Plan(legs, "operator")))
+	require.Equal(t, []string{"Zed|operator|CBTC", "bob|operator|CBTC"}, keys(domain.Plan(legs)))
+}
+
+func Test_Plan_Batches_OnePerAdmin(t *testing.T) {
+	cc := domain.Instrument{Symbol: "CC", ID: "Amulet", Admin: "DSO::1", Registry: "https://scan/registry"}
+	quote := leg("quote", "taker", "maker", "CC", "500000.0")
+	quote.Instrument = cc
+	fee := leg("fee", "maker", "operator", "CC", "100.0")
+	fee.Instrument = cc
+	legs := []domain.TransferLeg{leg("base", "maker", "taker", "CBTC", "1.0"), quote, fee}
+
+	plan := domain.Plan(legs)
+	require.Equal(t, []string{
+		"maker|DSO::1|Amulet",
+		"maker|operator|CBTC",
+		"operator|DSO::1|Amulet",
+		"taker|DSO::1|Amulet",
+		"taker|operator|CBTC",
+	}, keys(plan))
+	require.Equal(t, "CC", plan[0].Symbol)
+	require.Equal(t, "https://scan/registry", plan[0].Registry)
+
+	matches := make([]domain.SlotMatch, 0, len(plan))
+	for _, slot := range plan {
+		matches = append(matches, domain.SlotMatch{Slot: slot, ContractID: "alloc:" + slot.Key()})
+	}
+
+	batches := domain.Batches(legs, matches)
+	require.Len(t, batches, 2)
+
+	require.Equal(t, "operator", batches[0].Admin)
+	require.Equal(t, "https://r/CBTC", batches[0].Registry)
+	require.Equal(t, []string{"base"}, legIDs(batches[0].Legs))
+	require.Equal(t, []string{"alloc:maker|operator|CBTC", "alloc:taker|operator|CBTC"}, batches[0].AllocationCIDs)
+
+	require.Equal(t, "DSO::1", batches[1].Admin)
+	require.Equal(t, []string{"quote", "fee"}, legIDs(batches[1].Legs))
+	require.Equal(t, []string{"alloc:maker|DSO::1|Amulet", "alloc:operator|DSO::1|Amulet", "alloc:taker|DSO::1|Amulet"},
+		batches[1].AllocationCIDs)
+}
+
+func legIDs(legs []domain.TransferLeg) []string {
+	out := make([]string, 0, len(legs))
+	for _, l := range legs {
+		out = append(out, l.ID)
+	}
+
+	return out
 }
 
 func errorsUnwrap(err error) error {

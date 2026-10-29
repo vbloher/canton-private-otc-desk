@@ -82,7 +82,6 @@ func collectQuotes(rows pgx.Rows) ([]domain.Quote, error) {
 
 const getQuoteSQL = `SELECT ` + quoteColumns + ` FROM quotes WHERE id = $1`
 
-// getQuote reads one quote with sql (getQuoteSQL, with or without a row lock).
 func (p *Postgres) getQuote(ctx context.Context, sql string, id uuid.UUID) (domain.Quote, error) {
 	var r quoteRow
 

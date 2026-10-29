@@ -27,14 +27,9 @@ const (
 // IdentityV1Client is the client API for IdentityV1 service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Internal API of the identity service: authentication for the gateway, maker lookups for trading.
 type IdentityV1Client interface {
-	// Resolves a browser session token. NotFound / Unauthenticated when it is unknown or expired.
 	Authenticate(ctx context.Context, in *AuthenticateInput, opts ...grpc.CallOption) (*User, error)
-	// Resolves a bot's API key. NotFound / Unauthenticated when it is unknown.
 	AuthenticateAPIKey(ctx context.Context, in *AuthenticateAPIKeyInput, opts ...grpc.CallOption) (*User, error)
-	// Returns the users with maker mode on among the given hints; unknown hints are left out.
 	ResolveMakers(ctx context.Context, in *ResolveMakersInput, opts ...grpc.CallOption) (*ResolveMakersOutput, error)
 }
 
@@ -79,14 +74,9 @@ func (c *identityV1Client) ResolveMakers(ctx context.Context, in *ResolveMakersI
 // IdentityV1Server is the server API for IdentityV1 service.
 // All implementations must embed UnimplementedIdentityV1Server
 // for forward compatibility.
-//
-// Internal API of the identity service: authentication for the gateway, maker lookups for trading.
 type IdentityV1Server interface {
-	// Resolves a browser session token. NotFound / Unauthenticated when it is unknown or expired.
 	Authenticate(context.Context, *AuthenticateInput) (*User, error)
-	// Resolves a bot's API key. NotFound / Unauthenticated when it is unknown.
 	AuthenticateAPIKey(context.Context, *AuthenticateAPIKeyInput) (*User, error)
-	// Returns the users with maker mode on among the given hints; unknown hints are left out.
 	ResolveMakers(context.Context, *ResolveMakersInput) (*ResolveMakersOutput, error)
 	mustEmbedUnimplementedIdentityV1Server()
 }

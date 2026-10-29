@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// A Holding-interface frame as the sandbox streams it (Canton 3.5.6), shortened ids.
 const holdingFrame = `{"workflowId":"","contractEntry":{"JsActiveContract":{"createdEvent":{
 	"offset":23,"nodeId":0,"contractId":"00a1f5",
 	"templateId":"621a37:Splice.Testing.Tokens.TestTokenV2.Holding:Token",
@@ -73,7 +72,6 @@ func Test_ParseACSFrame(t *testing.T) {
 	})
 }
 
-// A TransferInstruction-interface view of a withdrawal: the sender locked one holding.
 const transferView = `{"originalInstructionCid":null,"transfer":{"sender":"alice::1220","receiver":"bob::1220",
 	"amount":"0.4000000000","instrumentId":{"admin":"operator::1220","id":"CBTC"},
 	"requestedAt":"2026-10-20T22:48:28.297203Z","executeBefore":"2026-10-21T22:48:28.297203Z",
@@ -94,18 +92,14 @@ func Test_Transfers_FromViews(t *testing.T) {
 		Admin:        "operator::1220",
 		InstrumentID: "CBTC",
 		Amount:       transfers[0].Amount,
-		Inputs:       []string{"locked-1"},
 	}}, transfers)
 	require.Equal(t, "0.4", transfers[0].Amount.String())
 
-	// The sender sees its own offer too; it is not incoming for the sender.
 	transfers, err = transfersOf([]activeContract{incoming}, "alice::1220")
 	require.NoError(t, err)
 	require.Empty(t, transfers)
 }
 
-// The v1 view of a TestTokenV2 mint offer (Canton 3.5.6): the mint account has no owner,
-// which CIP-112 renders as a placeholder party.
 const mintView = `{"originalInstructionCid":null,"transfer":{
 	"sender":"cip-112_no-owner::1220000000000000000000000000000000000000000000000000000000000000abcd",
 	"receiver":"bob::1220","amount":"5.0000000000","instrumentId":{"admin":"operator::1220","id":"CBTC"},
@@ -124,7 +118,6 @@ func Test_Transfers_MintHasNoSender(t *testing.T) {
 	require.Len(t, transfers, 1)
 	require.Empty(t, transfers[0].Sender, "the placeholder is no party to show or notify")
 	require.Equal(t, domain.FaucetHint, transfers[0].SenderHint())
-	require.Empty(t, transfers[0].Inputs)
 }
 
 func Test_Holdings_FromViews(t *testing.T) {
@@ -139,7 +132,6 @@ func Test_Holdings_FromViews(t *testing.T) {
 		return c
 	}
 
-	// An allocation's lock lapses at the settlement deadline; a lock without one never does.
 	deadlineLock := withView("00b2", `{"owner":"makerA::1220","instrumentId":{"admin":"operator::1220","id":"CBTC"},
 		"amount":"0.5000000000","lock":{"holders":["operator::1220"],"expiresAt":"2026-10-21T23:19:01.044596Z",
 		"expiresAfter":null,"context":"allocation"}}`)

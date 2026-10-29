@@ -33,13 +33,10 @@ func (h *Handlers) ExecuteAction(
 	})
 	if err != nil {
 		switch {
-		// A signature by another key leaves the action pending for its own party.
 		case domain.IsInvalidInput(err):
 			return http_server.ExecuteAction400JSONResponse{BadRequestJSONResponse: badRequest(ctx, err)}, nil
 		case errors.Is(err, domain.ErrNotFound):
 			return http_server.ExecuteAction404JSONResponse{NotFoundJSONResponse: notFound(ctx, err)}, nil
-		// The signed transaction failed for good (a contract it used is gone): signers treat
-		// 404 and 409 as "no longer pending" and drop them silently, so this is a 502.
 		case errors.Is(err, domain.ErrContractGone):
 			return http_server.ExecuteAction502JSONResponse{BadGatewayJSONResponse: badGateway(ctx, err)}, nil
 		case isConflict(err):

@@ -1,4 +1,3 @@
-/** Holdings per instrument: what is free to trade and what quotes and trades have committed. */
 import type { Balance } from "@/domain/types";
 import { isPositiveDecimal } from "@/domain/money";
 import { Button } from "@/presentation/components/ui/button";

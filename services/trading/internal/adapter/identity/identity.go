@@ -1,4 +1,3 @@
-// Package identity is the trading service's client of the identity service (IdentityV1 over gRPC).
 package identity
 
 import (
@@ -23,7 +22,6 @@ type Identity struct {
 	conn   *grpc.ClientConn
 }
 
-// New connects lazily: the service starts while identity is down.
 func New(c Config) (*Identity, error) {
 	conn, err := grpcclient.New(c.Addr, callTimeout)
 	if err != nil {

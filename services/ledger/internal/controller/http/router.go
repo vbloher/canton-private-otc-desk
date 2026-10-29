@@ -17,8 +17,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/usecase"
 )
 
-// WalletRouter serves the wallet API: every route reads its caller from the headers the
-// gateway forwards.
 func WalletRouter(r *chi.Mux, uc *usecase.UseCase, m *metrics.HTTPServer) error {
 	spec, err := http_server.GetSpec()
 	if err != nil {

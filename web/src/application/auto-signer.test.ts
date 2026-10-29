@@ -17,7 +17,6 @@ function action(id: string): SignAction {
   };
 }
 
-/** Signs as "<seed byte>:<message>", so a test can read which key signed what. */
 const keys: Pick<PartyKeys, "signer"> = {
   signer: (seed) => ({
     sign: async (message) => enc.encode(`${seed[0] ?? -1}:${dec.decode(message)}`),
@@ -30,7 +29,6 @@ function failure(status: number, message: string): Error {
   return Object.assign(new Error(message), { status });
 }
 
-/** Records every execute call as "<action id> <signature>". */
 function recorder(fail?: (actionId: string, call: number) => Error | undefined) {
   const calls: string[] = [];
   const execute = async (actionId: string, signature: Uint8Array): Promise<void> => {
@@ -48,8 +46,8 @@ describe("autoSigner", () => {
     await signer.setSeed(seed(7));
 
     await signer.onActions([action("a1"), action("a2")]);
-    await signer.onActions([action("a1"), action("a2")]); // the 5 s poll lists them again
-    await Promise.all([signer.onActions([action("a3")]), signer.onActions([action("a3")])]); // event + poll race
+    await signer.onActions([action("a1"), action("a2")]);
+    await Promise.all([signer.onActions([action("a3")]), signer.onActions([action("a3")])]);
 
     expect(calls).toEqual(["a1 7:hash-a1", "a2 7:hash-a2", "a3 7:hash-a3"]);
   });
@@ -128,9 +126,9 @@ describe("autoSigner", () => {
   it("never signs an action that completed elsewhere", async () => {
     const { calls, execute } = recorder();
     const signer = createAutoSigner({ keys, execute });
-    await signer.onActions([action("a1"), action("a3")]); // parked while locked
+    await signer.onActions([action("a1"), action("a3")]);
 
-    signer.markDone("a1"); // sign.completed from another tab
+    signer.markDone("a1");
     signer.markDone("a2");
     await signer.setSeed(seed(1));
     await signer.onActions([action("a2")]);
@@ -163,14 +161,14 @@ describe("autoSigner", () => {
   it("serves one identity at a time: the next never drains the last one's actions, a returning one is signed for again", async () => {
     const { calls, execute } = recorder();
     const signer = createAutoSigner({ keys, execute });
-    await signer.serve("A", null); // A after a reload: locked
-    await signer.onActions([action("a1")]); // parked
+    await signer.serve("A", null);
+    await signer.onActions([action("a1")]);
 
-    await signer.serve(null, null); // A logs out
-    await signer.serve("B", seed(2)); // B connects in the same tab
+    await signer.serve(null, null);
+    await signer.serve("B", seed(2));
     expect(calls).toEqual([]);
 
-    await signer.serve("A", seed(1)); // A connects again; the poll offers a1 again
+    await signer.serve("A", seed(1));
     await signer.onActions([action("a1")]);
     expect(calls).toEqual(["a1 1:hash-a1"]);
   });
@@ -190,9 +188,9 @@ describe("autoSigner", () => {
   it("never drains the previous identity's parked actions into a new identity", async () => {
     const { calls, execute } = recorder();
     const signer = createAutoSigner({ keys, execute });
-    await signer.onActions([action("a1")]); // A is locked: parked
+    await signer.onActions([action("a1")]);
 
-    signer.reset(); // A logs out, B connects
+    signer.reset();
     await signer.setSeed(seed(2));
 
     expect(calls).toEqual([]);
@@ -202,9 +200,9 @@ describe("autoSigner", () => {
     const { calls, execute } = recorder((_id, call) => (call === 1 ? failure(404, "not your action") : undefined));
     const signer = createAutoSigner({ keys, execute });
     await signer.setSeed(seed(2));
-    await signer.onActions([action("a1")]); // answered 404 under this identity: remembered as done
+    await signer.onActions([action("a1")]);
 
-    signer.reset(); // that identity leaves, the owner reconnects
+    signer.reset();
     await signer.setSeed(seed(1));
     await signer.onActions([action("a1")]);
 
@@ -232,11 +230,11 @@ describe("autoSigner", () => {
     await signer.setSeed(seed(1));
 
     const batch = signer.onActions([action("a1"), action("a2")]);
-    await Promise.resolve(); // let a1 reach execute
+    await Promise.resolve();
     signer.reset();
     release?.();
     await batch;
-    await signer.setSeed(seed(2)); // a new identity unlocks: nothing of the old batch may surface
+    await signer.setSeed(seed(2));
 
     expect(calls).toEqual(["a1"]);
     expect(reported).toEqual([]);

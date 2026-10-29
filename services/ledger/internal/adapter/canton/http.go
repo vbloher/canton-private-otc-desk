@@ -13,8 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// Per-call ceilings: reads are quick, submit-and-wait blocks until the transaction commits
-// and allocating an external party waits for its topology, readiness must fail fast.
 const (
 	readTimeout   = 30 * time.Second
 	submitTimeout = 120 * time.Second
@@ -23,14 +21,12 @@ const (
 	maxResponse = 64 << 20
 )
 
-// Canton error categories that a retry of the same request may resolve.
 const (
 	categoryTransientServerFailure      = 1
 	categoryContentionOnSharedResources = 2
 	categoryDeadlineExceeded            = 3
 )
 
-// apiError is an error the JSON API answered with.
 type apiError struct {
 	code  string
 	cause string
@@ -40,15 +36,6 @@ func (e *apiError) Error() string {
 	return e.code + ": " + e.cause
 }
 
-// ledgerError classifies a JSON API error, first match wins:
-//   - DUPLICATE_COMMAND: a command under this deterministic id has already landed;
-//   - FAILED_TO_EXECUTE_TRANSACTION for want of a valid signature: the hash was signed with
-//     another key; the prepared transaction is still good for the right one;
-//   - CONTRACT_NOT_FOUND, LOCAL_VERDICT_INACTIVE_CONTRACTS: a contract it uses was consumed
-//     by another transaction, so the same request can never succeed (a cancel is done; any
-//     other operation may retry with fresh state);
-//   - a transient category, or HTTP 5xx: the same request may succeed on a retry;
-//   - anything else is a definitive rejection.
 func ledgerError(code, cause string, category, status int) error {
 	err := &apiError{code: code, cause: cause}
 
@@ -66,7 +53,6 @@ func ledgerError(code, cause string, category, status int) error {
 	}
 }
 
-// retryable: a category Canton marks as retryable, or a server-side (5xx) failure.
 func retryable(category, status int) bool {
 	return category == categoryTransientServerFailure ||
 		category == categoryContentionOnSharedResources ||
@@ -74,13 +60,10 @@ func retryable(category, status int) bool {
 		status >= http.StatusInternalServerError
 }
 
-// unavailable marks a failure the same request may get past: the ledger could not be
-// reached, timed out, or asked to retry.
 func unavailable(err error) error {
 	return fmt.Errorf("%w: %w: %w", domain.ErrLedger, domain.ErrLedgerUnavailable, err)
 }
 
-// call sends one JSON request and decodes the answer into out (when both exist).
 func (c *Canton) call(ctx context.Context, method, path string, in, out any, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -102,6 +85,15 @@ func (c *Canton) call(ctx context.Context, method, path string, in, out any, tim
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+
+	token, err := c.token()
+	if err != nil {
+		return err
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {

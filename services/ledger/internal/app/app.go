@@ -21,6 +21,7 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/adapter/canton"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/adapter/postgres"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/adapter/redis"
+	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/adapter/registry"
 	grpcv1 "github.com/vbloher/canton-private-otc-desk/services/ledger/internal/controller/grpc/v1"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/controller/http"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/controller/worker"
@@ -54,11 +55,10 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 		postgres.New(tx),
 		redis.New(redisClient),
 		canton.New(c.Canton),
+		registry.New(),
 		events.NewPublisher(redisClient),
 	)
 
-	// Nothing works without the operator and the house parties: wait for the ledger, or
-	// exit and let the supervisor restart us.
 	err = uc.Init(ctx)
 	if err != nil {
 		return fmt.Errorf("uc.Init: %w", err)

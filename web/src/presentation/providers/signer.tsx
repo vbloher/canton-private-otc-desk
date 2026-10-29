@@ -1,8 +1,3 @@
-/**
- * Feeds the auto-signer (providers/auto-signer): the 5 s poll of /tx/pending
- * (refreshed at once by `sign.requested`), `sign.completed` for what another
- * tab finished, and the actions that mutations return.
- */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, use, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { queryKeys } from "@/application/query-keys";
@@ -15,9 +10,7 @@ import { useSession } from "./session";
 const POLL_MS = 5_000;
 
 interface SignerState {
-  /** Actions waiting for this party's signature, as the server lists them. */
   pending: SignAction[];
-  /** Sign what a mutation just queued, without waiting for the poll. */
   submit: (actions: readonly SignAction[]) => void;
 }
 
@@ -34,12 +27,10 @@ export function SignerProvider({ children }: { children: ReactNode }) {
     queryFn: () => services.wallet.pendingActions(),
     enabled: session.status === "signed-in",
     refetchInterval: POLL_MS,
-    // A trade's allocation may wait on this tab's signature while it sits in the background.
     refetchIntervalInBackground: true,
     meta: { quiet: true },
   });
 
-  // dataUpdatedAt: every poll re-offers the list, so an execute that failed transiently is retried.
   const { data: actions, dataUpdatedAt } = pending;
   useEffect(() => {
     if (actions !== undefined && dataUpdatedAt > 0) void signer.onActions(actions);

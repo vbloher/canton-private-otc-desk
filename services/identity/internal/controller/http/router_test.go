@@ -6,7 +6,6 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
-	nethttp "net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
@@ -17,6 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+
+	nethttp "net/http"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel"
@@ -32,7 +33,6 @@ const (
 	sessionTTL = 24 * time.Hour
 )
 
-// The Prometheus collectors register globally, once per process.
 var sharedMetrics = sync.OnceValue(metrics.NewHTTPServer)
 
 type server struct {
@@ -139,8 +139,6 @@ func Test_Probes(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- POST /auth/register/start
-
 func Test_RegisterStart_OK(t *testing.T) {
 	s := newServer(t, false)
 
@@ -183,7 +181,7 @@ func Test_RegisterStart_InvalidInput(t *testing.T) {
 		"unknown field":               `{"displayName":"Alice","publicKey":"` + good + `","admin":true}`,
 		"not json":                    `{"displayName":`,
 	} {
-		s := newServer(t, false) // no expectations: bad input never reaches a port
+		s := newServer(t, false)
 
 		rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/start", body, nil)
 
@@ -215,8 +213,6 @@ func Test_RegisterStart_LedgerFailure(t *testing.T) {
 	require.NotContains(t, rec.Body.String(), "10.0.0.7", "the ledger's address stays in the logs")
 	require.NotEmpty(t, rec.json(t)["error"])
 }
-
-// ---------------------------------------------------------------- POST /auth/register/complete
 
 func parked(t *testing.T) (domain.Registration, []byte) {
 	t.Helper()
@@ -370,8 +366,6 @@ func Test_RegisterComplete_ExpiredMessage(t *testing.T) {
 	require.Equal(t, map[string]any{"error": "request failed: registration expired"}, rec.json(t))
 }
 
-// ---------------------------------------------------------------- POST /auth/challenge
-
 func Test_CreateChallenge_OK(t *testing.T) {
 	s := newServer(t, false)
 
@@ -413,8 +407,6 @@ func Test_CreateChallenge_EmptyCredential(t *testing.T) {
 
 	require.Equal(t, nethttp.StatusBadRequest, rec.Code)
 }
-
-// ---------------------------------------------------------------- POST /auth/login
 
 func loginBody(challenge string, signature []byte) string {
 	return `{"challenge":"` + challenge + `","signature":"` + b64(signature) + `","credentialId":"cred-1"}`
@@ -491,8 +483,6 @@ func Test_Login_MalformedSignature(t *testing.T) {
 	}
 }
 
-// ---------------------------------------------------------------- POST /auth/logout
-
 func Test_Logout_EndsTheSession(t *testing.T) {
 	for _, secure := range []bool{false, true} {
 		s := newServer(t, secure)
@@ -517,7 +507,7 @@ func Test_Logout_EndsTheSession(t *testing.T) {
 }
 
 func Test_Logout_WithoutACookieStillClearsIt(t *testing.T) {
-	s := newServer(t, false) // no expectations: there is nothing to end
+	s := newServer(t, false)
 
 	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/logout", "", nil)
 
@@ -530,7 +520,7 @@ func Test_Logout_WithAnUnknownSessionStillSucceeds(t *testing.T) {
 
 	hash := domain.HashSessionToken("stale")
 
-	s.postgres.EXPECT().DeleteSession(Any, hash).Return(nil) // deleting nothing is not an error
+	s.postgres.EXPECT().DeleteSession(Any, hash).Return(nil)
 	s.redis.EXPECT().DropCachedSession(Any, hash).Return()
 
 	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/logout", "", map[string]string{"Cookie": "otc_session=stale"})
@@ -550,8 +540,6 @@ func Test_Logout_StorageFailure(t *testing.T) {
 	require.Empty(t, rec.Header().Get("Set-Cookie"), "the session is still alive, so the cookie stays")
 	require.Equal(t, map[string]any{"error": "Internal Server Error"}, rec.json(t))
 }
-
-// ---------------------------------------------------------------- GET /me, PUT /me/maker-mode, GET /makers
 
 func Test_GetMe(t *testing.T) {
 	s := newServer(t, false)
@@ -574,7 +562,7 @@ func Test_GetMe(t *testing.T) {
 }
 
 func Test_ProtectedRoutes_NeedACaller(t *testing.T) {
-	s := newServer(t, false) // no expectations: nothing is looked up without a caller
+	s := newServer(t, false)
 
 	user, _ := walletUser(t)
 

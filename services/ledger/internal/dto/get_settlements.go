@@ -11,7 +11,7 @@ type GetSettlementsInput struct {
 
 type PartyAllocation struct {
 	PartyID   string
-	Allocated bool // every allocation the party owes exists
+	Allocated bool
 }
 
 type SettlementStatus struct {

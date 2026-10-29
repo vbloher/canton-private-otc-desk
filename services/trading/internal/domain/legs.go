@@ -12,7 +12,6 @@ const (
 	LegFee   = "fee"
 )
 
-// Leg is one transfer of a settlement; Instrument is the instrument symbol.
 type Leg struct {
 	ID         string
 	Sender     string
@@ -21,15 +20,10 @@ type Leg struct {
 	Amount     decimal.Decimal
 }
 
-// Legs are the transfers a trade on the quote settles: base seller → buyer (qty),
-// quote buyer → seller (notional = qty × price, floored), and the desk fee maker → operator
-// in the quote instrument (notional × fee bps, floored; omitted when it floors to zero).
-// A zero base or quote leg is ErrDust.
 func Legs(rfq RFQ, quote Quote, operator string) ([]Leg, error) {
 	return termsOf(rfq, quote, operator).legs()
 }
 
-// Parties lists every sender and receiver of the legs once, in order of appearance.
 func Parties(legs []Leg) []string {
 	parties := make([]string, 0, len(legs)+1)
 
@@ -44,7 +38,6 @@ func Parties(legs []Leg) []string {
 	return parties
 }
 
-// Allocated reports whether every party of the legs has created all of its allocations.
 func Allocated(legs []Leg, allocated map[string]bool) bool {
 	for _, p := range Parties(legs) {
 		if !allocated[p] {
@@ -55,8 +48,6 @@ func Allocated(legs []Leg, allocated map[string]bool) bool {
 	return true
 }
 
-// NoneAllocated reports whether the ledger answered for every party of the legs, and none of them
-// has its allocations: a party missing from the answer is unknown, not unallocated.
 func NoneAllocated(legs []Leg, allocated map[string]bool) bool {
 	for _, p := range Parties(legs) {
 		done, reported := allocated[p]
@@ -68,7 +59,6 @@ func NoneAllocated(legs []Leg, allocated map[string]bool) bool {
 	return true
 }
 
-// HasFee reports whether the legs carry a desk fee, which the operator must allocate for.
 func HasFee(legs []Leg) bool {
 	return slices.ContainsFunc(legs, func(l Leg) bool { return l.ID == LegFee })
 }

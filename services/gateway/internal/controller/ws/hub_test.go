@@ -17,7 +17,6 @@ const (
 	wait = 5 * time.Second
 	tick = 5 * time.Millisecond
 
-	// A hub that never pings on its own within a test.
 	quiet = time.Hour
 )
 
@@ -26,16 +25,14 @@ type frame struct {
 	payload []byte
 }
 
-// fakeConn is a socket the test can watch (writes, pings, close) and break (errors, a stuck writer).
 type fakeConn struct {
 	writes chan frame
 	closes chan websocket.StatusCode
 	pings  atomic.Int64
 
-	// Set before Register, read-only afterwards.
 	pingErr  error
 	writeErr error
-	gate     chan struct{} // when set, Write blocks until it is closed
+	gate     chan struct{}
 }
 
 func newFakeConn() *fakeConn {
@@ -78,7 +75,6 @@ func (f *fakeConn) Close(code websocket.StatusCode, _ string) error {
 	return nil
 }
 
-// next waits for the next text frame.
 func (f *fakeConn) next(t *testing.T) []byte {
 	t.Helper()
 
@@ -127,17 +123,15 @@ func Test_Hub_DeliversToPartyOnly(t *testing.T) {
 	event := []byte(`{"type":"rfq.created","data":{"rfqId":"7"}}`)
 
 	hub.Deliver("alice::1220", event)
-	hub.Deliver("nobody::1220", []byte(`{"type":"wallet.updated","data":{}}`)) // no socket: dropped
+	hub.Deliver("nobody::1220", []byte(`{"type":"wallet.updated","data":{}}`))
 
 	require.Equal(t, event, alice1.next(t), "every socket of the party gets the payload unchanged")
 	require.Equal(t, event, alice2.next(t))
 
-	// Frames of one socket arrive in order, so if bob had been sent the first payload, it would come before this one.
 	bobEvent := []byte(`{"type":"trade.updated","data":{"tradeId":"1","rfqId":"7","status":"settled"}}`)
 	hub.Deliver("bob::1220", bobEvent)
 	require.Equal(t, bobEvent, bob.next(t))
 
-	// Same for alice: nothing but the follow-up is waiting on her sockets.
 	followUp := []byte(`{"type":"wallet.updated","data":{}}`)
 	hub.Deliver("alice::1220", followUp)
 	require.Equal(t, followUp, alice1.next(t))
@@ -152,7 +146,7 @@ func Test_Hub_UnregisterStopsDelivery(t *testing.T) {
 	hub.Register(t.Context(), "alice::1220", staying)
 
 	unregister()
-	unregister() // safe to repeat
+	unregister()
 
 	require.Equal(t, websocket.StatusNormalClosure, leaving.closedWith(t), "the hub closes the socket it lets go of")
 
@@ -208,7 +202,6 @@ func Test_Hub_DropsSlowSocketWithoutBlocking(t *testing.T) {
 	go func() {
 		defer close(delivered)
 
-		// Far more than any sane per-socket queue; the subscriber loop calling Deliver must never wait for a client.
 		for range 1000 {
 			hub.Deliver("slow::1220", []byte("event"))
 		}
@@ -223,7 +216,7 @@ func Test_Hub_DropsSlowSocketWithoutBlocking(t *testing.T) {
 	hub.Deliver("fast::1220", []byte("unaffected"))
 	require.Equal(t, []byte("unaffected"), fast.next(t))
 
-	close(slow.gate) // the stuck write returns; the hub then lets the socket go
+	close(slow.gate)
 
 	require.Equal(t, websocket.StatusTryAgainLater, slow.closedWith(t), "the client reconnects and re-fetches over REST")
 	require.Empty(t, fast.closes, "other sockets are not touched")
@@ -248,7 +241,7 @@ func Test_Hub_CloseSaysGoodbyeToEverySocket(t *testing.T) {
 
 	unregister()
 	hub.Deliver("alice::1220", []byte("late event"))
-	hub.Close() // idempotent
+	hub.Close()
 
 	require.Empty(t, late.writes)
 }

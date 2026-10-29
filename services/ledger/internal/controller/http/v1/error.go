@@ -15,7 +15,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// Conflict codes of the wallet API.
 const (
 	codeInsufficientFunds = "INSUFFICIENT_FUNDS"
 	codeActionNotPending  = "ACTION_NOT_PENDING"
@@ -35,8 +34,6 @@ func notFound(ctx context.Context, err error) http_server.NotFoundJSONResponse {
 	return http_server.NotFoundJSONResponse{Error: render.Error(ctx, err, "request failed").Error()}
 }
 
-// conflict answers 409. A contract consumed by another transaction meanwhile (a holding
-// another in-flight command used) has no code of its own: the client retries with fresh state.
 func conflict(ctx context.Context, err error) http_server.ConflictJSONResponse {
 	var code string
 

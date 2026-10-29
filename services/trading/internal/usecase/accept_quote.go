@@ -14,9 +14,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/dto"
 )
 
-// AcceptQuote accepts an open quote for its RFQ's taker: in one transaction the quote becomes
-// accepted and a settling trade is created; then the ledger allocates the taker's side and, when
-// the trade carries a fee, the operator's. An allocation error fails the trade and the quote.
 func (u *UseCase) AcceptQuote(ctx context.Context, input dto.AcceptQuoteInput) (domain.Trade, error) {
 	ctx, span := tracer.Start(ctx, "usecase AcceptQuote")
 	defer span.End()
@@ -34,7 +31,6 @@ func (u *UseCase) AcceptQuote(ctx context.Context, input dto.AcceptQuoteInput) (
 	u.publishQuote(ctx, a.rfq.TakerParty, a.quote)
 	u.publishTrade(ctx, a.trade)
 
-	// The accept is committed: the allocations go ahead even when the caller goes away.
 	ctx = context.WithoutCancel(ctx)
 
 	err = u.allocateTrade(ctx, a, desk.Operator)
@@ -64,8 +60,6 @@ func (u *UseCase) accept(ctx context.Context, input dto.AcceptQuoteInput, operat
 			return fmt.Errorf("u.lockQuote: %w", err)
 		}
 
-		// The clock is read once the locks are held: waiting for them may take the quote past its
-		// validUntil.
 		now := time.Now()
 
 		err = u.checkAccept(ctx, a.rfq, a.quote, input.Taker, now)
@@ -100,8 +94,6 @@ func (u *UseCase) accept(ctx context.Context, input dto.AcceptQuoteInput, operat
 	return a, nil
 }
 
-// checkAccept runs under the RFQ row lock. The quote is checked before the RFQ, so a second
-// accept of the same quote is always QUOTE_NOT_OPEN.
 func (u *UseCase) checkAccept(
 	ctx context.Context, rfq domain.RFQ, quote domain.Quote, taker domain.Party, now time.Time,
 ) error {
@@ -129,9 +121,6 @@ func (u *UseCase) checkAccept(
 	return nil
 }
 
-// allocateTrade asks the ledger for the operator's allocation, when the trade carries a fee, and
-// then for the taker's; the maker's are on the ledger since its quote opened. The operator goes
-// first: it is hosted and allocates at once, so its failure leaves no taker action to sign.
 func (u *UseCase) allocateTrade(ctx context.Context, a deal, operator string) error {
 	deadline := a.quote.SettlementDeadline()
 

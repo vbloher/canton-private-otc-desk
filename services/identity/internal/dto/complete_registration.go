@@ -16,8 +16,6 @@ type CompleteRegistrationInput struct {
 	EncryptedBlob  string
 }
 
-// Validate refuses a request that cannot become a wallet, without touching anything: the checks
-// that need the parked registration or the ledger come later.
 func (i CompleteRegistrationInput) Validate() error {
 	err := domain.ValidateSignature(i.Signature)
 	if err != nil {
@@ -32,7 +30,6 @@ func (i CompleteRegistrationInput) Validate() error {
 	return nil
 }
 
-// CompleteRegistrationOutput signs the new wallet in: Token goes into the cookie for TTL.
 type CompleteRegistrationOutput struct {
 	User  domain.User
 	Token string

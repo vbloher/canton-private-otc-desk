@@ -11,7 +11,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// Settlements reports, per settlement, which parties have created all of their allocations.
 func (l *Ledger) Settlements(
 	ctx context.Context, queries map[uuid.UUID][]domain.Leg,
 ) (map[uuid.UUID]map[string]bool, error) {

@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
-// tracer defaults to a no-op so code paths traced before otel.Init (tests in any order) are safe.
 var tracer trace.Tracer = noop.NewTracerProvider().Tracer("") //nolint:gochecknoglobals
 
 type suppressKey struct{}

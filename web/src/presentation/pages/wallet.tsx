@@ -1,4 +1,3 @@
-/** Wallet: test tokens, balances (available and committed), deposits in, withdrawals out. */
 import { useState } from "react";
 import { Balances } from "@/presentation/components/desk/balances";
 import { DepositCard } from "@/presentation/components/desk/deposit-card";
@@ -10,7 +9,6 @@ import { useBalances } from "@/presentation/hooks/queries";
 export function WalletPage() {
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const balances = useBalances();
-  // The dialog reads the live balance, so "available" stays current while it is open.
   const balance = withdrawing === null ? null : (balances.data?.find((b) => b.symbol === withdrawing) ?? null);
 
   return (

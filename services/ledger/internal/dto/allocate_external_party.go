@@ -2,7 +2,7 @@ package dto
 
 type AllocateExternalPartyInput struct {
 	Transactions []string
-	Signature    []byte // raw Ed25519 over the topology's multi-hash
+	Signature    []byte
 	Fingerprint  string
 }
 

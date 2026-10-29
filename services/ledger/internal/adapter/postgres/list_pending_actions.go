@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// ListPendingActions are the party's actions still open for a signature, oldest first.
 func (p *Postgres) ListPendingActions(ctx context.Context, partyID string, now time.Time) ([]domain.Action, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListPendingActions")
 	defer span.End()

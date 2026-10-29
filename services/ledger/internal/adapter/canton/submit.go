@@ -67,11 +67,14 @@ type submitResponse struct {
 	} `json:"transaction"`
 }
 
-// Submit runs a command of a party the participant hosts and waits for its transaction.
-// A command id the ledger has already accepted answers ErrDuplicateCommand.
 func (c *Canton) Submit(ctx context.Context, actAs, commandID string, cmd domain.Command) (domain.Transaction, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton Submit")
 	defer span.End()
+
+	user, err := c.user()
+	if err != nil {
+		return domain.Transaction{}, err
+	}
 
 	if commandID == "" {
 		commandID = uuid.NewString()
@@ -79,9 +82,9 @@ func (c *Canton) Submit(ctx context.Context, actAs, commandID string, cmd domain
 
 	in := submitRequest{
 		Commands: jsCommands{
-			Commands:           []json.RawMessage{cmd.Payload},
+			Commands:           cmd.Commands,
 			CommandID:          commandID,
-			UserID:             c.userID,
+			UserID:             user,
 			ActAs:              []string{actAs},
 			ReadAs:             []string{},
 			DisclosedContracts: disclosedContracts(cmd),
@@ -95,7 +98,7 @@ func (c *Canton) Submit(ctx context.Context, actAs, commandID string, cmd domain
 
 	var out submitResponse
 
-	err := c.call(ctx, http.MethodPost, "/v2/commands/submit-and-wait-for-transaction", in, &out, submitTimeout)
+	err = c.call(ctx, http.MethodPost, "/v2/commands/submit-and-wait-for-transaction", in, &out, submitTimeout)
 	if err != nil {
 		return domain.Transaction{}, fmt.Errorf("submit-and-wait: %w", err)
 	}
@@ -111,12 +114,14 @@ func (c *Canton) Submit(ctx context.Context, actAs, commandID string, cmd domain
 	return tx, nil
 }
 
-// Prepare builds an external party's transaction; the party signs the returned hash. The
-// command id is the transaction's change id: the ledger executes one transaction per id, so
-// a deterministic id keeps a retried request from landing twice.
 func (c *Canton) Prepare(ctx context.Context, actAs, commandID string, cmd domain.Command) (domain.Prepared, error) {
 	ctx, span := tracer.Start(ctx, "adapter canton Prepare")
 	defer span.End()
+
+	user, err := c.user()
+	if err != nil {
+		return domain.Prepared{}, err
+	}
 
 	if commandID == "" {
 		commandID = uuid.NewString()
@@ -133,11 +138,11 @@ func (c *Canton) Prepare(ctx context.Context, actAs, commandID string, cmd domai
 		DisclosedContracts           []disclosedContract `json:"disclosedContracts"`
 		SynchronizerID               string              `json:"synchronizerId,omitempty"`
 	}{
-		UserID:                       c.userID,
+		UserID:                       user,
 		CommandID:                    commandID,
 		ActAs:                        []string{actAs},
 		ReadAs:                       []string{},
-		Commands:                     []json.RawMessage{cmd.Payload},
+		Commands:                     cmd.Commands,
 		PackageIDSelectionPreference: []string{},
 		DisclosedContracts:           disclosedContracts(cmd),
 		SynchronizerID:               cmd.SynchronizerID,
@@ -149,7 +154,7 @@ func (c *Canton) Prepare(ctx context.Context, actAs, commandID string, cmd domai
 		HashingSchemeVersion    string `json:"hashingSchemeVersion"`
 	}
 
-	err := c.call(ctx, http.MethodPost, "/v2/interactive-submission/prepare", in, &out, submitTimeout)
+	err = c.call(ctx, http.MethodPost, "/v2/interactive-submission/prepare", in, &out, submitTimeout)
 	if err != nil {
 		return domain.Prepared{}, fmt.Errorf("prepare: %w", err)
 	}
@@ -166,12 +171,14 @@ func (c *Canton) Prepare(ctx context.Context, actAs, commandID string, cmd domai
 	}, nil
 }
 
-// Execute submits a prepared transaction with the party's signature over its hash and waits
-// for its completion: once it returns, the transaction is committed (or rejected) and its
-// effects are in the active contracts.
 func (c *Canton) Execute(ctx context.Context, prepared domain.Prepared, party string, sig []byte) error {
 	ctx, span := tracer.Start(ctx, "adapter canton Execute")
 	defer span.End()
+
+	user, err := c.user()
+	if err != nil {
+		return err
+	}
 
 	type partySignature struct {
 		Party      string      `json:"party"`
@@ -194,7 +201,7 @@ func (c *Canton) Execute(ctx context.Context, prepared domain.Prepared, party st
 		DeduplicationPeriod  deduplicationPeriod `json:"deduplicationPeriod"`
 		PartySignatures      partySignatures     `json:"partySignatures"`
 	}{
-		UserID:               c.userID,
+		UserID:               user,
 		SubmissionID:         uuid.NewString(),
 		PreparedTransaction:  prepared.Transaction,
 		HashingSchemeVersion: prepared.HashingSchemeVersion,
@@ -208,7 +215,7 @@ func (c *Canton) Execute(ctx context.Context, prepared domain.Prepared, party st
 		UpdateID string `json:"updateId"`
 	}
 
-	err := c.call(ctx, http.MethodPost, "/v2/interactive-submission/executeAndWait", in, &out, submitTimeout)
+	err = c.call(ctx, http.MethodPost, "/v2/interactive-submission/executeAndWait", in, &out, submitTimeout)
 	if err != nil {
 		return fmt.Errorf("executeAndWait: %w", err)
 	}

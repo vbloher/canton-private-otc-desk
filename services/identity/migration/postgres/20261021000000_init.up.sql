@@ -1,5 +1,3 @@
--- A user is a passkey wallet (an external party; its Ed25519 key lives in the browser, wrapped
--- with the passkey) or a house maker (a hosted party that signs in with an API key).
 CREATE TABLE users
 (
     id             UUID PRIMARY KEY,
@@ -20,7 +18,6 @@ CREATE TABLE users
         CHECK (kind <> 'house' OR api_key_hash IS NOT NULL)
 );
 
--- Only the hash of a session token is stored: a leaked table cannot be replayed as cookies.
 CREATE TABLE sessions
 (
     token_hash TEXT PRIMARY KEY,

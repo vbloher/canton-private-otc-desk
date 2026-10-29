@@ -1,18 +1,10 @@
-# Full stack: `make ledger` (Canton sandbox on the host) + `make up-all`.
-# `make up` starts only postgres and redis, for running the services from source.
-#
-# Everything is published on loopback only — the gateway (:8080), the web app (:3000), Postgres
-# and Redis — and identity, trading and ledger are not published at all: they trust the X-User-*
-# headers the gateway sets, so nothing but the gateway may reach them. On Linux, `make up-all` adds docker-compose.host.yml, because the
-# containers cannot reach a sandbox listening on the host's loopback through host-gateway.
-
 x-go-service: &go-service
   restart: unless-stopped
-  extra_hosts:
-    - 'host.docker.internal:host-gateway'
 
 x-common-env: &common-env
   LOGGER_LEVEL: info
+  HTTP_HOST: 0.0.0.0
+  GRPC_HOST: 0.0.0.0
   POSTGRES_HOST: postgres
   POSTGRES_PORT: '5432'
   POSTGRES_USER: otc
@@ -32,7 +24,6 @@ services:
       - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - pg-data:/var/lib/postgresql
     healthcheck:
-      # TCP, not the socket: the entrypoint's temporary init server answers on the socket only.
       test: ['CMD-SHELL', 'pg_isready -h 127.0.0.1 -U otc -d ledger']
       interval: 2s
       timeout: 5s
@@ -54,14 +45,13 @@ services:
       context: .
       args:
         SERVICE: ledger
+    env_file: services/ledger/.env
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: ledger
       HTTP_PORT: '8083'
       GRPC_PORT: '9083'
       POSTGRES_DB_NAME: ledger
-      CANTON_URL: http://host.docker.internal:6864
-    # an in-flight settle or cancel is one ledger call of up to 30 s
     stop_grace_period: 45s
     depends_on:
       postgres:
@@ -80,6 +70,7 @@ services:
       context: .
       args:
         SERVICE: identity
+    env_file: services/identity/.env
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: identity
@@ -102,6 +93,7 @@ services:
       context: .
       args:
         SERVICE: trading
+    env_file: services/trading/.env
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: trading
@@ -109,7 +101,6 @@ services:
       POSTGRES_DB_NAME: trading
       LEDGER_GRPC_ADDR: ledger:9083
       IDENTITY_GRPC_ADDR: identity:9081
-    # the worker finishes an in-flight settlement (one ledger call of up to 30 s) before exiting
     stop_grace_period: 45s
     depends_on:
       postgres:
@@ -126,8 +117,10 @@ services:
       context: .
       args:
         SERVICE: gateway
+    env_file: services/gateway/.env
     environment:
       LOGGER_LEVEL: info
+      HTTP_HOST: 0.0.0.0
       OTEL_SERVICE_NAME: gateway
       HTTP_PORT: '8080'
       REDIS_ADDR: redis:6379
@@ -150,6 +143,7 @@ services:
       context: .
       args:
         SERVICE: maker-bot
+    env_file: services/maker-bot/.env
     environment:
       LOGGER_LEVEL: info
       OTEL_SERVICE_NAME: maker-bot

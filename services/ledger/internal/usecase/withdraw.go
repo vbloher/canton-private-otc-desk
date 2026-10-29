@@ -14,12 +14,8 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// transferWindow is how long a receiver has to accept a withdrawal before it lapses.
 const transferWindow = 24 * time.Hour
 
-// Withdraw offers holdings to any Canton party; the receiver accepts the offer. Every
-// withdrawal is a new intent; only a double-submitted one (same amount, instrument and
-// receiver, still waiting for the signature) gets the pending action back.
 func (u *UseCase) Withdraw(ctx context.Context, input dto.WithdrawInput) (dto.ActionsOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase Withdraw")
 	defer span.End()
@@ -36,7 +32,7 @@ func (u *UseCase) Withdraw(ctx context.Context, input dto.WithdrawInput) (dto.Ac
 		Purpose:      domain.PurposeTransferOut,
 		Description:  fmt.Sprintf("Withdraw %s %s to %s", amount, inst.Symbol, domain.Hint(input.Receiver)),
 		Ref:          input.Receiver,
-		Counterparty: input.Receiver, // it receives the offer to accept
+		Counterparty: input.Receiver,
 	}
 
 	queued, err := u.queued(ctx, intent)
@@ -48,7 +44,12 @@ func (u *UseCase) Withdraw(ctx context.Context, input dto.WithdrawInput) (dto.Ac
 		return dto.ActionsOutput{Actions: queued}, nil
 	}
 
-	cmd, err := u.transferCommand(ctx, input, inst.Symbol, amount)
+	holdings, err := u.canton.Holdings(ctx, input.PartyID)
+	if err != nil {
+		return output, fmt.Errorf("canton.Holdings: %w", err)
+	}
+
+	cmd, err := u.transferCommand(ctx, holdings, inst, input.PartyID, input.Receiver, amount)
 	if err != nil {
 		return output, err
 	}
@@ -68,38 +69,29 @@ func (u *UseCase) Withdraw(ctx context.Context, input dto.WithdrawInput) (dto.Ac
 	return dto.ActionsOutput{Actions: actions}, nil
 }
 
-// transferCommand offers amount of the instrument from the sender's own unlocked holdings.
-func (u *UseCase) transferCommand(ctx context.Context, input dto.WithdrawInput, symbol string, amount decimal.Decimal,
+func (u *UseCase) transferCommand(ctx context.Context, holdings []domain.Holding, inst domain.Instrument,
+	sender, receiver string, amount decimal.Decimal,
 ) (domain.Command, error) {
-	holdings, err := u.canton.Holdings(ctx, input.PartyID)
-	if err != nil {
-		return domain.Command{}, fmt.Errorf("canton.Holdings: %w", err)
-	}
-
-	inputs, err := domain.SelectHoldings(holdings, input.PartyID, u.operator, symbol, amount, locksAsOf())
+	inputs, err := domain.SelectHoldings(holdings, sender, inst.Admin, inst.ID, amount, locksAsOf())
 	if err != nil {
 		return domain.Command{}, fmt.Errorf("domain.SelectHoldings: %w", err)
 	}
 
-	rules, err := u.tokenRules(ctx)
-	if err != nil {
-		return domain.Command{}, fmt.Errorf("u.tokenRules: %w", err)
-	}
-
 	now := time.Now()
 
-	cmd, err := u.canton.TransferCommand(rules, domain.TransferSpec{
-		Admin:         u.operator,
-		Sender:        input.PartyID,
-		Receiver:      input.Receiver,
-		InstrumentID:  symbol,
+	cmd, err := u.registry.TransferCommand(ctx, domain.TransferSpec{
+		Registry:      inst.Registry,
+		Admin:         inst.Admin,
+		Sender:        sender,
+		Receiver:      receiver,
+		InstrumentID:  inst.ID,
 		Amount:        amount,
 		Inputs:        inputs,
 		RequestedAt:   now.Add(-clockSkew),
 		ExecuteBefore: now.Add(transferWindow),
 	})
 	if err != nil {
-		return domain.Command{}, fmt.Errorf("canton.TransferCommand: %w", err)
+		return domain.Command{}, fmt.Errorf("registry.TransferCommand: %w", err)
 	}
 
 	return cmd, nil

@@ -1,13 +1,3 @@
-/**
- * Who is signed in (the session cookie, read through GET /me) and the party
- * seed unlocked in this tab. The seed lives in memory only: a reload keeps the
- * session but locks signing until the user unlocks again.
- *
- * The session also keeps the auto-signer on the right identity: every sign-in,
- * an unlock that turned out to open another wallet, and an identity change the
- * server reports (an expired session, a sign-in in another tab) reset it before
- * anything else can be signed, and log-out locks it first thing.
- */
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -21,20 +11,12 @@ export type SessionStatus = "loading" | "error" | "signed-out" | "signed-in";
 
 export interface Session {
   status: SessionStatus;
-  /** The signed-in user; null unless status is "signed-in". */
   me: Me | null;
-  /** The unlocked party seed of this tab. */
   seed: Uint8Array | null;
-  /** Signed in with a passkey wallet whose key is not unlocked here. */
   locked: boolean;
   retry: () => void;
   createWallet: (displayName: string, onStep?: (step: CreateStep) => void) => Promise<void>;
   connectWallet: () => Promise<void>;
-  /**
-   * Unlock signing with a passkey (a fresh sign-in). Resolves true when it is still the same
-   * wallet, false when the passkey opened another one and the session switched to it.
-   * Concurrent calls share one passkey ceremony.
-   */
   unlock: () => Promise<boolean>;
   logout: () => Promise<void>;
 }
@@ -56,7 +38,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const unlocking = useRef<Promise<boolean> | null>(null);
 
   const me = meQuery.data ?? null;
-  // A seed belongs to one user: another session (or none) sees no key at all.
   const seed = unlocked !== null && me !== null && unlocked.userId === me.id ? unlocked.seed : null;
   const status: SessionStatus =
     meQuery.data !== undefined
@@ -69,11 +50,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const userId = me?.id ?? null;
 
-  /** Make `wallet` the session; the signer switches synchronously (a new identity resets it). */
   const adopt = useCallback(
     (wallet: Wallet) => {
       if (wallet.me.id !== userId) {
-        // Nothing an earlier identity read may linger or flash up: drop it, re-read what is shown.
         void qc.resetQueries({ predicate: (q) => q.queryKey[0] !== queryKeys.me[0] });
       }
       void signer.serve(wallet.me.id, wallet.seed);
@@ -83,8 +62,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     [qc, signer, userId],
   );
 
-  // Identity changes the server reports (an expired session, a sign-in in another tab) and every
-  // lock or unlock: the signer serves exactly the current user with exactly its key.
   useEffect(() => {
     void signer.serve(userId, seed);
   }, [signer, userId, seed]);
@@ -121,7 +98,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [flows, me, adopt]);
 
   const logout = useCallback(async () => {
-    // Lock first (synchronously): nothing more is signed with this key, nothing it parked survives.
     void signer.serve(null, null);
     unlocked?.seed.fill(0);
     setUnlocked(null);
@@ -129,7 +105,6 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       await flows.logout();
     } finally {
       await qc.cancelQueries();
-      // Keep the observed `me` entry (null) so the guards see the sign-out; drop everything else.
       qc.setQueryData(queryKeys.me, null);
       qc.removeQueries({ predicate: (q) => q.queryKey[0] !== queryKeys.me[0] });
     }

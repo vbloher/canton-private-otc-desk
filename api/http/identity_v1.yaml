@@ -368,10 +368,10 @@ components:
       properties:
         hint:
           type: string
-          example: makerA
+          example: otc-desk-maker
         displayName:
           type: string
-          example: makerA
+          example: otc-desk-maker
     Error:
       type: object
       required: [error]

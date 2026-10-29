@@ -2,18 +2,16 @@ package domain
 
 import "github.com/vbloher/canton-private-otc-desk/pkg/decimal"
 
-// TransferLeg is one transfer of a settlement; ID is "base", "quote" or "fee", Instrument
-// is the symbol and the parties are full party ids.
 type TransferLeg struct {
 	ID         string
 	Sender     string
 	Receiver   string
-	Instrument string
+	Instrument Instrument
 	Amount     decimal.Decimal
 }
 
-func NewTransferLeg(id, sender, receiver, instrument, amount string) (TransferLeg, error) {
-	if id == "" || sender == "" || receiver == "" || instrument == "" {
+func NewTransferLeg(id, sender, receiver string, instrument Instrument, amount string) (TransferLeg, error) {
+	if id == "" || sender == "" || receiver == "" || instrument.Symbol == "" {
 		return TransferLeg{}, Invalidf("leg %q: id, sender, receiver and instrument are required", id)
 	}
 

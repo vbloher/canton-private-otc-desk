@@ -1,7 +1,6 @@
 import { RadioGroupItem } from "@/presentation/components/ui/radio-group";
 import { TokenIcon } from "./token-icon";
 
-/** A token choice inside a RadioGroup (the catalog is small, so every option stays visible). */
 export function TokenChip({ symbol, disabled }: { symbol: string; disabled?: boolean }) {
   return (
     <RadioGroupItem

@@ -8,8 +8,6 @@
 **/.env
 bin
 docs
-daml
-test
 web/node_modules
 web/dist
 Dockerfile

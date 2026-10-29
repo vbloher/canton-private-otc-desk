@@ -16,11 +16,10 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// book is what the four reads of a tick return.
 type book struct {
-	live       []domain.Quote // allocating and open quotes, for the expiry step
-	expired    []domain.RFQ   // ListExpiredRFQs
-	allocating []domain.Quote // for the settlement step
+	live       []domain.Quote
+	expired    []domain.RFQ
+	allocating []domain.Quote
 	settling   []domain.Trade
 }
 
@@ -131,7 +130,6 @@ func Test_Tick_SettlesWhenAllAllocated(t *testing.T) {
 		d.ledger.EXPECT().CancelSettlement(Any, q.ID).Return(nil).Once()
 	}
 
-	// The taker hears of the quote it saw; the one that never opened stays between its maker and the desk.
 	d.events.EXPECT().Publish(Any, quoteEvent(openSibling, domain.QuoteLost), parties(taker, makerB)).Return(nil)
 	d.events.EXPECT().Publish(Any, quoteEvent(allocatingSibling, domain.QuoteLost), parties(makerC)).Return(nil)
 
@@ -151,8 +149,7 @@ func Test_Tick_SettlesWhenAllAllocated(t *testing.T) {
 func Test_Tick_ExpiresRFQ(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()
-	rfq := openRFQ(now.Add(-6 * time.Minute)) // its deadline passed a minute ago
-	// The quote step expires quotes past validUntil first; this one it did not get to.
+	rfq := openRFQ(now.Add(-6 * time.Minute))
 	late := quoteOf(rfq, makerA, "100000", domain.QuoteAllocating, rfq.Deadline)
 	expired := quoteOf(rfq, makerB, "100100", domain.QuoteExpired, rfq.Deadline)
 
@@ -165,7 +162,7 @@ func Test_Tick_ExpiresRFQ(t *testing.T) {
 	d.postgres.EXPECT().UpdateRFQ(Any, Any).Run(func(_ context.Context, r domain.RFQ) { closed = r }).Return(nil)
 	d.postgres.EXPECT().UpdateQuote(Any, quoteIn(late.ID, domain.QuoteExpired)).Return(nil)
 	d.ledger.EXPECT().CancelSettlement(Any, late.ID).Return(nil)
-	d.events.EXPECT().Publish(Any, quoteEvent(late, domain.QuoteExpired), parties(makerA)).Return(nil) // never opened
+	d.events.EXPECT().Publish(Any, quoteEvent(late, domain.QuoteExpired), parties(makerA)).Return(nil)
 	d.events.EXPECT().Publish(Any, rfqUpdated(rfq), parties(taker, makerA, makerB, makerC)).Return(nil)
 
 	require.NoError(t, d.useCase(t).Tick(t.Context(), now))
@@ -176,12 +173,10 @@ func Test_Tick_ExpiresRFQ(t *testing.T) {
 func Test_Tick_KeepsRFQWithSettlingTrade(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()
-	rfq := openRFQ(now.Add(-6 * time.Minute)) // its deadline passed a minute ago
+	rfq := openRFQ(now.Add(-6 * time.Minute))
 	accepted := quoteOf(rfq, makerA, "100000", domain.QuoteAccepted, rfq.Deadline)
 	trade := domain.NewTrade(rfq, accepted, now.Add(-2*time.Minute))
 
-	// ListExpiredRFQs leaves out an RFQ with a settling trade, but an accept may commit after
-	// that read: the use case checks again under the RFQ row lock.
 	d.expectTick(now, book{expired: []domain.RFQ{rfq}, settling: []domain.Trade{trade}})
 	d.postgres.EXPECT().GetRFQForUpdate(Any, rfq.ID).Return(rfq, nil)
 	d.postgres.EXPECT().ListQuotes(Any, []uuid.UUID{rfq.ID}).Return([]domain.Quote{accepted}, nil)
@@ -190,7 +185,6 @@ func Test_Tick_KeepsRFQWithSettlingTrade(t *testing.T) {
 		accepted.ID: {taker.ID: false, makerA.ID: true, operator: true},
 	}, nil)
 
-	// No UpdateRFQ, no UpdateQuote, no event: the strict mocks fail on any of them.
 	require.NoError(t, d.useCase(t).Tick(t.Context(), now))
 }
 
@@ -253,7 +247,6 @@ func Test_Tick_FailsTradeAfterTimeout(t *testing.T) {
 	require.Equal(t, "settlement timed out", failed.Reason)
 }
 
-// settledFixture is a settling trade on makerA's accepted quote, with makerB's open quote beside it.
 type settledFixture struct {
 	rfq     domain.RFQ
 	won     domain.Quote
@@ -273,27 +266,22 @@ func newSettledFixture(now time.Time) settledFixture {
 	}
 }
 
-// expectAnswer runs a tick over the fixture's trade, the ledger answering answer for its settlement.
 func (d deps) expectAnswer(now time.Time, f settledFixture, answer map[string]bool) {
 	d.expectTick(now, book{live: []domain.Quote{f.sibling}, settling: []domain.Trade{f.trade}})
 	d.cachedDesk()
 	d.ledger.EXPECT().Settlements(Any, Any).Return(map[uuid.UUID]map[string]bool{f.won.ID: answer}, nil)
 }
 
-// expectTradeLocked locks the trade's RFQ and the won quote.
 func (d deps) expectTradeLocked(f settledFixture) {
 	d.postgres.EXPECT().GetRFQForUpdate(Any, f.rfq.ID).Return(f.rfq, nil)
 	d.postgres.EXPECT().GetQuoteForUpdate(Any, f.won.ID).Return(f.won, nil)
 }
 
-// expectAllocated reads the trade's settlement as complete and locks the RFQ and the won quote.
 func (d deps) expectAllocated(now time.Time, f settledFixture) {
 	d.expectAnswer(now, f, map[string]bool{taker.ID: true, makerA.ID: true, operator: true})
 	d.expectTradeLocked(f)
 }
 
-// expectRecorded saves the settlement into *settled and requires that every ledger release and
-// event after the commit still runs on a live context.
 func (d deps) expectRecorded(t *testing.T, f settledFixture, settled *domain.Trade) {
 	t.Helper()
 
@@ -305,10 +293,9 @@ func (d deps) expectRecorded(t *testing.T, f settledFixture, settled *domain.Tra
 	d.postgres.EXPECT().UpdateRFQ(Any, Any).Return(nil)
 	d.postgres.EXPECT().UpdateQuote(Any, quoteIn(f.sibling.ID, domain.QuoteLost)).Return(nil)
 	d.ledger.EXPECT().CancelSettlement(live, f.sibling.ID).Return(nil)
-	d.events.EXPECT().Publish(live, Any, Any).Return(nil).Times(4) // trade, won, lost, rfq
+	d.events.EXPECT().Publish(live, Any, Any).Return(nil).Times(4)
 }
 
-// SIGTERM while the ledger settles: the swap happened, so the trade must still be recorded.
 func Test_Tick_RecordsTheSettlementWhenStoppedAfterSettle(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()
@@ -333,10 +320,6 @@ func Test_Tick_RecordsTheSettlementWhenStoppedAfterSettle(t *testing.T) {
 	require.Equal(t, "update-1", settled.UpdateID)
 }
 
-// An earlier settle landed, but its answer or its record was lost. Its allocations are archived, so
-// the ledger reports every party unallocated, and only a settle consumes a settling trade's
-// allocations (the desk cancels them once the trade has failed). Settling again finds them gone and
-// records the trade settled, past SETTLE_TIMEOUT too: failing it would free the RFQ for a second fill.
 func Test_Tick_RecordsASettlementWhoseAllocationsAreGone(t *testing.T) {
 	gone := map[string]bool{taker.ID: false, makerA.ID: false, operator: false}
 
@@ -381,8 +364,6 @@ func Test_Tick_RecordsASettlementWhoseAllocationsAreGone(t *testing.T) {
 	}
 }
 
-// Every party unallocated means an earlier settle landed: a ledger failure on the retry leaves the
-// trade settling for the next tick, even past SETTLE_TIMEOUT.
 func Test_Tick_RetriesAGoneSettlementWhileTheLedgerIsDown(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()
@@ -393,13 +374,10 @@ func Test_Tick_RetriesAGoneSettlementWhileTheLedgerIsDown(t *testing.T) {
 	d.expectAnswer(now, f, map[string]bool{taker.ID: false, makerA.ID: false, operator: false})
 	d.ledger.EXPECT().Settle(Any, f.won.ID, Any).Return("", errDown)
 
-	// No lock, no update, no release: the strict mocks fail on any of them.
 	err := d.useCase(t).Tick(t.Context(), now)
 	require.ErrorIs(t, err, errDown)
 }
 
-// A trade still partly allocated past SETTLE_TIMEOUT fails: no settle leaves that trace, since a
-// settle consumes every allocation of the trade at once.
 func Test_Tick_FailsAPartlyAllocatedTradeAfterTimeout(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -432,8 +410,6 @@ func Test_Tick_FailsAPartlyAllocatedTradeAfterTimeout(t *testing.T) {
 	}
 }
 
-// The trade failed meanwhile, say by another replica: the settle the ledger answered cannot be
-// recorded. The log says so without claiming a settlement the ledger may not have made.
 func Test_Tick_LogsASettlementItCannotRecord(t *testing.T) {
 	cases := []struct {
 		name     string
@@ -472,8 +448,6 @@ func Test_Tick_LogsASettlementItCannotRecord(t *testing.T) {
 	}
 }
 
-// A stop during one settlement: that settlement runs to its end, the next ready trade is not
-// settled; it waits for the next process.
 func Test_Tick_StartsNoSettlementAfterAStop(t *testing.T) {
 	d := newDeps(t)
 	now := time.Now()
@@ -501,7 +475,6 @@ func Test_Tick_StartsNoSettlementAfterAStop(t *testing.T) {
 	d.postgres.EXPECT().GetQuoteForUpdate(Any, first.won.ID).Return(first.won, nil)
 	d.expectRecorded(t, first, &settled)
 
-	// Nothing of the second trade: no Settle, no lock, no release. The strict mocks fail on any.
 	err := d.useCase(t).Tick(ctx, now)
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, first.trade.ID, settled.ID)

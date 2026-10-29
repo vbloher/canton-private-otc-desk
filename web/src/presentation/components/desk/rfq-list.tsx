@@ -1,4 +1,3 @@
-/** The master lists of the Trade page: the taker's own RFQs and the ones makers were asked to quote. */
 import { bestQuote, incomingRowStatus, rfqRowStatus } from "@/domain/rfq";
 import type { IncomingRfq, Rfq, RfqWithQuotes } from "@/domain/types";
 import { useInstrument } from "@/presentation/hooks/queries";
@@ -13,7 +12,6 @@ const rowClass = (active: boolean): string =>
     active ? "border-primary/60 bg-card" : "border-border hover:bg-card",
   );
 
-/** "BUY 0.5 CBTC with USDCx" — the taker's direction, coloured. */
 export function RfqTitle({ rfq, className }: { rfq: Rfq; className?: string }) {
   const instrument = useInstrument();
   const buy = rfq.direction === "BUY";

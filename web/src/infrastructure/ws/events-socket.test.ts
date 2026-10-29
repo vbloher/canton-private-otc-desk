@@ -24,7 +24,6 @@ class FakeSocket implements SocketLike {
     this.onmessage?.(new MessageEvent("message", { data }));
   }
 
-  /** The server or the network went away (a browser closes the socket asynchronously, a test at once). */
   drop(): void {
     this.onclose?.(new Event("close") as CloseEvent);
   }

@@ -20,7 +20,6 @@ type Config struct {
 	Addr string `env:"LEDGER_GRPC_ADDR" envDefault:"localhost:9083"`
 }
 
-// Ledger is the client of the ledger service. Connecting is lazy: identity starts while the ledger is down.
 type Ledger struct {
 	client pb.LedgerV1Client
 	conn   *grpc.ClientConn
@@ -44,8 +43,6 @@ func (l *Ledger) Close() {
 	log.Info().Msg("ledger client: closed")
 }
 
-// mapError turns a failed call into a domain error: an unknown party is ErrNotFound, anything else
-// is a ledger failure. The gRPC error stays in the chain for the logs.
 func mapError(err error) error {
 	if status.Code(err) == codes.NotFound {
 		return fmt.Errorf("%w: %w", domain.ErrNotFound, err)

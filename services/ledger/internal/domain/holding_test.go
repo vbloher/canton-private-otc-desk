@@ -69,9 +69,9 @@ func Test_SelectHoldings_Insufficient(t *testing.T) {
 
 func Test_Balances_ZeroFilled(t *testing.T) {
 	instruments := []domain.Instrument{
-		{Symbol: "CBTC", Name: "Bitcoin", Decimals: 8},
-		{Symbol: "USDCx", Name: "USD Coin", Decimals: 2},
-		{Symbol: "CETH", Name: "Ether", Decimals: 6},
+		{Symbol: "CBTC", Name: "Bitcoin", Decimals: 8, ID: "CBTC", Admin: "operator"},
+		{Symbol: "USDCx", Name: "USD Coin", Decimals: 2, ID: "USDCx", Admin: "operator"},
+		{Symbol: "CC", Name: "Canton Coin", Decimals: 6, ID: "Amulet", Admin: "operator"},
 	}
 	foreignAdmin := holding("f", "alice", "CBTC", "50.0", false)
 	foreignAdmin.Admin = "someone-else"
@@ -82,10 +82,10 @@ func Test_Balances_ZeroFilled(t *testing.T) {
 		holding("c", "bob", "CBTC", "9.0", false),
 		holding("d", "alice", "USDCx", "100.0", false),
 		holding("e", "alice", "UNKNOWN", "7.0", false),
-		foreignAdmin, // another admin's "CBTC" is not the desk's instrument
+		foreignAdmin,
 	}
 
-	balances := domain.Balances(hs, "alice", "operator", instruments, time.Now())
+	balances := domain.Balances(hs, "alice", instruments, time.Now())
 
 	got := make([][3]string, 0, len(balances))
 	for _, b := range balances {
@@ -95,12 +95,10 @@ func Test_Balances_ZeroFilled(t *testing.T) {
 	require.Equal(t, [][3]string{
 		{"CBTC", "1.5", "0.5"},
 		{"USDCx", "100.0", "0.0"},
-		{"CETH", "0.0", "0.0"},
+		{"CC", "0.0", "0.0"},
 	}, got)
 }
 
-// lapsedLocks: allocations and transfers lock a holding until a deadline. Once it has passed,
-// the ledger accepts the holding as an unlocked input again; a lock without one never lapses.
 func lapsedLocks(now time.Time) []domain.Holding {
 	lapsed := holding("lapsed", "alice", "CBTC", "4.0", true)
 	lapsed.LockedUntil = now.Add(-time.Minute)
@@ -123,7 +121,6 @@ func Test_SelectHoldings_LapsedLockIsSpendable(t *testing.T) {
 	_, err = domain.SelectHoldings(lapsedLocks(now), "alice", "operator", "CBTC", decimal.MustParse("5.5"), now)
 	require.EqualError(t, err, "insufficient funds: CBTC: need 5.5, held 5.0")
 
-	// At the deadline itself the lock has lapsed.
 	hs := lapsedLocks(now)
 	require.False(t, hs[0].LockedAt(hs[0].LockedUntil))
 	require.True(t, hs[0].LockedAt(hs[0].LockedUntil.Add(-time.Microsecond)))
@@ -132,7 +129,8 @@ func Test_SelectHoldings_LapsedLockIsSpendable(t *testing.T) {
 func Test_Balances_LapsedLockIsAvailable(t *testing.T) {
 	now := time.Now()
 
-	b := domain.Balances(lapsedLocks(now), "alice", "operator", []domain.Instrument{{Symbol: "CBTC"}}, now)[0]
+	b := domain.Balances(lapsedLocks(now), "alice", []domain.Instrument{{Symbol: "CBTC", ID: "CBTC", Admin: "operator"}},
+		now)[0]
 	require.Equal(t, "5.0", b.Available.String())
 	require.Equal(t, "24.0", b.Locked.String())
 }

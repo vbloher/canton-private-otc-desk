@@ -32,28 +32,14 @@ const (
 // LedgerV1Client is the client API for LedgerV1 service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Internal API of the ledger service: everything other services need from Canton.
-// Errors: InvalidArgument for bad input, NotFound for unknown parties or settlements,
-// FailedPrecondition with a message starting "insufficient funds" when holdings do not cover
-// an allocation, Internal for ledger failures.
 type LedgerV1Client interface {
-	// Full party id of a party hosted on the participant (e.g. "makerA").
 	ResolveParty(ctx context.Context, in *ResolvePartyInput, opts ...grpc.CallOption) (*ResolvePartyOutput, error)
-	// Step 1 of onboarding an external party: the topology its key must sign.
 	GenerateExternalParty(ctx context.Context, in *GenerateExternalPartyInput, opts ...grpc.CallOption) (*GenerateExternalPartyOutput, error)
-	// Step 2 of onboarding: allocate the party with the signature over multi_hash.
 	AllocateExternalParty(ctx context.Context, in *AllocateExternalPartyInput, opts ...grpc.CallOption) (*AllocateExternalPartyOutput, error)
-	// The desk's operator party and the tradable instruments.
 	GetDesk(ctx context.Context, in *GetDeskInput, opts ...grpc.CallOption) (*GetDeskOutput, error)
-	// Creates (hosted party) or queues for signature (external party) every allocation the
-	// party owes to the settlement described by the legs.
 	Allocate(ctx context.Context, in *AllocateInput, opts ...grpc.CallOption) (*AllocateOutput, error)
-	// For each settlement: which parties have created all of their allocations.
 	GetSettlements(ctx context.Context, in *GetSettlementsInput, opts ...grpc.CallOption) (*GetSettlementsOutput, error)
-	// Settles every leg atomically in one transaction, as the operator.
 	Settle(ctx context.Context, in *SettleInput, opts ...grpc.CallOption) (*SettleOutput, error)
-	// Cancels, as the operator, every allocation of the settlement that is still active.
 	CancelSettlement(ctx context.Context, in *CancelSettlementInput, opts ...grpc.CallOption) (*CancelSettlementOutput, error)
 }
 
@@ -148,28 +134,14 @@ func (c *ledgerV1Client) CancelSettlement(ctx context.Context, in *CancelSettlem
 // LedgerV1Server is the server API for LedgerV1 service.
 // All implementations must embed UnimplementedLedgerV1Server
 // for forward compatibility.
-//
-// Internal API of the ledger service: everything other services need from Canton.
-// Errors: InvalidArgument for bad input, NotFound for unknown parties or settlements,
-// FailedPrecondition with a message starting "insufficient funds" when holdings do not cover
-// an allocation, Internal for ledger failures.
 type LedgerV1Server interface {
-	// Full party id of a party hosted on the participant (e.g. "makerA").
 	ResolveParty(context.Context, *ResolvePartyInput) (*ResolvePartyOutput, error)
-	// Step 1 of onboarding an external party: the topology its key must sign.
 	GenerateExternalParty(context.Context, *GenerateExternalPartyInput) (*GenerateExternalPartyOutput, error)
-	// Step 2 of onboarding: allocate the party with the signature over multi_hash.
 	AllocateExternalParty(context.Context, *AllocateExternalPartyInput) (*AllocateExternalPartyOutput, error)
-	// The desk's operator party and the tradable instruments.
 	GetDesk(context.Context, *GetDeskInput) (*GetDeskOutput, error)
-	// Creates (hosted party) or queues for signature (external party) every allocation the
-	// party owes to the settlement described by the legs.
 	Allocate(context.Context, *AllocateInput) (*AllocateOutput, error)
-	// For each settlement: which parties have created all of their allocations.
 	GetSettlements(context.Context, *GetSettlementsInput) (*GetSettlementsOutput, error)
-	// Settles every leg atomically in one transaction, as the operator.
 	Settle(context.Context, *SettleInput) (*SettleOutput, error)
-	// Cancels, as the operator, every allocation of the settlement that is still active.
 	CancelSettlement(context.Context, *CancelSettlementInput) (*CancelSettlementOutput, error)
 	mustEmbedUnimplementedLedgerV1Server()
 }

@@ -12,7 +12,7 @@ import (
 func setRequired(t *testing.T) {
 	t.Helper()
 
-	t.Chdir(t.TempDir()) // no .env
+	t.Chdir(t.TempDir())
 	t.Setenv("POSTGRES_USER", "otc")
 	t.Setenv("POSTGRES_PASSWORD", "otc")
 	t.Setenv("POSTGRES_PORT", "5432")
@@ -46,7 +46,6 @@ func Test_New_FeeBpsBounds(t *testing.T) {
 		})
 	}
 
-	// A fee of 100% or more of the notional cannot be paid; a negative one would pay the maker.
 	for _, fee := range []string{"-1", "10000", "25000"} {
 		t.Run(fee, func(t *testing.T) {
 			setRequired(t)

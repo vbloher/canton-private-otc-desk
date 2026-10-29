@@ -111,10 +111,9 @@ func (x *ResolvePartyOutput) GetPartyId() string {
 }
 
 type GenerateExternalPartyInput struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	Hint  string                 `protobuf:"bytes,1,opt,name=hint,proto3" json:"hint,omitempty"`
-	// Raw Ed25519 public key, 32 bytes.
-	PublicKey     []byte `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Hint          string                 `protobuf:"bytes,1,opt,name=hint,proto3" json:"hint,omitempty"`
+	PublicKey     []byte                 `protobuf:"bytes,2,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -164,13 +163,11 @@ func (x *GenerateExternalPartyInput) GetPublicKey() []byte {
 }
 
 type GenerateExternalPartyOutput struct {
-	state       protoimpl.MessageState `protogen:"open.v1"`
-	PartyId     string                 `protobuf:"bytes,1,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
-	Fingerprint string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	// The hash the party key signs to authorise its onboarding.
-	MultiHash []byte `protobuf:"bytes,3,opt,name=multi_hash,json=multiHash,proto3" json:"multi_hash,omitempty"`
-	// Opaque base64 topology transactions, handed back unchanged to AllocateExternalParty.
-	TopologyTransactions []string `protobuf:"bytes,4,rep,name=topology_transactions,json=topologyTransactions,proto3" json:"topology_transactions,omitempty"`
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	PartyId              string                 `protobuf:"bytes,1,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
+	Fingerprint          string                 `protobuf:"bytes,2,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	MultiHash            []byte                 `protobuf:"bytes,3,opt,name=multi_hash,json=multiHash,proto3" json:"multi_hash,omitempty"`
+	TopologyTransactions []string               `protobuf:"bytes,4,rep,name=topology_transactions,json=topologyTransactions,proto3" json:"topology_transactions,omitempty"`
 	unknownFields        protoimpl.UnknownFields
 	sizeCache            protoimpl.SizeCache
 }
@@ -236,11 +233,10 @@ func (x *GenerateExternalPartyOutput) GetTopologyTransactions() []string {
 type AllocateExternalPartyInput struct {
 	state                protoimpl.MessageState `protogen:"open.v1"`
 	TopologyTransactions []string               `protobuf:"bytes,1,rep,name=topology_transactions,json=topologyTransactions,proto3" json:"topology_transactions,omitempty"`
-	// Raw Ed25519 signature over multi_hash.
-	Signature     []byte `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
-	Fingerprint   string `protobuf:"bytes,3,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Signature            []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
+	Fingerprint          string                 `protobuf:"bytes,3,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *AllocateExternalPartyInput) Reset() {
@@ -486,7 +482,6 @@ func (x *GetDeskOutput) GetInstruments() []*Instrument {
 	return nil
 }
 
-// One transfer of a trade. id is "base", "quote" or "fee"; amount is a decimal string.
 type TransferLeg struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -564,13 +559,12 @@ func (x *TransferLeg) GetAmount() string {
 }
 
 type AllocateInput struct {
-	state        protoimpl.MessageState `protogen:"open.v1"`
-	SettlementId string                 `protobuf:"bytes,1,opt,name=settlement_id,json=settlementId,proto3" json:"settlement_id,omitempty"`
-	Deadline     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deadline,proto3" json:"deadline,omitempty"`
-	Legs         []*TransferLeg         `protobuf:"bytes,3,rep,name=legs,proto3" json:"legs,omitempty"`
-	PartyId      string                 `protobuf:"bytes,4,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
-	// Shown to the signer next to each queued action.
-	Description   string `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	SettlementId  string                 `protobuf:"bytes,1,opt,name=settlement_id,json=settlementId,proto3" json:"settlement_id,omitempty"`
+	Deadline      *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=deadline,proto3" json:"deadline,omitempty"`
+	Legs          []*TransferLeg         `protobuf:"bytes,3,rep,name=legs,proto3" json:"legs,omitempty"`
+	PartyId       string                 `protobuf:"bytes,4,opt,name=party_id,json=partyId,proto3" json:"party_id,omitempty"`
+	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -641,11 +635,9 @@ func (x *AllocateInput) GetDescription() string {
 }
 
 type AllocateOutput struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// True when the desk submitted the allocations itself (hosted party).
-	Executed bool `protobuf:"varint,1,opt,name=executed,proto3" json:"executed,omitempty"`
-	// Queued sign actions for an external party.
-	ActionIds     []string `protobuf:"bytes,2,rep,name=action_ids,json=actionIds,proto3" json:"action_ids,omitempty"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Executed      bool                   `protobuf:"varint,1,opt,name=executed,proto3" json:"executed,omitempty"`
+	ActionIds     []string               `protobuf:"bytes,2,rep,name=action_ids,json=actionIds,proto3" json:"action_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

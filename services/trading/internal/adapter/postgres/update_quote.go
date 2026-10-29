@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// UpdateQuote saves the mutable part of a quote: its status and when it opened.
 func (p *Postgres) UpdateQuote(ctx context.Context, q domain.Quote) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres UpdateQuote")
 	defer span.End()

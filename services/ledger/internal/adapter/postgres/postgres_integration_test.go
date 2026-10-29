@@ -1,7 +1,5 @@
 //go:build integration
 
-// These tests run against the Postgres of `make up` (override with POSTGRES_* variables). Each
-// test gets its own throwaway database, migrated with the embedded migrations.
 package postgres_test
 
 import (
@@ -88,7 +86,7 @@ func action(party, purpose, ref, counterparty string, createdAt time.Time, ttl t
 		PartyID: party, Purpose: purpose, Ref: ref, Counterparty: counterparty, Description: purpose + " " + ref,
 	}, domain.Prepared{
 		Transaction: "prepared-" + ref, HashingSchemeVersion: "HASHING_SCHEME_VERSION_V2",
-		Hash: []byte{0x12, 0x20, 0x00, 0xff, 0x7f}, // binary, not text
+		Hash: []byte{0x12, 0x20, 0x00, 0xff, 0x7f},
 	}, createdAt.UTC().Truncate(time.Microsecond), ttl)
 }
 
@@ -101,7 +99,6 @@ func Test_Actions_RoundTrip(t *testing.T) {
 	stale := action("alice", domain.PurposeAllocate, "s-2", "", now.Add(-time.Hour), 10*time.Minute)
 	others := action("carol", domain.PurposeAllocate, "s-1", "", now, 10*time.Minute)
 
-	// One statement for the whole batch.
 	require.NoError(t, s.SaveActions(t.Context(), newer, older, stale, others))
 
 	pending, err := s.ListPendingActions(t.Context(), "alice", now)

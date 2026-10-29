@@ -190,8 +190,7 @@ export interface components {
             quote: string;
             /**
              * @example [
-             *       "makerA",
-             *       "makerB"
+             *       "otc-desk-maker"
              *     ]
              */
             makers: string[];

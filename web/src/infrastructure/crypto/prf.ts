@@ -1,12 +1,3 @@
-/**
- * The passkey vault (WebAuthn PRF). The passkey never signs ledger data: its
- * PRF output, evaluated over a fixed salt, is the key-encryption key that wraps
- * the party seed (blob.ts). The PRF secret is only produced by get(), so a new
- * passkey is created first and unlocked right after.
- *
- * User verification is required on every ceremony: authenticators derive a
- * different PRF output with and without it, and the blob must always open.
- */
 import { PasskeyCancelledError, PrfUnsupportedError } from "@/application/errors";
 import type { KeyVault, PasskeySupport, UnlockedPasskey } from "@/application/ports";
 import { fromBase64Url, toBase64Url } from "../encoding";
@@ -17,14 +8,11 @@ export const PRF_SALT = "otc-desk-prf-salt-v1";
 const TIMEOUT_MS = 120_000;
 
 export interface WebAuthnEnv {
-  /** The relying party: the page's host name (passkeys are bound to it). */
   rpId: string;
   credentials: Pick<CredentialsContainer, "create" | "get">;
-  /** PublicKeyCredential.getClientCapabilities, where the browser has it. */
   capabilities?: () => Promise<Record<string, boolean> | undefined>;
 }
 
-/** The browser's WebAuthn, or undefined where there is none (or no secure context). */
 export function browserWebAuthn(): WebAuthnEnv | undefined {
   if (typeof window === "undefined" || !window.isSecureContext) return undefined;
   if (typeof PublicKeyCredential === "undefined" || navigator.credentials === undefined) return undefined;
@@ -46,7 +34,6 @@ function asBytes(source: BufferSource): Uint8Array {
     : new Uint8Array(source).slice();
 }
 
-/** A browser rejection, in words a user can act on. */
 async function ceremony<T>(what: string, run: () => Promise<T>): Promise<T> {
   try {
     return await run();
@@ -79,13 +66,13 @@ export function createPasskeyVault(env: WebAuthnEnv | undefined): KeyVault {
       const credential = await ceremony("Passkey creation", () =>
         credentials.create({
           publicKey: {
-            challenge: random(32), // nothing verifies this assertion; the passkey only guards the key
+            challenge: random(32),
             rp: { name: RP_NAME, id: rpId },
             user: { id: random(16), name: displayName, displayName },
             pubKeyCredParams: [
-              { type: "public-key", alg: -8 }, // Ed25519
-              { type: "public-key", alg: -7 }, // ES256
-              { type: "public-key", alg: -257 }, // RS256
+              { type: "public-key", alg: -8 },
+              { type: "public-key", alg: -7 },
+              { type: "public-key", alg: -257 },
             ],
             authenticatorSelection: { residentKey: "required", requireResidentKey: true, userVerification: "required" },
             extensions: { prf: {} },

@@ -1,11 +1,11 @@
-/** Brand, the primary "Request quotes" action, navigation, the socket badge and the maker-mode switch. */
 import { Activity, ArrowLeftRight, Wallet } from "lucide-react";
 import { NavLink } from "react-router";
 import type { SocketStatus } from "@/application/ports";
+import type { NetworkName } from "@/domain/types";
 import { Logo } from "@/presentation/components/desk/logo";
 import { NewRfqDialog } from "@/presentation/components/desk/new-rfq-dialog";
 import { Switch } from "@/presentation/components/ui/switch";
-import { useSetMakerMode } from "@/presentation/hooks/queries";
+import { useNetwork, useSetMakerMode } from "@/presentation/hooks/queries";
 import { cn } from "@/presentation/lib/utils";
 import { useSocketStatus } from "@/presentation/providers/events";
 import { useSession } from "@/presentation/providers/session";
@@ -16,6 +16,12 @@ const NAV = [
   { to: "/activity", label: "Activity", icon: Activity },
 ] as const;
 
+const NETWORK: Record<NetworkName, string> = {
+  devnet: "DevNet",
+  testnet: "TestNet",
+  mainnet: "MainNet",
+};
+
 const SOCKET: Record<SocketStatus, { label: string; dot: string }> = {
   live: { label: "Live", dot: "bg-success" },
   connecting: { label: "Connecting…", dot: "animate-pulse bg-primary" },
@@ -25,8 +31,8 @@ const SOCKET: Record<SocketStatus, { label: string; dot: string }> = {
 export function Sidebar() {
   const { me } = useSession();
   const socket = SOCKET[useSocketStatus()];
+  const network = useNetwork().data;
   const makerMode = useSetMakerMode();
-  // Show where the switch is going while the request is in flight.
   const checked = makerMode.isPending ? makerMode.variables : (me?.makerMode ?? false);
 
   return (
@@ -35,7 +41,9 @@ export function Sidebar() {
         <Logo className="size-7 flex-none" />
         <div className="leading-tight">
           <p className="font-semibold tracking-tight">Private OTC Desk</p>
-          <p className="text-[0.6875rem] text-muted-foreground">Canton · local sandbox</p>
+          <p className="text-[0.6875rem] text-muted-foreground">
+            {network === undefined ? "Canton" : `Canton · ${NETWORK[network.name]}`}
+          </p>
         </div>
       </div>
 
@@ -80,7 +88,6 @@ export function Sidebar() {
           </span>
           <Switch
             checked={checked}
-            // Guarded rather than disabled while in flight: a disabled switch flickers mid-click.
             onCheckedChange={(v) => {
               if (!makerMode.isPending) makerMode.mutate(v);
             }}

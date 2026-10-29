@@ -1,8 +1,3 @@
-/**
- * The detail pane of the Trade page. A taker's RFQ walks quotes → accept →
- * atomic settlement; an incoming RFQ is the maker's quote form, then their
- * quote's fate.
- */
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { bestQuote, canAccept, canCancel, canQuote, incomingRowStatus, makerTerms, quoteTerms, rfqRowStatus } from "@/domain/rfq";
@@ -22,7 +17,6 @@ import { TradeStatus } from "./trade-status";
 
 function DetailHeader({ rfq, note, right }: { rfq: Rfq; note: string; right: ReactNode }) {
   return (
-    // The controls move under the title when the pane is too narrow for both.
     <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2 border-b border-border pb-4">
       <div className="min-w-0 flex-[1_1_14rem]">
         <RfqTitle rfq={rfq} className="text-lg tracking-tight" />
@@ -33,7 +27,6 @@ function DetailHeader({ rfq, note, right }: { rfq: Rfq; note: string; right: Rea
   );
 }
 
-/** The newest trade of an RFQ that is not a failure, and the newest failure. */
 function tradesOf(trades: Trade[] | undefined, rfqId: string): { live?: Trade; failed?: Trade } {
   const mine = (trades ?? []).filter((t) => t.rfqId === rfqId).sort((a, b) => b.createdAt - a.createdAt);
   return { live: mine.find((t) => t.status !== "failed"), failed: mine.find((t) => t.status === "failed") };

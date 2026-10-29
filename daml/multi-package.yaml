@@ -1,5 +1,0 @@
-sdk-version: 3.5.2
-
-packages:
-- ./test-token-v2
-- ./setup

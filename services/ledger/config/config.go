@@ -30,7 +30,6 @@ type Config struct {
 }
 
 func New() (Config, error) {
-	// The service's own defaults (spec ports, service name); the environment overrides them.
 	config := Config{
 		HTTP: httpserver.Config{Port: "8083"},
 		GRPC: grpcserver.Config{Port: "9083"},

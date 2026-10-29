@@ -11,8 +11,6 @@ const (
 	hintSuffixBytes = 3
 )
 
-// Hintify turns a display name into a conservative party hint: lower-case [a-z0-9] words joined
-// by single dashes, at most 24 characters, "user" when nothing usable is left.
 func Hintify(displayName string) string {
 	var slug strings.Builder
 
@@ -47,8 +45,6 @@ func Hintify(displayName string) string {
 	return hint
 }
 
-// NewHint is the party hint of a new wallet: the display name's slug plus six random hex digits,
-// which keeps hints unique without a round trip.
 func NewHint(displayName string) string {
 	return Hintify(displayName) + "-" + hex.EncodeToString(randomBytes(hintSuffixBytes))
 }

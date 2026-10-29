@@ -2,60 +2,57 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"time"
+	"slices"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 
-	"github.com/vbloher/canton-private-otc-desk/pkg/decimal"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// Faucet mints test tokens to the caller (sandbox only): the operator, as instrument admin,
-// offers each FAUCET_AMOUNTS entry, then the caller accepts every offer.
 func (u *UseCase) Faucet(ctx context.Context, input dto.FaucetInput) (dto.ActionsOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase Faucet")
 	defer span.End()
 
 	var output dto.ActionsOutput
 
-	rules, err := u.tokenRules(ctx)
-	if err != nil {
-		return output, fmt.Errorf("u.tokenRules: %w", err)
+	if u.faucet == "" {
+		return output, domain.ErrFaucetUnavailable
 	}
 
-	offers, err := u.offerMints(ctx, rules, input.PartyID)
+	if input.PartyID == u.faucet {
+		return output, domain.Errorf(domain.ErrValidation, "the faucet cannot pay itself")
+	}
+
+	u.faucetMu.Lock()
+	defer u.faucetMu.Unlock()
+
+	claimed, err := u.redis.ClaimFaucet(ctx, input.PartyID, u.config.FaucetCooldown)
+	if err != nil {
+		return output, fmt.Errorf("redis.ClaimFaucet: %w", err)
+	}
+
+	if !claimed {
+		return output, domain.Errorf(domain.ErrFaucetCooldown, "one drip per %s", u.config.FaucetCooldown)
+	}
+
+	created, err := u.drip(ctx, input.PartyID)
+	if err != nil {
+		u.redis.ReleaseFaucet(ctx, input.PartyID)
+
+		return output, err
+	}
+
+	actions, err := u.acceptDrip(ctx, input.PartyID, created)
 	if err != nil {
 		return output, err
 	}
 
-	var actions []domain.Action
-
-	for _, o := range offers {
-		// A mint offer locks no sender holding: there is nothing to disclose but TokenRules.
-		cmd, err := u.canton.AcceptTransferCommand(rules, nil, o.contractID)
-		if err != nil {
-			return output, fmt.Errorf("canton.AcceptTransferCommand: %w", err)
-		}
-
-		intent := domain.Intent{
-			PartyID:     input.PartyID,
-			Purpose:     domain.PurposeTransferAccept,
-			Description: fmt.Sprintf("Accept %s %s from the %s", o.amount, o.symbol, domain.FaucetHint),
-			Ref:         o.contractID,
-		}
-
-		action, err := u.submit(ctx, intent, cmd, "accept:"+o.contractID)
-		if err != nil {
-			return output, fmt.Errorf("u.submit: %w", err)
-		}
-
-		actions = collect(actions, action)
-	}
-
-	err = u.done(ctx, input.PartyID, actions)
+	err = u.done(ctx, input.PartyID, actions, u.faucet)
 	if err != nil {
 		return output, fmt.Errorf("u.done: %w", err)
 	}
@@ -63,17 +60,17 @@ func (u *UseCase) Faucet(ctx context.Context, input dto.FaucetInput) (dto.Action
 	return dto.ActionsOutput{Actions: actions}, nil
 }
 
-type mintOffer struct {
-	contractID string
-	symbol     string
-	amount     decimal.Decimal
-}
+func (u *UseCase) drip(ctx context.Context, receiver string) ([]string, error) {
+	holdings, err := u.canton.Holdings(ctx, u.faucet)
+	if err != nil {
+		return nil, fmt.Errorf("canton.Holdings: %w", err)
+	}
 
-// offerMints submits one mint offer per instrument with a faucet amount, as the operator.
-func (u *UseCase) offerMints(ctx context.Context, rules domain.Disclosed, receiver string) ([]mintOffer, error) {
-	var offers []mintOffer
-
-	offeredAt := time.Now().Add(-clockSkew)
+	var (
+		created []string
+		errs    []error
+		sent    int
+	)
 
 	for _, inst := range u.config.Instruments {
 		amount, ok := u.config.FaucetAmounts[inst.Symbol]
@@ -81,28 +78,58 @@ func (u *UseCase) offerMints(ctx context.Context, rules domain.Disclosed, receiv
 			continue
 		}
 
-		cmd, err := u.canton.OfferMintCommand(rules, domain.OfferMintSpec{
-			Admin:        u.operator,
-			Receiver:     receiver,
-			InstrumentID: inst.Symbol,
-			Amount:       amount,
-			OfferedAt:    offeredAt,
-		})
+		cmd, err := u.transferCommand(ctx, holdings, inst, u.faucet, receiver, amount)
+		if err == nil {
+			var tx domain.Transaction
+
+			tx, err = u.canton.Submit(ctx, u.faucet, "faucet:"+uuid.NewString(), cmd)
+			created = append(created, tx.Created...)
+		}
+
 		if err != nil {
-			return nil, fmt.Errorf("canton.OfferMintCommand: %w", err)
+			log.Warn().Err(err).Str("symbol", inst.Symbol).Str("receiver", receiver).Msg("ledger: faucet drip failed")
+			errs = append(errs, fmt.Errorf("%s: %w", inst.Symbol, err))
+
+			continue
 		}
 
-		tx, err := u.canton.Submit(ctx, u.operator, "faucet:"+uuid.NewString(), cmd)
-		if err != nil {
-			return nil, fmt.Errorf("canton.Submit: %w", err)
-		}
-
-		if len(tx.Created) == 0 {
-			return nil, fmt.Errorf("%w: the %s mint offer created no contract", domain.ErrLedger, inst.Symbol)
-		}
-
-		offers = append(offers, mintOffer{contractID: tx.Created[0], symbol: inst.Symbol, amount: amount})
+		sent++
 	}
 
-	return offers, nil
+	if sent == 0 {
+		return nil, fmt.Errorf("the faucet sent nothing: %w", errors.Join(errs...))
+	}
+
+	return created, nil
+}
+
+func (u *UseCase) acceptDrip(ctx context.Context, receiver string, created []string) ([]domain.Action, error) {
+	transfers, err := u.incoming(ctx, receiver)
+	if err != nil {
+		return nil, err
+	}
+
+	var actions []domain.Action
+
+	for _, t := range transfers {
+		if t.Sender != u.faucet || !slices.Contains(created, t.ContractID) {
+			continue
+		}
+
+		intent := domain.Intent{
+			PartyID:     receiver,
+			Purpose:     domain.PurposeTransferAccept,
+			Description: fmt.Sprintf("Accept %s %s from the %s", t.Amount, t.Symbol, domain.FaucetHint),
+			Ref:         t.ContractID,
+		}
+
+		action, err := u.accept(ctx, intent, t)
+		if err != nil {
+			return nil, err
+		}
+
+		actions = collect(actions, action)
+	}
+
+	return actions, nil
 }

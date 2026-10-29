@@ -32,7 +32,7 @@ func Test_AuthenticateAPIKey_Unknown(t *testing.T) {
 }
 
 func Test_AuthenticateAPIKey_Empty(t *testing.T) {
-	d := newDeps(t) // no expectations
+	d := newDeps(t)
 
 	_, err := d.useCase().AuthenticateAPIKey(t.Context(), dto.AuthenticateAPIKeyInput{APIKey: ""})
 	require.ErrorIs(t, err, domain.ErrUnauthorized)

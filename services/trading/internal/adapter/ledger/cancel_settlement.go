@@ -9,7 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 )
 
-// CancelSettlement cancels every allocation of the settlement that is still active.
 func (l *Ledger) CancelSettlement(ctx context.Context, settlementID uuid.UUID) error {
 	ctx, span := tracer.Start(ctx, "adapter ledger CancelSettlement")
 	defer span.End()

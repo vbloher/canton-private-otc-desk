@@ -1,8 +1,5 @@
 //go:build integration
 
-// Runs against the local Postgres (make up): go test -tags=integration ./services/trading/internal/adapter/postgres/...
-// It migrates a database of its own and drops it, so a trading service running against the same
-// server never meets its rows.
 package postgres_test
 
 import (

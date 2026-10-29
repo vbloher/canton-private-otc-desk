@@ -3,7 +3,6 @@ import { invalidationsFor, lateInvalidationsFor } from "./event-invalidation";
 
 describe("lateInvalidationsFor", () => {
   it.each([
-    // the ledger executes asynchronously: the first refetch can still read the old holdings
     ["sign.completed", [["wallet"]]],
     ["wallet.updated", [["wallet"]]],
     ["rfq.created", []],
@@ -18,7 +17,6 @@ describe("invalidationsFor", () => {
   it.each([
     ["rfq.created", [["rfqs"]]],
     ["rfq.updated", [["rfqs"]]],
-    // a quote is the maker's committed allocation: opening, losing or expiring it moves locked funds
     ["quote.updated", [["rfqs"], ["wallet", "balances"]]],
     ["trade.updated", [["rfqs"], ["trades"], ["wallet", "balances"]]],
     ["sign.requested", [["tx", "pending"]]],

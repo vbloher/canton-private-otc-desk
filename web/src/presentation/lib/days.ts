@@ -1,4 +1,3 @@
-/** Consecutive runs of a newest-first feed per local calendar day: "Today", "Yesterday", then dates. */
 export interface DayGroup<T> {
   key: string;
   label: string;

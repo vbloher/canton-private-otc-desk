@@ -1,4 +1,3 @@
-// Package ledger is the trading service's client of the ledger service (LedgerV1 over gRPC).
 package ledger
 
 import (
@@ -23,7 +22,6 @@ type Ledger struct {
 	conn   *grpc.ClientConn
 }
 
-// New connects lazily: the service starts while the ledger is down.
 func New(c Config) (*Ledger, error) {
 	conn, err := grpcclient.New(c.Addr, callTimeout)
 	if err != nil {

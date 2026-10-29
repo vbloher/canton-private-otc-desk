@@ -1,7 +1,3 @@
-/**
- * Trade: the taker's requests and the RFQs this user was asked to quote, as
- * master–detail. The tab and the selected RFQ live in the URL (?tab=&rfq=).
- */
 import type { ReactNode } from "react";
 import { useSearchParams } from "react-router";
 import { incomingRowStatus, rfqRowStatus } from "@/domain/rfq";
@@ -21,7 +17,6 @@ type Tab = "mine" | "incoming";
 const newestFirst = (a: { rfq: { createdAt: number } }, b: { rfq: { createdAt: number } }): number =>
   b.rfq.createdAt - a.rfq.createdAt;
 
-/** Live requests first, then the ones that closed in the last hour. */
 function sortMine(entries: RfqWithQuotes[], now: number): RfqWithQuotes[] {
   const rank = (e: RfqWithQuotes): number => {
     const s = rfqRowStatus(e, now);
@@ -30,7 +25,6 @@ function sortMine(entries: RfqWithQuotes[], now: number): RfqWithQuotes[] {
   return [...entries].sort((a, b) => rank(a) - rank(b) || newestFirst(a, b));
 }
 
-/** Waiting for a quote first, then quotes in play, then everything that ended. */
 function sortIncoming(entries: IncomingRfq[], now: number): IncomingRfq[] {
   const rank = (e: IncomingRfq): number => {
     const s = incomingRowStatus(e, now);

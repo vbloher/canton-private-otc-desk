@@ -1,4 +1,3 @@
-/** Where others send tokens: this wallet's full Canton party id. */
 import { Card, CardContent, CardHeader, CardTitle } from "@/presentation/components/ui/card";
 import { useSession } from "@/presentation/providers/session";
 import { CopyButton } from "./copy-button";

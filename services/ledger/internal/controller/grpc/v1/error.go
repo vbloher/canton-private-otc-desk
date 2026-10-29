@@ -12,9 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// grpcError maps domain errors to status codes. Callers recognise insufficient funds by
-// FailedPrecondition with a message starting "insufficient funds"; Aborted means a contract
-// the request used was consumed by another transaction meanwhile, so it may be retried.
 func grpcError(ctx context.Context, err error) error {
 	var funds domain.InsufficientFundsError
 

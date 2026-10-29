@@ -291,7 +291,7 @@ components:
           maxItems: 10
           items:
             type: string
-          example: [makerA, makerB]
+          example: [otc-desk-maker]
         ttlSeconds:
           type: integer
           minimum: 30

@@ -3,7 +3,6 @@ package usecase
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
@@ -24,13 +23,23 @@ func (u *UseCase) ListIncoming(ctx context.Context, input dto.ListIncomingInput)
 	return dto.ListIncomingOutput{Transfers: transfers}, nil
 }
 
-// incoming are the pending transfers to the party in the desk's instruments: those the
-// operator administers.
 func (u *UseCase) incoming(ctx context.Context, party string) ([]domain.IncomingTransfer, error) {
 	transfers, err := u.canton.TransferInstructions(ctx, party)
 	if err != nil {
 		return nil, fmt.Errorf("canton.TransferInstructions: %w", err)
 	}
 
-	return slices.DeleteFunc(transfers, func(t domain.IncomingTransfer) bool { return t.Admin != u.operator }), nil
+	known := make([]domain.IncomingTransfer, 0, len(transfers))
+
+	for _, t := range transfers {
+		inst, ok := u.config.Instruments.Of(t.Admin, t.InstrumentID)
+		if !ok {
+			continue
+		}
+
+		t.Symbol = inst.Symbol
+		known = append(known, t)
+	}
+
+	return known, nil
 }

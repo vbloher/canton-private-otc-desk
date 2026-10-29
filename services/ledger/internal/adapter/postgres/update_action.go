@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// UpdateAction records an action's outcome: its status and the ledger's error, if any.
 func (p *Postgres) UpdateAction(ctx context.Context, action domain.Action) error {
 	ctx, span := tracer.Start(ctx, "adapter postgres UpdateAction")
 	defer span.End()

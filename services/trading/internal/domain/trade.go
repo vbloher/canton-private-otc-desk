@@ -16,7 +16,6 @@ const (
 	TradeFailed   TradeStatus = "failed"
 )
 
-// Trade is an accepted quote on its way to settlement; its settlement id is QuoteID.
 type Trade struct {
 	ID        uuid.UUID
 	RFQID     uuid.UUID
@@ -37,7 +36,6 @@ type Trade struct {
 	SettledAt *time.Time
 }
 
-// NewTrade is the settling trade an accept of the quote creates; its amounts are final.
 func NewTrade(rfq RFQ, quote Quote, now time.Time) Trade {
 	t := termsOf(rfq, quote, "")
 
@@ -59,7 +57,6 @@ func NewTrade(rfq RFQ, quote Quote, now time.Time) Trade {
 	}
 }
 
-// Legs rebuilds the settlement legs from the trade's own amounts.
 func (t Trade) Legs(operator string) ([]Leg, error) {
 	return terms{
 		direction: t.Direction,
@@ -74,7 +71,6 @@ func (t Trade) Legs(operator string) ([]Leg, error) {
 	}.legs()
 }
 
-// Settled returns the trade as settled by the ledger update updateID.
 func (t Trade) Settled(updateID string, at time.Time) Trade {
 	t.Status = TradeSettled
 	t.UpdateID = updateID
@@ -83,7 +79,6 @@ func (t Trade) Settled(updateID string, at time.Time) Trade {
 	return t
 }
 
-// Failed returns the trade as failed for the reason.
 func (t Trade) Failed(reason string) Trade {
 	t.Status = TradeFailed
 	t.Reason = reason

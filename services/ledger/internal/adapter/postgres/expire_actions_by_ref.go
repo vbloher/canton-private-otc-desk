@@ -8,9 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
-// ExpireActionsByRef expires every pending action of what ref names (a settlement) and
-// returns them. A row an execution holds is updated once that execution has finished, if
-// it is still pending then.
 func (p *Postgres) ExpireActionsByRef(ctx context.Context, ref string) ([]domain.Action, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ExpireActionsByRef")
 	defer span.End()

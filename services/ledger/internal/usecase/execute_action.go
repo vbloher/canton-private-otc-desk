@@ -11,11 +11,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
 
-// ExecuteAction submits a pending action with its party's signature over the hash and waits
-// for the commit. The row lock is held while the ledger answers, so an action executes at
-// most once. domain.Action.Outcome decides what the answer means: executed (committed, or
-// already landed under its command id), still pending (the ledger decided nothing, so the
-// signer may retry; the call fails), or failed with the ledger's error.
 func (u *UseCase) ExecuteAction(ctx context.Context, input dto.ExecuteActionInput) error {
 	ctx, span := tracer.Start(ctx, "usecase ExecuteAction")
 	defer span.End()
@@ -25,8 +20,6 @@ func (u *UseCase) ExecuteAction(ctx context.Context, input dto.ExecuteActionInpu
 			ed25519.SignatureSize, len(input.Signature))
 	}
 
-	// A caller that goes away must not cut a signed transaction off halfway: the ledger
-	// call and the recorded outcome run to completion.
 	ctx = context.WithoutCancel(ctx)
 
 	var (
@@ -76,8 +69,6 @@ func (u *UseCase) ExecuteAction(ctx context.Context, input dto.ExecuteActionInpu
 	return nil
 }
 
-// announce tells the party its action left the queue and, once it has committed, that its
-// wallet and the counterparty's changed.
 func (u *UseCase) announce(ctx context.Context, action domain.Action) {
 	if action.Status == domain.ActionPending {
 		return

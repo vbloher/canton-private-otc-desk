@@ -1,9 +1,3 @@
-/**
- * Seed wrapping. The passkey's PRF output is the input key material of
- * HKDF-SHA256 (salt "otc-desk-kek-v1", empty info), which yields an AES-256-GCM
- * key-encryption key. The blob the server stores is base64(iv ‖ ciphertext ‖ tag);
- * without the authenticator nobody can open it, the server included.
- */
 import { bytes, fromBase64, toBase64 } from "../encoding";
 
 export const KEK_SALT = "otc-desk-kek-v1";

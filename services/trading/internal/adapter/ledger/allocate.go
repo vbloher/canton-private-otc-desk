@@ -12,8 +12,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// Allocate creates (hosted party) or queues for signature (external party) every allocation the
-// party owes to the settlement.
 func (l *Ledger) Allocate(
 	ctx context.Context, settlementID uuid.UUID, deadline time.Time, legs []domain.Leg, party, description string,
 ) error {

@@ -13,7 +13,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-// GetCachedSession fails open: when Redis is down or the entry is unreadable, the caller asks Postgres.
 func (r *Redis) GetCachedSession(ctx context.Context, tokenHash string) (domain.User, bool) {
 	ctx, span := tracer.Start(ctx, "adapter redis GetCachedSession")
 	defer span.End()

@@ -10,8 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase"
 )
 
-// authenticate resolves the caller from the session cookie or the API key and puts it into the request context.
-// Without a caller the request ends here with 401 (502 when identity cannot answer).
 func authenticate(uc *usecase.UseCase) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +30,7 @@ func authenticate(uc *usecase.UseCase) func(http.Handler) http.Handler {
 func sessionToken(r *http.Request) string {
 	cookie, err := r.Cookie(domain.SessionCookie)
 	if err != nil {
-		return "" // http.ErrNoCookie: not a browser session
+		return ""
 	}
 
 	return cookie.Value

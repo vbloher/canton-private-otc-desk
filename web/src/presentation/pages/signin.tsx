@@ -1,7 +1,3 @@
-/**
- * The door: connect an existing wallet with its passkey, or create one. Both
- * are passkey ceremonies — nothing to type but a display name.
- */
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { KeyRound, Loader2, TriangleAlert } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -163,7 +159,6 @@ export function SignInPage() {
   );
 }
 
-/** Amber, like the desk's locked banner: something to act on, not a footnote. */
 function Alert({ children }: { children: ReactNode }) {
   return (
     <div

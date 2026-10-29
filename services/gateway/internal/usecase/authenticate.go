@@ -9,8 +9,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/domain"
 )
 
-// Authenticate resolves the caller from an API key or a session token.
-// The API key wins when both are present, so a bot never falls back to a stale cookie.
 func (u *UseCase) Authenticate(ctx context.Context, sessionToken, apiKey string) (principal.Principal, error) {
 	ctx, span := tracer.Start(ctx, "usecase Authenticate")
 	defer span.End()

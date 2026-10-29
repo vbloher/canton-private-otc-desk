@@ -8,7 +8,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
-// ListRFQHistory returns the taker's RFQs that closed without a fill, most recently closed first.
 func (p *Postgres) ListRFQHistory(ctx context.Context, taker string, limit int) ([]domain.RFQ, error) {
 	ctx, span := tracer.Start(ctx, "adapter postgres ListRFQHistory")
 	defer span.End()

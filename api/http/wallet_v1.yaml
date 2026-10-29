@@ -127,20 +127,42 @@ paths:
           $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalError'
+  /wallet/network:
+    get:
+      tags: [Wallet]
+      operationId: getNetwork
+      summary: The Canton network the desk is on and what its faucet hands out
+      responses:
+        '200':
+          description: Network
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Network'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /wallet/faucet:
     post:
       tags: [Wallet]
       operationId: faucet
-      summary: Mint test tokens to the caller (local sandbox only)
+      summary: Send DevNet test tokens from the desk's reservoir to the caller
       responses:
         '202':
-          description: Mint offers created; their accepts are queued for signature
+          description: Transfers sent; the accepts of those waiting for the caller are queued for signature
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Actions'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '502':
           $ref: '#/components/responses/BadGateway'
         '500':
@@ -222,6 +244,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: The faucet was used recently
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     BadGateway:
       description: The ledger failed
       content:
@@ -254,6 +282,27 @@ components:
           type: integer
           description: Digits to show in the UI
           example: 8
+    Network:
+      type: object
+      required: [name, faucet]
+      properties:
+        name:
+          type: string
+          enum: [devnet, testnet, mainnet]
+        faucet:
+          type: array
+          description: What one faucet drip sends; empty when the network has no faucet
+          items:
+            $ref: '#/components/schemas/Drip'
+    Drip:
+      type: object
+      required: [symbol, amount]
+      properties:
+        symbol:
+          type: string
+          example: CBTC
+        amount:
+          $ref: '#/components/schemas/Decimal'
     Balance:
       type: object
       required: [symbol, available, locked]
@@ -291,7 +340,7 @@ components:
           type: string
           description: Full party id of the receiver
           pattern: '^.+::.+$'
-          example: makerB::122096feab
+          example: bob::122096feab
     ExecuteInput:
       type: object
       additionalProperties: false

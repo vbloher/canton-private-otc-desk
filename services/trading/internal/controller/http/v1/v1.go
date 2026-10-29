@@ -21,7 +21,6 @@ func New(uc *usecase.UseCase) *Handlers {
 	}
 }
 
-// caller is the party the gateway authenticated; every route needs one.
 func caller(ctx context.Context) (domain.Party, bool) {
 	p, ok := principal.From(ctx)
 	if !ok {

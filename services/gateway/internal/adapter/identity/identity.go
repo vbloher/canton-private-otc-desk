@@ -6,12 +6,10 @@ import (
 	pb "github.com/vbloher/canton-private-otc-desk/gen/grpc/identity_v1"
 )
 
-// Config is where the identity service listens for gRPC.
 type Config struct {
 	Addr string `env:"IDENTITY_GRPC_ADDR" envDefault:"localhost:9081"`
 }
 
-// Identity is the gRPC client of the identity service.
 type Identity struct {
 	client pb.IdentityV1Client
 }

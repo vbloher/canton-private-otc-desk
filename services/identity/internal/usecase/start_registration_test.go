@@ -65,7 +65,7 @@ func Test_StartRegistration_InvalidInput(t *testing.T) {
 		"one rune name": {DisplayName: "A", PublicKey: bytes.Repeat([]byte{1}, 32)},
 		"short key":     {DisplayName: "Alice", PublicKey: bytes.Repeat([]byte{1}, 31)},
 	} {
-		d := newDeps(t) // no expectations: neither the ledger nor Redis may be touched
+		d := newDeps(t)
 
 		_, err := d.useCase().StartRegistration(t.Context(), input)
 		require.ErrorIs(t, err, domain.ErrValidation, name)

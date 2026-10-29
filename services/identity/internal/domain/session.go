@@ -8,8 +8,6 @@ import (
 
 const sessionTokenBytes = 32
 
-// NewSessionToken returns the secret for the cookie and the hash stored in its place:
-// the database never sees the token itself.
 func NewSessionToken() (token, hash string) {
 	token = base64.RawURLEncoding.EncodeToString(randomBytes(sessionTokenBytes))
 

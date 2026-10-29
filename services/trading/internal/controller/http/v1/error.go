@@ -17,7 +17,6 @@ import (
 
 const badGatewayMessage = "bad gateway: the ledger or the identity service failed"
 
-// failure is a use case error as an HTTP status and error body; status 500 means "return the error".
 type failure struct {
 	status int
 	body   http_server.Error
@@ -28,7 +27,6 @@ func classify(ctx context.Context, err error) failure {
 	case domain.IsInvalidInput(err):
 		return failure{http.StatusBadRequest, http_server.Error{Error: render.Error(ctx, err, "request failed").Error()}}
 	case errors.Is(err, domain.ErrNotFound), errors.Is(err, domain.ErrForbidden):
-		// Someone else's RFQ or quote does not exist for the caller.
 		_ = render.Error(ctx, err, "request failed")
 
 		return failure{http.StatusNotFound, http_server.Error{Error: "request failed: not found"}}

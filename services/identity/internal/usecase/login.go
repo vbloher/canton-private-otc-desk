@@ -10,8 +10,6 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/dto"
 )
 
-// Login connects a wallet that signed its challenge. The challenge is consumed by the attempt,
-// right or wrong: a failed signature needs a new challenge.
 func (u *UseCase) Login(ctx context.Context, input dto.LoginInput) (dto.LoginOutput, error) {
 	ctx, span := tracer.Start(ctx, "usecase Login")
 	defer span.End()

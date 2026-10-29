@@ -26,7 +26,6 @@ type Config struct {
 }
 
 func New() (Config, error) {
-	// Ports and names that belong to this service; the environment overrides them.
 	config := Config{
 		HTTP: httpserver.Config{Port: "8080"},
 		OTEL: otel.Config{ServiceName: "gateway"},
