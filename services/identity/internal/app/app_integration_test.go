@@ -259,30 +259,6 @@ func cookieOf(t *testing.T, r reply) string {
 	return cookies[0].Value
 }
 
-// sessionOf reads the Session answer of register/complete and login: the user, the secret (which
-// is also in the cookie) and the expiry, a session lifetime from now.
-func sessionOf(t *testing.T, r reply, lifetime time.Duration) (me map[string]any, token string) {
-	t.Helper()
-
-	body := r.json(t)
-
-	me, ok := body["me"].(map[string]any)
-	require.True(t, ok, string(r.body))
-
-	token, ok = body["sessionToken"].(string)
-	require.True(t, ok, string(r.body))
-	require.Equal(t, cookieOf(t, r), token, "the answer carries the secret the cookie carries")
-
-	raw, ok := body["expiresAt"].(string)
-	require.True(t, ok, string(r.body))
-
-	expiresAt, err := time.Parse(time.RFC3339, raw)
-	require.NoError(t, err)
-	require.WithinDuration(t, time.Now().Add(lifetime), expiresAt, time.Minute)
-
-	return me, token
-}
-
 func asCaller(me map[string]any) map[string]string {
 	return map[string]string{
 		"X-User-Id":    me["id"].(string),
@@ -394,7 +370,7 @@ func Test_Service_EndToEnd(t *testing.T) {
 	complete := api.do(http.MethodPost, "/api/v1/auth/register/complete", completeBody, nil)
 	require.Equal(t, http.StatusOK, complete.status, string(complete.body))
 
-	me, token := sessionOf(t, complete, time.Hour)
+	me := complete.json(t)
 	require.Equal(t, start.json(t)["partyId"], me["partyId"])
 	require.Regexp(t, `^alice-smith-[0-9a-f]{6}$`, me["hint"])
 	require.Equal(t, "passkey", me["kind"])
@@ -403,6 +379,8 @@ func Test_Service_EndToEnd(t *testing.T) {
 	setCookie := complete.header.Get("Set-Cookie")
 	require.Contains(t, setCookie, "; Path=/; HttpOnly; SameSite=Lax; Max-Age=3600")
 	require.NotContains(t, setCookie, "Secure")
+
+	token := cookieOf(t, complete)
 
 	// The registration completes once; the same passkey cannot back a second wallet.
 	replay := api.do(http.MethodPost, "/api/v1/auth/register/complete", completeBody, nil)
@@ -488,14 +466,13 @@ func Test_Service_EndToEnd(t *testing.T) {
 	login = api.do(http.MethodPost, "/api/v1/auth/login",
 		`{"challenge":"`+text+`","signature":"`+b64(ed25519.Sign(privateKey, []byte(text)))+`","credentialId":"cred-e2e"}`, nil)
 	require.Equal(t, http.StatusOK, login.status, string(login.body))
-
-	signedIn, laterToken := sessionOf(t, login, time.Hour)
-	require.Equal(t, true, signedIn["makerMode"])
+	require.Equal(t, true, login.json(t)["makerMode"])
 
 	again := api.do(http.MethodPost, "/api/v1/auth/login",
 		`{"challenge":"`+text+`","signature":"`+b64(ed25519.Sign(privateKey, []byte(text)))+`","credentialId":"cred-e2e"}`, nil)
 	require.Equal(t, http.StatusUnauthorized, again.status, "a challenge works once")
 
+	laterToken := cookieOf(t, login)
 	require.NotEqual(t, token, laterToken)
 
 	// Sign-out ends that session and only that one, cache included.
@@ -514,73 +491,6 @@ func Test_Service_EndToEnd(t *testing.T) {
 
 	stale := api.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]string{"Cookie": "otc_session=" + laterToken})
 	require.Equal(t, http.StatusNoContent, stale.status, "signing out twice is fine")
-
-	// A frontend on another origin has no cookie: it is known by its bearer token and signs out with it.
-	challenge = api.do(http.MethodPost, "/api/v1/auth/challenge", `{"credentialId":"cred-e2e"}`, nil)
-	text = challenge.json(t)["challenge"].(string)
-
-	crossOrigin := api.do(http.MethodPost, "/api/v1/auth/login",
-		`{"challenge":"`+text+`","signature":"`+b64(ed25519.Sign(privateKey, []byte(text)))+`","credentialId":"cred-e2e"}`, nil)
-	require.Equal(t, http.StatusOK, crossOrigin.status, string(crossOrigin.body))
-
-	_, bearer := sessionOf(t, crossOrigin, time.Hour)
-
-	user, err := identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: bearer})
-	require.NoError(t, err, "the token in the answer authenticates")
-	require.Equal(t, me["id"], user.GetId())
-
-	nobody := api.do(http.MethodPost, "/api/v1/auth/logout", "", nil)
-	require.Equal(t, http.StatusNoContent, nobody.status)
-
-	_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: bearer})
-	require.NoError(t, err, "signing out without a token ends no session")
-
-	byBearer := api.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]string{"Authorization": "Bearer " + bearer})
-	require.Equal(t, http.StatusNoContent, byBearer.status)
-	require.Equal(t, "otc_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0", byBearer.header.Get("Set-Cookie"))
-
-	_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: bearer})
-	require.Equal(t, codes.Unauthenticated, status.Code(err), "signed out by the bearer token, dead at once")
-
-	_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: token})
-	require.NoError(t, err, "the first session lives on")
-
-	// A client may present a cookie and a bearer token that name different sessions, and the gateway
-	// prefers the bearer token: signing out ends both, and no other session.
-	signIn := func() string {
-		challenge := api.do(http.MethodPost, "/api/v1/auth/challenge", `{"credentialId":"cred-e2e"}`, nil)
-		text := challenge.json(t)["challenge"].(string)
-
-		login := api.do(http.MethodPost, "/api/v1/auth/login",
-			`{"challenge":"`+text+`","signature":"`+b64(ed25519.Sign(privateKey, []byte(text)))+`","credentialId":"cred-e2e"}`, nil)
-		require.Equal(t, http.StatusOK, login.status, string(login.body))
-
-		_, sessionToken := sessionOf(t, login, time.Hour)
-
-		return sessionToken
-	}
-
-	cookieSession, bearerSession := signIn(), signIn()
-	require.NotEqual(t, cookieSession, bearerSession)
-
-	for _, sessionToken := range []string{cookieSession, bearerSession} {
-		_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: sessionToken})
-		require.NoError(t, err)
-	}
-
-	both := api.do(http.MethodPost, "/api/v1/auth/logout", "", map[string]string{
-		"Cookie":        "otc_session=" + cookieSession,
-		"Authorization": "Bearer " + bearerSession,
-	})
-	require.Equal(t, http.StatusNoContent, both.status)
-
-	for name, sessionToken := range map[string]string{"cookie": cookieSession, "bearer token": bearerSession} {
-		_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: sessionToken})
-		require.Equal(t, codes.Unauthenticated, status.Code(err), "the %s session is dead at once", name)
-	}
-
-	_, err = identity.Authenticate(ctx, &identitypb.AuthenticateInput{SessionToken: token})
-	require.NoError(t, err, "a session the request does not name lives on")
 
 	// Shutdown is graceful.
 	stop()

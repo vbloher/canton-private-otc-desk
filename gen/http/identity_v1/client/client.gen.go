@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -128,16 +127,6 @@ type RegisterStartOutput struct {
 	// PartyID Example: alice-3f9a1c::1220ab12
 	PartyID        string             `json:"partyId"`
 	RegistrationID openapi_types.UUID `json:"registrationId"`
-}
-
-// Session defines model for Session.
-type Session struct {
-	ExpiresAt time.Time `json:"expiresAt"`
-	Me        Me        `json:"me"`
-
-	// SessionToken The session secret, the same value the `otc_session` cookie carries. A frontend on
-	// another origin sends it as `Authorization: Bearer <sessionToken>`.
-	SessionToken string `json:"sessionToken"`
 }
 
 // BadGateway Example: {"error":"request failed: registration expired"}
@@ -285,10 +274,6 @@ type ClientInterface interface {
 
 	// Logout End the session
 	//
-	// Ends every session the request names: the one in the `otc_session` cookie and, for a
-	// frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-	// when both are sent.
-	//
 	// Corresponds with POST /auth/logout (the `Logout` operationId).
 	Logout(ctx context.Context, params *LogoutParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -414,10 +399,6 @@ func (c *Client) Login(ctx context.Context, body LoginJSONRequestBody, reqEditor
 }
 
 // Logout End the session
-//
-// Ends every session the request names: the one in the `otc_session` cookie and, for a
-// frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-// when both are sent.
 //
 // Corresponds with POST /auth/logout (the `Logout` operationId).
 func (c *Client) Logout(ctx context.Context, params *LogoutParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -936,10 +917,6 @@ type ClientWithResponsesInterface interface {
 
 	// LogoutWithResponse End the session
 	//
-	// Ends every session the request names: the one in the `otc_session` cookie and, for a
-	// frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-	// when both are sent.
-	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /auth/logout (the `Logout` operationId).
@@ -1073,7 +1050,7 @@ type LoginResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Session
+	JSON200 *Me
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *BadRequest
 	// JSON401 the response for an HTTP 401 `application/json` response
@@ -1085,7 +1062,7 @@ type LoginResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r LoginResponse) GetJSON200() *Session {
+func (r LoginResponse) GetJSON200() *Me {
 	return r.JSON200
 }
 
@@ -1190,7 +1167,7 @@ type RegisterCompleteResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	// JSON200 the response for an HTTP 200 `application/json` response
-	JSON200 *Session
+	JSON200 *Me
 	// JSON400 the response for an HTTP 400 `application/json` response
 	JSON400 *BadRequest
 	// JSON409 the response for an HTTP 409 `application/json` response
@@ -1206,7 +1183,7 @@ type RegisterCompleteResponse struct {
 }
 
 // GetJSON200 returns the response for an HTTP 200 `application/json` response
-func (r RegisterCompleteResponse) GetJSON200() *Session {
+func (r RegisterCompleteResponse) GetJSON200() *Me {
 	return r.JSON200
 }
 
@@ -1552,10 +1529,6 @@ func (c *ClientWithResponses) LoginWithResponse(ctx context.Context, body LoginJ
 
 // LogoutWithResponse End the session
 //
-// Ends every session the request names: the one in the `otc_session` cookie and, for a
-// frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-// when both are sent.
-//
 // Returns a wrapper object for the known response body format(s).
 //
 // Corresponds with POST /auth/logout (the `Logout` operationId).
@@ -1733,7 +1706,7 @@ func ParseLoginResponse(rsp *http.Response) (*LoginResponse, error) {
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Session
+		var dest Me
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -1835,7 +1808,7 @@ func ParseRegisterCompleteResponse(rsp *http.Response) (*RegisterCompleteRespons
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Session
+		var dest Me
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

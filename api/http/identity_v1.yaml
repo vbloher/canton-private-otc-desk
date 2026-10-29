@@ -5,10 +5,8 @@ info:
   description: |
     Passkey wallets and sessions. A wallet is an external Canton party whose Ed25519 key is
     generated in the browser and wrapped with a passkey; the server stores only the wrapped blob.
-    A session is presented either as the `otc_session` cookie (same-origin deployments) or as
-    `Authorization: Bearer <sessionToken>` (a frontend on another origin, where the cookie would
-    be a third-party cookie). Authenticated routes rely on the gateway: it resolves either and
-    forwards the caller in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`.
+    Authenticated routes rely on the gateway: it resolves the `otc_session` cookie and forwards
+    the caller in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`.
 servers:
   - url: /api/v1
 tags:
@@ -52,7 +50,7 @@ paths:
               $ref: '#/components/schemas/RegisterCompleteInput'
       responses:
         '200':
-          description: Wallet created; the session cookie is set and the session token returned
+          description: Wallet created; the session cookie is set
           headers:
             Set-Cookie:
               schema:
@@ -60,7 +58,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Session'
+                $ref: '#/components/schemas/Me'
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -108,7 +106,7 @@ paths:
               $ref: '#/components/schemas/LoginInput'
       responses:
         '200':
-          description: Signed in; the session cookie is set and the session token returned
+          description: Signed in; the session cookie is set
           headers:
             Set-Cookie:
               schema:
@@ -116,7 +114,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Session'
+                $ref: '#/components/schemas/Me'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -128,10 +126,6 @@ paths:
       tags: [Auth]
       operationId: logout
       summary: End the session
-      description: |
-        Ends every session the request names: the one in the `otc_session` cookie and, for a
-        frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-        when both are sent.
       parameters:
         - name: otc_session
           in: cookie
@@ -368,20 +362,6 @@ components:
           enum: [passkey, house]
         makerMode:
           type: boolean
-    Session:
-      type: object
-      required: [me, sessionToken, expiresAt]
-      properties:
-        me:
-          $ref: '#/components/schemas/Me'
-        sessionToken:
-          type: string
-          description: |
-            The session secret, the same value the `otc_session` cookie carries. A frontend on
-            another origin sends it as `Authorization: Bearer <sessionToken>`.
-        expiresAt:
-          type: string
-          format: date-time
     Maker:
       type: object
       required: [hint, displayName]

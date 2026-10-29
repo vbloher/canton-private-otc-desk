@@ -67,15 +67,14 @@ func (u *UseCase) CompleteRegistration(
 		return output, fmt.Errorf("postgres.CreateUser: %w", err)
 	}
 
-	token, expiresAt, err := u.startSession(ctx, user.ID)
+	token, err := u.startSession(ctx, user.ID)
 	if err != nil {
 		return output, fmt.Errorf("u.startSession: %w", err)
 	}
 
 	return dto.CompleteRegistrationOutput{
-		User:      user,
-		Token:     token,
-		TTL:       u.config.SessionTTL,
-		ExpiresAt: expiresAt,
+		User:  user,
+		Token: token,
+		TTL:   u.config.SessionTTL,
 	}, nil
 }

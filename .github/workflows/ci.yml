@@ -4,12 +4,14 @@ on:
   push:
     branches: [master]
   pull_request:
+  # release.yml runs it before publishing and deploying (dev branch, v* tags)
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -115,7 +117,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6
+      - uses: pnpm/action-setup@v4
         with:
           package_json_file: web/package.json
 
@@ -132,7 +134,7 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
-  # On master and tags the images are built and published by release.yml.
+  # On dev and v* tags release.yml builds and publishes the images itself.
   docker:
     name: Docker build
     if: github.event_name == 'pull_request'

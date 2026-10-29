@@ -73,7 +73,6 @@ func Test_Login_Success(t *testing.T) {
 	require.Equal(t, domain.HashSessionToken(output.Token), sessionHash, "only the hash of the token is stored")
 	require.Equal(t, user.ID, sessionUserID)
 	require.WithinRange(t, sessionExpiry, before.Add(testConfig.SessionTTL), after.Add(testConfig.SessionTTL))
-	require.True(t, sessionExpiry.Equal(output.ExpiresAt), "the caller is told the expiry that was stored")
 }
 
 func Test_Login_UnknownOrUsedChallenge(t *testing.T) {

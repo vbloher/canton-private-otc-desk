@@ -1,15 +1,19 @@
-name: Release images
+name: Release
 
-# Publishes one multi-arch image per service plus the web app to the GitHub Container Registry:
-#   ghcr.io/<owner>/<repo>/<image>:edge, :sha-<short>   on every push to master
-#   ghcr.io/<owner>/<repo>/<image>:1.2.3, :1.2, :latest on a v1.2.3 tag
-# edge follows master whether or not CI passed on that commit; tags are the stable channel.
-# Each image is linked to this repository and takes its visibility (public here).
+# Tests, publishes the images and deploys them to a VPS over SSH:
+#   push to dev       → ghcr.io/<owner>/<repo>/<image>:dev, :sha-<short>   → environment dev
+#   push of v1.2.3    → :1.2.3, :1.2, :latest, :sha-<short>                → environment prod
+# Run it by hand on dev or on an older v* tag to redeploy that version (a rollback).
+#
+# Each GitHub environment holds only the SSH connection, as secrets: SSH_HOST, SSH_USER, SSH_KEY (a private
+# key), SSH_KNOWN_HOSTS (ssh-keyscan of the host) and optionally SSH_PORT. The deployment's settings live
+# in ~/otc-desk-<environment>/.env on the server; see deploy/docker-compose.yml.
 
 on:
   push:
-    branches: [master]
+    branches: [dev]
     tags: ['v*.*.*']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -20,8 +24,30 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  target:
+    name: Target
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.target.outputs.environment }}
+      tag: ${{ steps.target.outputs.tag }}
+    steps:
+      - id: target
+        run: |
+          case "$GITHUB_REF" in
+            refs/heads/dev) environment=dev tag="sha-${GITHUB_SHA::7}" ;;
+            refs/tags/v*) environment=prod tag="${GITHUB_REF_NAME#v}" ;;
+            *) echo "::error::releases run from the dev branch or a v* tag, not $GITHUB_REF"; exit 1 ;;
+          esac
+          echo "environment=$environment" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
   image:
     name: Image (${{ matrix.image }})
+    needs: [target, ci]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -38,12 +64,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # the raw tag is the one the deploy job pulls, whatever the others come to
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}/${{ matrix.image }}
           tags: |
-            type=edge,branch=master
+            type=raw,value=${{ needs.target.outputs.tag }}
+            type=ref,event=branch
             type=sha,prefix=sha-
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -58,3 +86,70 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+
+  deploy:
+    name: Deploy (${{ needs.target.outputs.environment }})
+    needs: [target, image]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.target.outputs.environment }}
+    # one deployment at a time per environment, and never cut short
+    concurrency:
+      group: deploy-${{ needs.target.outputs.environment }}
+      cancel-in-progress: false
+    env:
+      DEPLOY_DIR: otc-desk-${{ needs.target.outputs.environment }}
+      IMAGE_TAG: ${{ needs.target.outputs.tag }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Render
+        run: |
+          export IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
+          mkdir -p out/postgres
+          envsubst '${IMAGE_PREFIX} ${IMAGE_TAG}' < deploy/docker-compose.yml > out/docker-compose.yml
+          cp deploy/.env.example out/.env.example
+          cp deploy/postgres/init.sql out/postgres/init.sql
+
+      - name: Configure SSH
+        env:
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            Port ${SSH_PORT:-22}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+          EOF
+
+      # the files the job owns; .env and docker-compose.override.yml on the server are left as they are
+      - name: Upload
+        run: tar -C out -cf - . | ssh server "mkdir -p '$DEPLOY_DIR' && tar -C '$DEPLOY_DIR' -xf -"
+
+      - name: Start
+        run: |
+          ssh server "cd '$DEPLOY_DIR' && sh -s" <<'EOF'
+          set -eu
+          if [ ! -f .env ]; then
+            echo "::error::$(pwd)/.env is missing: copy .env.example there, fill it in, then re-run this job"
+            exit 1
+          fi
+          docker compose pull --quiet
+          docker compose up -d --wait --wait-timeout 600 --remove-orphans
+          docker compose ps
+          EOF
+
+      # unused images of this repository only (the running ones and other projects' stay)
+      - name: Prune
+        run: ssh server "docker image prune -af --filter 'label=org.opencontainers.image.source=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY'"

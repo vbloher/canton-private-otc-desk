@@ -129,7 +129,6 @@ func Test_CompleteRegistration_CreatesUserAndSession(t *testing.T) {
 	require.Equal(t, created.ID, sessionUserID)
 	require.Equal(t, testConfig.SessionTTL, output.TTL)
 	require.WithinRange(t, sessionExpiry, before.Add(testConfig.SessionTTL), after.Add(testConfig.SessionTTL))
-	require.True(t, sessionExpiry.Equal(output.ExpiresAt), "the caller is told the expiry that was stored")
 }
 
 func Test_CompleteRegistration_BadSignature(t *testing.T) {

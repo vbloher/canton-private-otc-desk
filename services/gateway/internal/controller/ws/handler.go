@@ -12,15 +12,12 @@ import (
 
 // Handler upgrades an authenticated request to a WebSocket that receives the events of the caller's party.
 type Handler struct {
-	hub            *Hub
-	originPatterns []string
+	hub *Hub
 }
 
-// NewHandler serves sockets whose Origin is the request's own host or matches one of originPatterns.
-func NewHandler(hub *Hub, originPatterns ...string) *Handler {
+func NewHandler(hub *Hub) *Handler {
 	return &Handler{
-		hub:            hub,
-		originPatterns: originPatterns,
+		hub: hub,
 	}
 }
 
@@ -34,14 +31,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The origin must be the request's own host or one of the configured ones (the pages that may call the API
-	// from elsewhere), so a page from any other site cannot ride the visitor's cookie.
-	// Of the subprotocols a client offers only Protocol is ever accepted and echoed, which a browser insists on
-	// when it offered any; the entry that carries its session token is never sent back.
-	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		Subprotocols:   []string{Protocol},
-		OriginPatterns: h.originPatterns,
-	})
+	// Default options: the origin must be the request's own host. The desk is deployed same-origin
+	// (the SPA and /api share one host), so a page from another site cannot use the visitor's cookie here.
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Debug().Err(err).Msg("ws: accept") // Accept has already answered the client
 

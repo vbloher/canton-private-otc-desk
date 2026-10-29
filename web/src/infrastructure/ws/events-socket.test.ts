@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DeskEvent, SocketStatus } from "@/application/ports";
-import { createEventsSource, eventProtocols, parseEvent, type SocketLike } from "./events-socket";
+import { createEventsSource, parseEvent, type SocketLike } from "./events-socket";
 
 class FakeSocket implements SocketLike {
   static all: FakeSocket[] = [];
@@ -10,11 +10,9 @@ class FakeSocket implements SocketLike {
   onerror: ((ev: Event) => void) | null = null;
   closed = false;
   readonly url: string;
-  readonly protocols: readonly string[];
 
-  constructor(url: string, protocols: readonly string[] = []) {
+  constructor(url: string) {
     this.url = url;
-    this.protocols = protocols;
     FakeSocket.all.push(this);
   }
 
@@ -43,15 +41,11 @@ const latest = (): FakeSocket => {
   return s;
 };
 
-function connect(protocols: () => string[] = () => ["otc-desk.v1"]) {
+function connect() {
   const events: DeskEvent[] = [];
   const statuses: SocketStatus[] = [];
   let opens = 0;
-  const source = createEventsSource({
-    url: () => "ws://desk.test/api/v1/ws",
-    protocols,
-    open: (url, offered) => new FakeSocket(url, offered),
-  });
+  const source = createEventsSource({ url: () => "ws://desk.test/api/v1/ws", open: (url) => new FakeSocket(url) });
   const stop = source.connect({
     onEvent: (e) => events.push(e),
     onStatus: (s) => statuses.push(s),
@@ -151,46 +145,5 @@ describe("createEventsSource", () => {
     expect(socket.closed).toBe(true);
     expect(FakeSocket.all).toHaveLength(1);
     expect(c.statuses).toEqual(["connecting", "live"]);
-  });
-
-  it("offers the protocols current at each dial: a reconnect carries the latest token", () => {
-    let token: string | undefined = "tok-1";
-    connect(() => eventProtocols(token));
-    expect(latest().protocols).toEqual(["otc-desk.v1", "otc-desk.bearer.tok-1"]);
-
-    token = "tok-2";
-    latest().drop();
-    vi.advanceTimersByTime(500);
-
-    expect(latest().protocols).toEqual(["otc-desk.v1", "otc-desk.bearer.tok-2"]);
-  });
-
-  it("keeps retrying when the socket cannot even be created", () => {
-    let attempts = 0;
-    const statuses: SocketStatus[] = [];
-    createEventsSource({
-      url: () => "ws://desk.test/api/v1/ws",
-      open: () => {
-        attempts += 1;
-        throw new DOMException("bad subprotocol", "SyntaxError");
-      },
-    }).connect({ onEvent: () => undefined, onStatus: (s) => statuses.push(s) });
-
-    vi.advanceTimersByTime(500 + 1000);
-
-    expect(attempts).toBe(3);
-    expect(statuses).toEqual(["connecting", "offline", "connecting", "offline", "connecting", "offline"]);
-  });
-});
-
-describe("eventProtocols", () => {
-  it("always offers otc-desk.v1, and the bearer token as a second protocol when there is one", () => {
-    expect(eventProtocols(undefined)).toEqual(["otc-desk.v1"]);
-    expect(eventProtocols("AbC-_09")).toEqual(["otc-desk.v1", "otc-desk.bearer.AbC-_09"]);
-  });
-
-  it("leaves out a token a subprotocol cannot carry", () => {
-    expect(eventProtocols("a/b=")).toEqual(["otc-desk.v1"]);
-    expect(eventProtocols("")).toEqual(["otc-desk.v1"]);
   });
 });

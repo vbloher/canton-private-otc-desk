@@ -70,15 +70,14 @@ func New(postgres Postgres, redis Redis, ledger Ledger, config Config) *UseCase 
 	}
 }
 
-// startSession stores a new session of the user and returns its token and the expiry that was stored.
-func (u *UseCase) startSession(ctx context.Context, userID uuid.UUID) (token string, expiresAt time.Time, err error) {
+// startSession stores a new session of the user and returns the token for the cookie.
+func (u *UseCase) startSession(ctx context.Context, userID uuid.UUID) (string, error) {
 	token, hash := domain.NewSessionToken()
-	expiresAt = time.Now().Add(u.config.SessionTTL)
 
-	err = u.postgres.CreateSession(ctx, hash, userID, expiresAt)
+	err := u.postgres.CreateSession(ctx, hash, userID, time.Now().Add(u.config.SessionTTL))
 	if err != nil {
-		return "", time.Time{}, fmt.Errorf("postgres.CreateSession: %w", err)
+		return "", fmt.Errorf("postgres.CreateSession: %w", err)
 	}
 
-	return token, expiresAt, nil
+	return token, nil
 }

@@ -81,12 +81,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /**
-         * End the session
-         * @description Ends every session the request names: the one in the `otc_session` cookie and, for a
-         *     frontend on another origin, the one in `Authorization: Bearer <sessionToken>` — both
-         *     when both are sent.
-         */
+        /** End the session */
         post: operations["logout"];
         delete?: never;
         options?: never;
@@ -206,16 +201,6 @@ export interface components {
             /** @enum {string} */
             kind: "passkey" | "house";
             makerMode: boolean;
-        };
-        Session: {
-            me: components["schemas"]["Me"];
-            /**
-             * @description The session secret, the same value the `otc_session` cookie carries. A frontend on
-             *     another origin sends it as `Authorization: Bearer <sessionToken>`.
-             */
-            sessionToken: string;
-            /** Format: date-time */
-            expiresAt: string;
         };
         Maker: {
             /** @example makerA */
@@ -345,14 +330,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Wallet created; the session cookie is set and the session token returned */
+            /** @description Wallet created; the session cookie is set */
             200: {
                 headers: {
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Session"];
+                    "application/json": components["schemas"]["Me"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -402,14 +387,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Signed in; the session cookie is set and the session token returned */
+            /** @description Signed in; the session cookie is set */
             200: {
                 headers: {
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Session"];
+                    "application/json": components["schemas"]["Me"];
                 };
             };
             400: components["responses"]["BadRequest"];

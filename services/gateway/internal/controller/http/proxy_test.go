@@ -95,7 +95,7 @@ type gateway struct {
 	hub                       *ws.Hub
 }
 
-func newGateway(t *testing.T, idp *mocks.Identity, options ...func(*controller.Config)) *gateway {
+func newGateway(t *testing.T, idp *mocks.Identity) *gateway {
 	t.Helper()
 
 	g := &gateway{
@@ -104,17 +104,11 @@ func newGateway(t *testing.T, idp *mocks.Identity, options ...func(*controller.C
 		ledger:   startUpstream(t, ledgerName),
 	}
 
-	cfg := controller.Config{
+	g.Handler, g.hub = newRouter(t, idp, controller.Config{
 		IdentityURL: g.identity.URL,
 		TradingURL:  g.trading.URL,
 		LedgerURL:   g.ledger.URL,
-	}
-
-	for _, option := range options {
-		option(&cfg)
-	}
-
-	g.Handler, g.hub = newRouter(t, idp, cfg)
+	})
 
 	return g
 }
@@ -127,10 +121,10 @@ func newRouter(t *testing.T, idp *mocks.Identity, cfg controller.Config) (http.H
 
 	r := router.New()
 
-	h, err := controller.GatewayRouter(r, usecase.New(idp), hub, cfg, sharedMetrics())
+	err := controller.GatewayRouter(r, usecase.New(idp), hub, cfg, sharedMetrics())
 	require.NoError(t, err)
 
-	return h, hub
+	return r, hub
 }
 
 func (g *gateway) totalHits() int64 {
@@ -298,16 +292,6 @@ func Test_Proxy_IdentityKeepsCookieForLogout(t *testing.T) {
 	require.Equal(t, []string{domain.SessionCookie + "=alice-session"}, got.Header.Values("Cookie"), "identity reads the session cookie itself")
 }
 
-func Test_Proxy_IdentityKeepsBearerForLogout(t *testing.T) {
-	g := newGateway(t, mocks.NewIdentity(t))
-
-	got := echo(t, do(t, g, http.MethodPost, "/api/v1/auth/logout", "", withBearer("alice-session")))
-
-	require.Equal(t, identityName, got.Upstream)
-	require.Equal(t, []string{"Bearer alice-session"}, got.Header.Values("Authorization"), "identity ends the session the token names")
-	require.Empty(t, got.Header.Values(domain.APIKeyHeader))
-}
-
 // The gateway authenticates and tells the services who is calling. A service that is never handed a session
 // token or an API key cannot leak one, however exposed or compromised it is.
 func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
@@ -317,8 +301,6 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 		"browser session": {withSession("alice-session"), withCookie("theme", "dark")},
 		"bot api key":     {withHeader(domain.APIKeyHeader, "alice-key")},
 		"both":            {withSession("alice-session"), withHeader(domain.APIKeyHeader, "alice-key")},
-		"bearer token":    {withBearer("alice-session")},
-		"other scheme":    {withSession("alice-session"), withHeader("Authorization", "Basic dXNlcjpwYXNz")},
 	}
 
 	targets := map[string]struct{ path, upstream string }{
@@ -333,7 +315,6 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 
 				require.Equal(t, target.upstream, got.Upstream)
 				require.Empty(t, got.Header.Values("Cookie"), "no cookie at all, not just the session")
-				require.Empty(t, got.Header.Values("Authorization"), "the bearer token is the session secret, whatever the scheme")
 				require.Empty(t, got.Header.Values(domain.APIKeyHeader))
 				require.Equal(t, []string{alice.PartyID}, got.Header.Values(principal.HeaderPartyID), "the caller is still vouched for")
 			})
@@ -527,7 +508,7 @@ func Test_Router_RejectsInvalidUpstreamURL(t *testing.T) {
 			cfg := valid
 			damage(&cfg)
 
-			_, err := controller.GatewayRouter(router.New(), usecase.New(mocks.NewIdentity(t)), ws.NewHub(ws.PingInterval), cfg, sharedMetrics())
+			err := controller.GatewayRouter(router.New(), usecase.New(mocks.NewIdentity(t)), ws.NewHub(ws.PingInterval), cfg, sharedMetrics())
 			require.Error(t, err)
 		})
 	}
