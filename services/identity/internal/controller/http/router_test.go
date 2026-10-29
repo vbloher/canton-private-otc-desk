@@ -37,7 +37,6 @@ var sharedMetrics = sync.OnceValue(metrics.NewHTTPServer)
 
 type server struct {
 	handler  nethttp.Handler
-	usecase  *usecase.UseCase
 	postgres *mocks.Postgres
 	redis    *mocks.Redis
 	ledger   *mocks.Ledger
@@ -54,10 +53,10 @@ func newServer(t *testing.T, cookieSecure bool) server {
 		ledger:   mocks.NewLedger(t),
 	}
 
-	s.usecase = usecase.New(s.postgres, s.redis, s.ledger, usecase.Config{SessionTTL: sessionTTL})
+	uc := usecase.New(s.postgres, s.redis, s.ledger, usecase.Config{SessionTTL: sessionTTL})
 
 	r := router.New()
-	require.NoError(t, controller.IdentityRouter(r, s.usecase, sharedMetrics(), controller.Config{CookieSecure: cookieSecure}))
+	require.NoError(t, controller.IdentityRouter(r, uc, sharedMetrics(), controller.Config{CookieSecure: cookieSecure}))
 
 	s.handler = r
 
@@ -248,43 +247,35 @@ func Test_RegisterComplete_CreatesWalletAndSetsCookie(t *testing.T) {
 
 		reg, signature := parked(t)
 
-		var (
-			sessionHash   string
-			sessionExpiry time.Time
-		)
+		var sessionHash string
 
 		s.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
 		s.postgres.EXPECT().GetUserByCredential(Any, "cred-1").Return(domain.User{}, domain.ErrNotFound)
 		s.ledger.EXPECT().AllocateExternalParty(Any, reg.Topology, signature).Return(reg.Topology.PartyID, nil)
 		s.postgres.EXPECT().CreateUser(Any, Any).Return(nil)
 		s.postgres.EXPECT().CreateSession(Any, Any, Any, Any).
-			Run(func(_ context.Context, hash string, _ uuid.UUID, expiresAt time.Time) {
-				sessionHash, sessionExpiry = hash, expiresAt
-			}).
+			Run(func(_ context.Context, hash string, _ uuid.UUID, _ time.Time) { sessionHash = hash }).
 			Return(nil)
 
 		rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/complete", completeBody(reg, signature), nil)
 
 		require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
 
-		session := sessionOf(t, rec)
-		require.Equal(t, reg.Topology.PartyID, session.me["partyId"])
-		require.Equal(t, reg.Hint, session.me["hint"])
-		require.Equal(t, "Alice Smith", session.me["displayName"])
-		require.Equal(t, "passkey", session.me["kind"])
-		require.Equal(t, false, session.me["makerMode"])
-		require.NotEmpty(t, session.me["id"])
-		require.NotContains(t, session.me, "encryptedBlob")
-		require.NotContains(t, session.me, "publicKey")
+		body := rec.json(t)
+		require.Equal(t, reg.Topology.PartyID, body["partyId"])
+		require.Equal(t, reg.Hint, body["hint"])
+		require.Equal(t, "Alice Smith", body["displayName"])
+		require.Equal(t, "passkey", body["kind"])
+		require.Equal(t, false, body["makerMode"])
+		require.NotEmpty(t, body["id"])
+		require.NotContains(t, body, "encryptedBlob")
+		require.NotContains(t, body, "publicKey")
 
 		header := rec.Header().Get("Set-Cookie")
 		match := cookiePattern.FindStringSubmatch(header)
 		require.NotNil(t, match, header)
 		require.Equal(t, secure, match[2] == "; Secure", header)
 		require.Equal(t, domain.HashSessionToken(match[1]), sessionHash, "the cookie holds the token behind the stored hash")
-
-		require.Equal(t, match[1], session.token, "the body carries the secret the cookie carries")
-		require.Equal(t, sessionExpiry.UTC().Truncate(time.Second), session.expiresAt, "the stored expiry, to the second")
 
 		cookies := rec.Result().Cookies()
 		require.Len(t, cookies, 1)
@@ -435,25 +426,14 @@ func Test_Login_OK(t *testing.T) {
 	user, privateKey := walletUser(t)
 	challenge := domain.NewChallenge()
 
-	var (
-		sessionHash   string
-		sessionExpiry time.Time
-	)
-
 	s.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
 	s.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
-	s.postgres.EXPECT().CreateSession(Any, Any, user.ID, Any).
-		Run(func(_ context.Context, hash string, _ uuid.UUID, expiresAt time.Time) {
-			sessionHash, sessionExpiry = hash, expiresAt
-		}).
-		Return(nil)
+	s.postgres.EXPECT().CreateSession(Any, Any, user.ID, Any).Return(nil)
 
 	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/login",
 		loginBody(challenge, ed25519.Sign(privateKey, []byte(challenge))), nil)
 
 	require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
-
-	session := sessionOf(t, rec)
 	require.Equal(t, map[string]any{
 		"id":          user.ID.String(),
 		"partyId":     user.PartyID,
@@ -461,13 +441,8 @@ func Test_Login_OK(t *testing.T) {
 		"displayName": "Alice Smith",
 		"kind":        "passkey",
 		"makerMode":   false,
-	}, session.me)
-
-	match := cookiePattern.FindStringSubmatch(rec.Header().Get("Set-Cookie"))
-	require.NotNil(t, match, rec.Header().Get("Set-Cookie"))
-	require.Equal(t, match[1], session.token, "the body carries the secret the cookie carries")
-	require.Equal(t, domain.HashSessionToken(session.token), sessionHash, "and it is the token behind the stored hash")
-	require.Equal(t, sessionExpiry.UTC().Truncate(time.Second), session.expiresAt, "the stored expiry, to the second")
+	}, rec.json(t))
+	require.Regexp(t, cookiePattern, rec.Header().Get("Set-Cookie"))
 }
 
 func Test_Login_BadSignature(t *testing.T) {

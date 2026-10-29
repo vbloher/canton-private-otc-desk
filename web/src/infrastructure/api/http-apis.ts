@@ -1,21 +1,13 @@
 /**
  * The application's API ports over HTTP: openapi-fetch clients typed by the
- * generated schemas (pnpm gen:api), one per contract, all on the gateway's
- * /api/v1 — the page's own origin, or the one VITE_API_URL names.
- *
- * The session travels one of two ways (config.sessionTransport). On the page's
- * own origin it is the HttpOnly cookie alone: no token is kept or sent. With a
- * gateway on another origin, requests carry no credentials (so the gateway
- * needs no Allow-Credentials); the token sign-in answers with is kept and sent
- * as `Authorization: Bearer …`.
+ * generated schemas (pnpm gen:api), one per contract, all on /api/v1 of the
+ * page's own origin (the session cookie rides along).
  */
-import createClient, { type Middleware } from "openapi-fetch";
+import createClient from "openapi-fetch";
 import { isApiFailure } from "@/application/errors";
 import type { AuthApi, DeskApi, WalletApi } from "@/application/ports";
 import { toBase64 } from "../encoding";
 import { apiErrorFrom, isNetworkFailure, unreachable } from "./api-error";
-import type { components as IdentitySchema } from "./schema/identity";
-import type { SessionTokens } from "./session-token";
 import {
   toBalance,
   toChallenge,
@@ -36,10 +28,8 @@ import type { paths as TradingPaths } from "./schema/trading";
 import type { paths as WalletPaths } from "./schema/wallet";
 
 export interface HttpApiOptions {
-  /** Absolute base, e.g. `${location.origin}/api/v1` (config.apiBaseUrl). */
+  /** Absolute base, e.g. `${location.origin}/api/v1`. */
   baseUrl: string;
-  /** Bearer mode (gateway on another origin): where the token from sign-in is kept. Omitted: cookie mode. */
-  tokens?: SessionTokens;
   fetch?: (input: Request) => Promise<Response>;
 }
 
@@ -73,34 +63,10 @@ async function done(pending: Promise<Answer<unknown>>): Promise<void> {
 }
 
 export function createHttpApis(options: HttpApiOptions): HttpApis {
-  const { tokens } = options;
-  const init = {
-    baseUrl: options.baseUrl,
-    credentials: "same-origin" as const,
-    ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
-  };
+  const init = { baseUrl: options.baseUrl, ...(options.fetch === undefined ? {} : { fetch: options.fetch }) };
   const identity = createClient<IdentityPaths>(init);
   const trading = createClient<TradingPaths>(init);
   const wallet = createClient<WalletPaths>(init);
-  if (tokens !== undefined) {
-    const bearer: Middleware = {
-      onRequest({ request }) {
-        const token = tokens.get();
-        // A request may name its token itself (me() does); otherwise it carries the current one.
-        if (token !== undefined && !request.headers.has("Authorization")) {
-          request.headers.set("Authorization", `Bearer ${token}`);
-        }
-        return request;
-      },
-    };
-    for (const client of [identity, trading, wallet]) client.use(bearer);
-  }
-
-  /** Sign-in answers with the session: keep its token in bearer mode, hand on the user. */
-  const signedIn = (session: IdentitySchema["schemas"]["Session"]) => {
-    tokens?.set(session.sessionToken, session.expiresAt);
-    return toMe(session.me);
-  };
 
   const auth: AuthApi = {
     registerStart: async ({ displayName, publicKey }) =>
@@ -108,7 +74,7 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
         await unwrap(identity.POST("/auth/register/start", { body: { displayName, publicKey: toBase64(publicKey) } })),
       ),
     registerComplete: async ({ registrationId, signature, credentialId, encryptedBlob }) =>
-      signedIn(
+      toMe(
         await unwrap(
           identity.POST("/auth/register/complete", {
             body: { registrationId, signature: toBase64(signature), credentialId, encryptedBlob },
@@ -118,29 +84,15 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
     createChallenge: async (credentialId) =>
       toChallenge(await unwrap(identity.POST("/auth/challenge", { body: { credentialId } }))),
     login: async ({ challenge, signature, credentialId }) =>
-      signedIn(
+      toMe(
         await unwrap(identity.POST("/auth/login", { body: { challenge, signature: toBase64(signature), credentialId } })),
       ),
-    logout: async () => {
-      try {
-        await done(identity.POST("/auth/logout", {}));
-      } finally {
-        tokens?.clear(); // signed out here whatever the desk answered
-      }
-    },
+    logout: () => done(identity.POST("/auth/logout", {})),
     me: async () => {
-      // The token this request carries, named explicitly, so its 401 can be told apart from a newer session.
-      const sent = tokens?.get();
       try {
-        return toMe(
-          await unwrap(identity.GET("/me", sent === undefined ? {} : { headers: { Authorization: `Bearer ${sent}` } })),
-        );
+        return toMe(await unwrap(identity.GET("/me")));
       } catch (e) {
-        if (isApiFailure(e) && e.status === 401) {
-          // That session is over. A login that finished meanwhile stored a newer token: it stays.
-          if (tokens !== undefined && tokens.get() === sent) tokens.clear();
-          return null;
-        }
+        if (isApiFailure(e) && e.status === 401) return null;
         throw e;
       }
     },

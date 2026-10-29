@@ -53,12 +53,12 @@ func Run(ctx context.Context, c config.Config) error {
 
 	r := router.New()
 
-	handler, err := http.GatewayRouter(r, uc, hub, c.Gateway, metrics.NewHTTPServer())
+	err = http.GatewayRouter(r, uc, hub, c.Upstreams, metrics.NewHTTPServer())
 	if err != nil {
 		return fmt.Errorf("http.GatewayRouter: %w", err)
 	}
 
-	httpServer, err := httpserver.New(ctx, handler, c.HTTP)
+	httpServer, err := httpserver.New(ctx, r, c.HTTP)
 	if err != nil {
 		return fmt.Errorf("httpserver.New: %w", err)
 	}

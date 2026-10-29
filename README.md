@@ -171,10 +171,8 @@ Every service reads environment variables (and `.env` in its directory when pres
 Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (info),
 `LOGGER_PRETTY_CONSOLE`, `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`,
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB_NAME`, `REDIS_ADDR`; services with gRPC also take
-`GRPC_HOST` and `GRPC_PORT`. The gateway takes `CORS_ORIGINS` (frontends on other origins).
-The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and `GATEWAY_UPSTREAM` (gateway:8080); a
-web build takes `VITE_API_URL` (gateway origin, empty = same origin), `VITE_BASE` (path prefix)
-and `VITE_DEPLOY=pages`.
+`GRPC_HOST` and `GRPC_PORT`. The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and
+`GATEWAY_UPSTREAM` (gateway:8080).
 
 | Service | Variables (defaults) |
 |---|---|
@@ -186,61 +184,75 @@ and `VITE_DEPLOY=pages`.
 
 ## Deployment
 
-### Web app on GitHub Pages
+Two environments, each on a VPS that runs the whole stack with Docker Compose:
 
-[`pages.yml`](.github/workflows/pages.yml) builds `web/` and publishes it to GitHub Pages on
-every push to `master` that touches the web app (or by hand: **Actions → Pages → Run workflow**),
-at `https://<owner>.github.io/<repo>/`. Pages serves static files only, so the app talks to a
-gateway you host elsewhere:
+| Trigger | Images (`ghcr.io/<owner>/<repo>/<image>`) | Environment |
+|---|---|---|
+| push to `dev` | `dev`, `sha-<short>` | `dev` |
+| tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` | `prod` |
 
-0. Once: **Settings → Pages → Source: GitHub Actions**
-   (or `gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow`).
-1. Run the backend somewhere reachable over HTTPS (see below), behind a TLS-terminating proxy
-   that also passes WebSocket upgrades on `/api/v1/ws` and does not log the
-   `Sec-WebSocket-Protocol` header (it carries the session token).
-2. On the gateway set `CORS_ORIGINS=https://<owner>.github.io` (comma-separated for several).
-3. Set the repository variable `API_URL` to the gateway's origin and re-run the Pages workflow:
+[`release.yml`](.github/workflows/release.yml) runs CI, publishes the six images (multi-arch, public
+like the repository) and deploys over SSH: it copies the rendered
+[`deploy/docker-compose.yml`](deploy/docker-compose.yml), `postgres/init.sql` and `.env.example` to
+`~/otc-desk-<environment>/` on the server, then runs `docker compose pull` and
+`docker compose up -d --wait`. The job fails when a container does not come up healthy.
 
-   ```bash
-   gh variable set API_URL --body https://desk.example.com
-   gh workflow run pages.yml
+Only the web app is published, on `127.0.0.1:${WEB_PORT}`; its nginx serves the SPA and proxies
+`/api/` and the WebSocket to the gateway. A reverse proxy on the host terminates TLS for the
+domain. HTTPS is required: passkeys need a secure origin and the session cookie is `Secure`.
+
+### Server
+
+Once per server:
+
+1. Install Docker Engine with the Compose plugin and add the SSH user to the `docker` group.
+2. Install [Caddy](https://caddyserver.com/docs/install) and point the domain at it; Caddy obtains
+   the certificate and passes WebSocket upgrades on its own:
+
+   ```caddyfile
+   desk.example.com {
+       reverse_proxy 127.0.0.1:3000
+   }
    ```
 
-Until `API_URL` is set the site deploys anyway and says that no desk is connected.
+   With both environments on one server, give each its own `WEB_PORT` and site block.
 
-The session cookie is `SameSite=Lax`, so no browser sends it on a request from another site.
-When the gateway is on another origin the app therefore keeps the session token from sign-in
-in `sessionStorage` and sends it as `Authorization: Bearer …`, and the WebSocket carries it as a
-subprotocol. The session is per tab: a new tab asks for the passkey again, and signing out ends
-that tab's session. A same-origin deployment (docker-compose, nginx) keeps using the HttpOnly
-cookie only.
+### GitHub
 
-`https://<owner>.github.io` is one origin for every Pages site of that owner: `CORS_ORIGINS`,
-the passkeys' relying-party id and the browser storage are shared with all of them, and a
-wallet created there opens on any of them. For a real deployment use a custom domain.
+Create the environments `dev` and `prod` (**Settings → Environments**; required reviewers on `prod`
+are a good idea) with these secrets:
 
-### Images
-
-[`release.yml`](.github/workflows/release.yml) publishes a multi-arch image per service and one
-for the web app to the GitHub Container Registry:
-
-| Trigger | Tags |
+| Secret | Value |
 |---|---|
-| push to `master` | `edge`, `sha-<short>` |
-| tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` |
+| `SSH_HOST` | server address |
+| `SSH_USER` | user that runs `docker` |
+| `SSH_KEY` | private key of a key pair whose public half is in that user's `authorized_keys` |
+| `SSH_KNOWN_HOSTS` | output of `ssh-keyscan <host>` |
+| `SSH_PORT` | optional, 22 by default |
 
-`edge` follows `master` whether or not CI passed on that commit; tags are the stable channel.
-Each image is linked to this repository and takes its visibility, so they are public here (a
-private fork's images stay private until changed in the package settings):
+Then create the `dev` branch. The deployment's settings are not in GitHub.
+
+### First deploy
+
+The first run copies the files and stops because `.env` is missing. On the server:
 
 ```bash
-docker pull ghcr.io/vbloher/canton-private-otc-desk/gateway:edge   # gateway, identity, trading, ledger, maker-bot, web
+cd ~/otc-desk-dev
+cp .env.example .env
+$EDITOR .env
 ```
 
-`docker-compose.yml` shows how they fit together. A public deployment needs at least: a
-Canton participant (`CANTON_URL`) with the token rail, `COOKIE_SECURE=true` on identity,
-`CORS_ORIGINS` on the gateway, your own `HOUSE_MAKERS` keys, and nothing but the gateway
-reachable from outside.
+Fill in at least `POSTGRES_PASSWORD`, `CANTON_URL`, `HOUSE_MAKERS` and `MAKER_KEYS`, then re-run the
+job (**Actions → the run → Re-run failed jobs**). The deploy job never writes `.env`; when a release
+adds a setting, it shows up in `.env.example` next to it. Local changes to the stack go into
+`docker-compose.override.yml` in the same directory, which Compose reads and the job leaves alone;
+`docker-compose.yml` itself is replaced on every deploy.
+
+### Rollback
+
+Run the workflow by hand on the tag to go back to (**Actions → Release → Run workflow**, pick the
+tag): it tests, rebuilds from cache and deploys that version. On the server
+`docker compose up -d` in the directory always starts the version deployed last.
 
 ## Repository layout
 
@@ -252,6 +264,7 @@ pkg/            shared infrastructure (logger, metrics, otel, postgres, redis, t
 services/       gateway, identity, trading, ledger, maker-bot
 web/            React SPA: domain / application / infrastructure / presentation
 daml/           vendored token-standard DARs, the sandbox test token, the demo seed
+deploy/         the stack for a VPS (docker-compose.yml, .env.example), Postgres init script
 scripts/        sandbox start script
 test/e2e/       end-to-end suite
 docs/           design and plan
@@ -261,11 +274,12 @@ docs/           design and plan
 
 This is a reference implementation for a local sandbox, kept small on purpose:
 
-- One target: the local Canton sandbox, where a `TokenRules` contract plays the token registry.
-  Real networks need OAuth for the ledger and the registries' HTTP APIs.
-- It is a local demo, not a hardened deployment: the house makers' API keys are public
-  defaults, anyone signed in can mint test tokens, and identity, trading and ledger trust the
-  caller headers the gateway sets — never expose them (or the sandbox) beyond your machine.
+- One target: a Canton sandbox, where a `TokenRules` contract plays the token registry.
+  Real networks need OAuth for the ledger and the registries' HTTP APIs, so a deployment
+  (`CANTON_URL`) still needs a participant set up like the sandbox.
+- It is not a hardened deployment: locally the house makers' API keys are public defaults,
+  anyone signed in can mint test tokens, and identity, trading and ledger trust the caller
+  headers the gateway sets — never expose them (or the sandbox) beyond the compose network.
 - The browser signs prepared-transaction hashes without decoding them; a production wallet
   should show the user what it signs. A prepared transaction waits for its signature for up to
   `ACTION_TTL` (10 min); the sandbox accepted signatures 90 s after preparation in testing, but

@@ -41,7 +41,7 @@ func (h *Handlers) RegisterComplete(
 	cookie := h.sessionCookie(output.Token, output.TTL)
 
 	return http_server.RegisterComplete200JSONResponse{
-		Body:    toSession(output.User, output.Token, output.ExpiresAt),
+		Body:    toMe(output.User),
 		Headers: http_server.RegisterComplete200ResponseHeaders{SetCookie: &cookie},
 	}, nil
 }

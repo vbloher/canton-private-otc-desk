@@ -7,8 +7,7 @@
  *   → fresh seed → register/start → sign the multi-hash → register/complete.
  * - connectWallet: PRF unlock of any discoverable passkey → challenge → unwrap
  *   → sign the challenge's UTF-8 bytes → login.
- * - unlock: after a reload the session survives (the cookie, or the token the
- *   tab keeps when the gateway is on another origin) but the seed does not.
+ * - unlock: after a reload the session cookie survives but the seed does not.
  *   It runs the connect flow again, offering the passkey this browser last
  *   used for the user. Signing in again guarantees the session belongs to the
  *   key just unlocked: a passkey of another wallet signs in as that wallet,

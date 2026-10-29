@@ -55,8 +55,6 @@ func IdentityRouter(r *chi.Mux, uc *usecase.UseCase, m *metrics.HTTPServer, c Co
 		r.Use(metrics.NewMiddleware(m))
 		// The gateway authenticated the caller and sent X-User-*; routes that need one check for it.
 		r.Use(principal.Middleware)
-		// Logout ends the sessions named by the cookie and by "Authorization: Bearer".
-		r.Use(ver1.BearerMiddleware)
 		r.Use(nethttpmiddleware.OapiRequestValidatorWithOptions(spec, validatorOptions))
 
 		http_server.HandlerWithOptions(handler, http_server.ChiServerOptions{
