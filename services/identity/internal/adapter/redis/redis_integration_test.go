@@ -66,6 +66,25 @@ func Test_Registration_IsTakenOnce(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrRegistrationExpired, "a registration completes once")
 }
 
+func Test_Registration_GetKeepsItForTheTake(t *testing.T) {
+	r := newRedis(t)
+
+	reg := registration(t)
+	reg.PartyID = reg.Topology.PartyID
+	require.NoError(t, r.SaveRegistration(t.Context(), reg, time.Minute))
+
+	got, err := r.GetRegistration(t.Context(), reg.ID)
+	require.NoError(t, err)
+	require.Equal(t, reg, got, "the created party survives the round trip")
+
+	got, err = r.TakeRegistration(t.Context(), reg.ID)
+	require.NoError(t, err)
+	require.Equal(t, reg, got)
+
+	_, err = r.GetRegistration(t.Context(), reg.ID)
+	require.ErrorIs(t, err, domain.ErrRegistrationExpired)
+}
+
 func Test_Registration_Unknown(t *testing.T) {
 	r := newRedis(t)
 
