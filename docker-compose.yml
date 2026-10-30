@@ -45,7 +45,9 @@ services:
       context: .
       args:
         SERVICE: ledger
-    env_file: services/ledger/.env
+    env_file:
+      - path: services/ledger/.env
+        required: false
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: ledger
@@ -70,7 +72,9 @@ services:
       context: .
       args:
         SERVICE: identity
-    env_file: services/identity/.env
+    env_file:
+      - path: services/identity/.env
+        required: false
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: identity
@@ -93,7 +97,9 @@ services:
       context: .
       args:
         SERVICE: trading
-    env_file: services/trading/.env
+    env_file:
+      - path: services/trading/.env
+        required: false
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: trading
@@ -117,7 +123,9 @@ services:
       context: .
       args:
         SERVICE: gateway
-    env_file: services/gateway/.env
+    env_file:
+      - path: services/gateway/.env
+        required: false
     environment:
       LOGGER_LEVEL: info
       HTTP_HOST: 0.0.0.0
@@ -143,7 +151,9 @@ services:
       context: .
       args:
         SERVICE: maker-bot
-    env_file: services/maker-bot/.env
+    env_file:
+      - path: services/maker-bot/.env
+        required: false
     environment:
       LOGGER_LEVEL: info
       OTEL_SERVICE_NAME: maker-bot
