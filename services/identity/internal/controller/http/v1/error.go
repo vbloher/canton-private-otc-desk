@@ -11,6 +11,7 @@ import (
 
 	http_server "github.com/vbloher/canton-private-otc-desk/gen/http/identity_v1/server"
 	"github.com/vbloher/canton-private-otc-desk/pkg/render"
+	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
 const ledgerFailedMessage = "ledger request failed"
@@ -39,6 +40,12 @@ func badGateway(ctx context.Context, err error) http_server.BadGatewayJSONRespon
 	_ = render.Error(ctx, err, ledgerFailedMessage)
 
 	return http_server.BadGatewayJSONResponse{Error: ledgerFailedMessage}
+}
+
+func onboardingPaused(ctx context.Context, err error) http_server.OnboardingPausedJSONResponse {
+	_ = render.Error(ctx, err, "request failed")
+
+	return http_server.OnboardingPausedJSONResponse{Error: domain.ErrOnboardingPaused.Error()}
 }
 
 func RequestErrorHandler(w http.ResponseWriter, r *http.Request, err error) {

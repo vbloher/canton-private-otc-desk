@@ -65,6 +65,10 @@ function api(challenge: Partial<LoginChallenge> = {}) {
       log.push(`start ${displayName} ${dec.decode(publicKey)}`);
       return { registrationId: "reg-1", partyId: ME.partyId, multiHash: enc.encode("multihash") };
     },
+    registerParty: async ({ registrationId, signature }) => {
+      log.push(`party ${registrationId} ${dec.decode(signature)}`);
+      return ME.partyId;
+    },
     registerComplete: async ({ registrationId, signature, credentialId, encryptedBlob }) => {
       log.push(`complete ${registrationId} ${dec.decode(signature)} ${credentialId} ${encryptedBlob}`);
       return ME;
@@ -98,7 +102,7 @@ function store(initial: Record<string, string> = {}): CredentialStore & { data: 
 }
 
 describe("createWallet", () => {
-  it("creates a passkey, wraps a fresh key with it and registers the party", async () => {
+  it("creates the party first, then a passkey that wraps its key", async () => {
     const v = vault({ created: "cred-1" });
     const a = api();
     const credentials = store();
@@ -110,22 +114,62 @@ describe("createWallet", () => {
     expect(v.log).toEqual(["create Alice", "unlock cred-1"]);
     expect(a.log).toEqual([
       "start Alice pk9",
+      "party reg-1 9:multihash",
       `complete reg-1 9:multihash cred-1 blob:${"09".repeat(32)}`,
     ]);
-    expect(steps).toEqual(["passkey", "unlock", "party"]);
+    expect(steps).toEqual(["party", "passkey", "unlock"]);
     expect(wallet.me).toEqual(ME);
     expect(wallet.seed).toEqual(new Uint8Array(32).fill(9));
     expect(credentials.data).toEqual({ "u-1": "cred-1" });
   });
 
-  it("reuses the passkey of an attempt that did not finish", async () => {
+  it("reuses the party and the passkey of an attempt that did not finish", async () => {
     const v = vault({ created: "cred-1", failUnlockOnce: true });
-    const flows = createAuthFlows({ auth: api().api, vault: v.vault, keys: keys(), credentials: store() });
+    const a = api();
+    const flows = createAuthFlows({ auth: a.api, vault: v.vault, keys: keys(), credentials: store() });
 
     await expect(flows.createWallet("Alice")).rejects.toBeInstanceOf(PasskeyCancelledError);
     await flows.createWallet("Alice");
 
     expect(v.log).toEqual(["create Alice", "unlock cred-1", "unlock cred-1"]);
+    expect(a.log.filter((l) => !l.startsWith("complete"))).toEqual(["start Alice pk9", "party reg-1 9:multihash"]);
+  });
+
+  it("makes no passkey when the network does not accept new parties", async () => {
+    const v = vault();
+    const a = api();
+    a.api.registerParty = async () => {
+      throw Object.assign(new Error("the network is being upgraded"), { status: 503 });
+    };
+    const steps: string[] = [];
+    const flows = createAuthFlows({ auth: a.api, vault: v.vault, keys: keys(), credentials: store() });
+
+    await expect(flows.createWallet("Alice", (s) => steps.push(s))).rejects.toMatchObject({ status: 503 });
+
+    expect(v.log).toEqual([]);
+    expect(steps).toEqual(["party"]);
+  });
+
+  it("starts over once the registration has expired", async () => {
+    const v = vault({ created: "cred-1" });
+    const a = api();
+    let expired = true;
+    const auth: AuthApi = {
+      ...a.api,
+      registerComplete: async (input) => {
+        if (expired) {
+          expired = false;
+          throw Object.assign(new Error("registration expired"), { status: 410 });
+        }
+        return a.api.registerComplete(input);
+      },
+    };
+    const flows = createAuthFlows({ auth, vault: v.vault, keys: keys(), credentials: store() });
+
+    await expect(flows.createWallet("Alice")).rejects.toMatchObject({ status: 410 });
+    await flows.createWallet("Alice");
+
+    expect(a.log.filter((l) => l.startsWith("start"))).toHaveLength(2);
   });
 });
 

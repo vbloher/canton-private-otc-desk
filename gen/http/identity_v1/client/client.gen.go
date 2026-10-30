@@ -108,6 +108,20 @@ type RegisterCompleteInput struct {
 	Signature string `json:"signature"`
 }
 
+// RegisterPartyInput defines model for RegisterPartyInput.
+type RegisterPartyInput struct {
+	RegistrationID openapi_types.UUID `json:"registrationId"`
+
+	// Signature Base64 Ed25519 signature over the decoded multiHash
+	Signature string `json:"signature"`
+}
+
+// RegisterPartyOutput defines model for RegisterPartyOutput.
+type RegisterPartyOutput struct {
+	// PartyID Example: alice-3f9a1c::1220ab12
+	PartyID string `json:"partyId"`
+}
+
 // RegisterStartInput defines model for RegisterStartInput.
 type RegisterStartInput struct {
 	// DisplayName Example: Alice
@@ -147,6 +161,9 @@ type InternalError = Error
 // NotFound Example: {"error":"request failed: registration expired"}
 type NotFound = Error
 
+// OnboardingPaused Example: {"error":"request failed: registration expired"}
+type OnboardingPaused = Error
+
 // Unauthorized Example: {"error":"request failed: registration expired"}
 type Unauthorized = Error
 
@@ -163,6 +180,9 @@ type LoginJSONRequestBody = LoginInput
 
 // RegisterCompleteJSONRequestBody defines body for RegisterComplete for application/json ContentType.
 type RegisterCompleteJSONRequestBody = RegisterCompleteInput
+
+// RegisterPartyJSONRequestBody defines body for RegisterParty for application/json ContentType.
+type RegisterPartyJSONRequestBody = RegisterPartyInput
 
 // RegisterStartJSONRequestBody defines body for RegisterStart for application/json ContentType.
 type RegisterStartJSONRequestBody = RegisterStartInput
@@ -290,6 +310,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /auth/register/complete (the `RegisterComplete` operationId).
 	RegisterComplete(ctx context.Context, body RegisterCompleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterPartyWithBody Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+	RegisterPartyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RegisterParty Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+	RegisterParty(ctx context.Context, body RegisterPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RegisterStartWithBody Start creating a wallet and get the onboarding hash the browser key must sign
 	//
@@ -437,6 +471,40 @@ func (c *Client) RegisterCompleteWithBody(ctx context.Context, contentType strin
 // Corresponds with POST /auth/register/complete (the `RegisterComplete` operationId).
 func (c *Client) RegisterComplete(ctx context.Context, body RegisterCompleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRegisterCompleteRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RegisterPartyWithBody Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+func (c *Client) RegisterPartyWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterPartyRequestWithBody(c.Server, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// RegisterParty Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+func (c *Client) RegisterParty(ctx context.Context, body RegisterPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRegisterPartyRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -709,6 +777,46 @@ func NewRegisterCompleteRequestWithBody(server string, contentType string, body 
 	return req, nil
 }
 
+// NewRegisterPartyRequest calls the generic RegisterParty builder with application/json body
+func NewRegisterPartyRequest(server string, body RegisterPartyJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewRegisterPartyRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewRegisterPartyRequestWithBody constructs an http.Request for the RegisterParty method, with any body, and a specified content type
+func NewRegisterPartyRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/auth/register/party")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRegisterStartRequest calls the generic RegisterStart builder with application/json body
 func NewRegisterStartRequest(server string, body RegisterStartJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -935,6 +1043,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /auth/register/complete (the `RegisterComplete` operationId).
 	RegisterCompleteWithResponse(ctx context.Context, body RegisterCompleteJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterCompleteResponse, error)
+
+	// RegisterPartyWithBodyWithResponse Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+	RegisterPartyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterPartyResponse, error)
+
+	// RegisterPartyWithResponse Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+	RegisterPartyWithResponse(ctx context.Context, body RegisterPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterPartyResponse, error)
 
 	// RegisterStartWithBodyWithResponse Start creating a wallet and get the onboarding hash the browser key must sign
 	//
@@ -1178,6 +1300,8 @@ type RegisterCompleteResponse struct {
 	JSON500 *InternalError
 	// JSON502 the response for an HTTP 502 `application/json` response
 	JSON502 *BadGateway
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *OnboardingPaused
 	// Headers200 the parsed response headers for an HTTP 200 response
 	Headers200 *RegisterCompleteResponse200Headers
 }
@@ -1212,6 +1336,11 @@ func (r RegisterCompleteResponse) GetJSON502() *BadGateway {
 	return r.JSON502
 }
 
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RegisterCompleteResponse) GetJSON503() *OnboardingPaused {
+	return r.JSON503
+}
+
 // GetBody returns the raw response body bytes
 func (r RegisterCompleteResponse) GetBody() []byte {
 	return r.Body
@@ -1235,6 +1364,82 @@ func (r RegisterCompleteResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RegisterCompleteResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RegisterPartyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *RegisterPartyOutput
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *BadRequest
+	// JSON410 the response for an HTTP 410 `application/json` response
+	JSON410 *Gone
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *InternalError
+	// JSON502 the response for an HTTP 502 `application/json` response
+	JSON502 *BadGateway
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *OnboardingPaused
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RegisterPartyResponse) GetJSON200() *RegisterPartyOutput {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RegisterPartyResponse) GetJSON400() *BadRequest {
+	return r.JSON400
+}
+
+// GetJSON410 returns the response for an HTTP 410 `application/json` response
+func (r RegisterPartyResponse) GetJSON410() *Gone {
+	return r.JSON410
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r RegisterPartyResponse) GetJSON500() *InternalError {
+	return r.JSON500
+}
+
+// GetJSON502 returns the response for an HTTP 502 `application/json` response
+func (r RegisterPartyResponse) GetJSON502() *BadGateway {
+	return r.JSON502
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r RegisterPartyResponse) GetJSON503() *OnboardingPaused {
+	return r.JSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r RegisterPartyResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RegisterPartyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RegisterPartyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RegisterPartyResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -1566,6 +1771,32 @@ func (c *ClientWithResponses) RegisterCompleteWithResponse(ctx context.Context, 
 	return ParseRegisterCompleteResponse(rsp)
 }
 
+// RegisterPartyWithBodyWithResponse Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+func (c *ClientWithResponses) RegisterPartyWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*RegisterPartyResponse, error) {
+	rsp, err := c.RegisterPartyWithBody(ctx, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterPartyResponse(rsp)
+}
+
+// RegisterPartyWithResponse Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /auth/register/party (the `RegisterParty` operationId).
+func (c *ClientWithResponses) RegisterPartyWithResponse(ctx context.Context, body RegisterPartyJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterPartyResponse, error) {
+	rsp, err := c.RegisterParty(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRegisterPartyResponse(rsp)
+}
+
 // RegisterStartWithBodyWithResponse Start creating a wallet and get the onboarding hash the browser key must sign
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
@@ -1849,6 +2080,13 @@ func ParseRegisterCompleteResponse(rsp *http.Response) (*RegisterCompleteRespons
 		}
 		response.JSON502 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest OnboardingPaused
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	switch {
@@ -1862,6 +2100,67 @@ func ParseRegisterCompleteResponse(rsp *http.Response) (*RegisterCompleteRespons
 			headers.SetCookie = &value
 		}
 		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseRegisterPartyResponse parses an HTTP response from a RegisterPartyWithResponse call
+func ParseRegisterPartyResponse(rsp *http.Response) (*RegisterPartyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RegisterPartyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest RegisterPartyOutput
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 410:
+		var dest Gone
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON410 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest BadGateway
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest OnboardingPaused
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
 	}
 
 	return response, nil

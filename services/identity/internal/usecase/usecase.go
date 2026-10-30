@@ -33,6 +33,7 @@ type Postgres interface {
 
 type Redis interface {
 	SaveRegistration(ctx context.Context, r domain.Registration, ttl time.Duration) error
+	GetRegistration(ctx context.Context, id uuid.UUID) (domain.Registration, error)
 	TakeRegistration(ctx context.Context, id uuid.UUID) (domain.Registration, error)
 	SaveChallenge(ctx context.Context, challenge string, userID uuid.UUID, ttl time.Duration) error
 	TakeChallenge(ctx context.Context, challenge string) (uuid.UUID, error)

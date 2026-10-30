@@ -309,6 +309,15 @@ func Test_RegisterComplete_Errors(t *testing.T) {
 			},
 			status: nethttp.StatusConflict,
 		},
+		"network upgrade": {
+			body: completeBody(reg, signature),
+			setup: func(s server) {
+				s.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
+				s.postgres.EXPECT().GetUserByCredential(Any, "cred-1").Return(domain.User{}, domain.ErrNotFound)
+				s.ledger.EXPECT().AllocateExternalParty(Any, Any, Any).Return("", failure(domain.ErrOnboardingPaused, "frozen"))
+			},
+			status: nethttp.StatusServiceUnavailable,
+		},
 		"ledger failure": {
 			body: completeBody(reg, signature),
 			setup: func(s server) {
@@ -364,6 +373,89 @@ func Test_RegisterComplete_ExpiredMessage(t *testing.T) {
 	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/complete", completeBody(reg, signature), nil)
 
 	require.Equal(t, map[string]any{"error": "request failed: registration expired"}, rec.json(t))
+}
+
+func partyBody(reg domain.Registration, signature []byte) string {
+	return `{"registrationId":"` + reg.ID.String() + `","signature":"` + b64(signature) + `"}`
+}
+
+func Test_RegisterParty_OK(t *testing.T) {
+	s := newServer(t, false)
+
+	reg, signature := parked(t)
+
+	s.redis.EXPECT().GetRegistration(Any, reg.ID).Return(reg, nil)
+	s.ledger.EXPECT().AllocateExternalParty(Any, reg.Topology, signature).Return(reg.Topology.PartyID, nil)
+	s.redis.EXPECT().SaveRegistration(Any, Any, Any).Return(nil)
+
+	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/party", partyBody(reg, signature), nil)
+
+	require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, map[string]any{"partyId": reg.Topology.PartyID}, rec.json(t))
+	require.Empty(t, rec.Header().Get("Set-Cookie"))
+}
+
+func Test_RegisterParty_Errors(t *testing.T) {
+	reg, signature := parked(t)
+
+	cases := map[string]struct {
+		body    string
+		setup   func(s server)
+		status  int
+		message string
+	}{
+		"network upgrade": {
+			body: partyBody(reg, signature),
+			setup: func(s server) {
+				s.redis.EXPECT().GetRegistration(Any, reg.ID).Return(reg, nil)
+				s.ledger.EXPECT().AllocateExternalParty(Any, Any, Any).Return("", failure(domain.ErrOnboardingPaused, "frozen"))
+			},
+			status:  nethttp.StatusServiceUnavailable,
+			message: domain.ErrOnboardingPaused.Error(),
+		},
+		"ledger failure": {
+			body: partyBody(reg, signature),
+			setup: func(s server) {
+				s.redis.EXPECT().GetRegistration(Any, reg.ID).Return(reg, nil)
+				s.ledger.EXPECT().AllocateExternalParty(Any, Any, Any).Return("", failure(domain.ErrLedger, "boom"))
+			},
+			status:  nethttp.StatusBadGateway,
+			message: "ledger request failed",
+		},
+		"registration expired": {
+			body: partyBody(reg, signature),
+			setup: func(s server) {
+				s.redis.EXPECT().GetRegistration(Any, reg.ID).Return(domain.Registration{}, domain.ErrRegistrationExpired)
+			},
+			status:  nethttp.StatusGone,
+			message: "request failed: registration expired",
+		},
+		"wrong signature": {
+			body: partyBody(reg, bytes.Repeat([]byte{1}, 64)),
+			setup: func(s server) {
+				s.redis.EXPECT().GetRegistration(Any, reg.ID).Return(reg, nil)
+			},
+			status: nethttp.StatusBadRequest,
+		},
+		"signature that is not base64": {
+			body:   `{"registrationId":"` + reg.ID.String() + `","signature":"@@@"}`,
+			setup:  func(server) {},
+			status: nethttp.StatusBadRequest,
+		},
+	}
+
+	for name, c := range cases {
+		s := newServer(t, false)
+		c.setup(s)
+
+		rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/party", c.body, nil)
+
+		require.Equal(t, c.status, rec.Code, "%s: %s", name, rec.Body.String())
+
+		if c.message != "" {
+			require.Equal(t, c.message, rec.json(t)["error"], name)
+		}
+	}
 }
 
 func Test_CreateChallenge_OK(t *testing.T) {

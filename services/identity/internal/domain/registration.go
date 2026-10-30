@@ -15,6 +15,7 @@ type Registration struct {
 	DisplayName string    `json:"display_name"`
 	PublicKey   []byte    `json:"public_key"`
 	Topology    Topology  `json:"topology"`
+	PartyID     string    `json:"party_id,omitempty"`
 }
 
 func NewRegistration(displayName string, publicKey []byte) (Registration, error) {

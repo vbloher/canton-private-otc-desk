@@ -124,6 +124,14 @@ func Test_LedgerErrors_Classified(t *testing.T) {
 			[]error{domain.ErrLedger},
 			[]error{domain.ErrSignatureRejected, domain.ErrLedgerUnavailable},
 		},
+		"topology frozen by a synchronizer upgrade": {
+			http.StatusBadRequest, `{"code":"The topology state of synchronizer global-domain::1220be58c29e... is frozen ` +
+				`due to an ongoing synchronizer upgrade and no more topology changes are allowed.","cause":"FAILED_PRECONDITION: ` +
+				`The topology state of synchronizer global-domain::1220be58c29e... is frozen due to an ongoing synchronizer ` +
+				`upgrade and no more topology changes are allowed."}`,
+			[]error{domain.ErrLedger, domain.ErrTopologyFrozen},
+			[]error{domain.ErrLedgerUnavailable},
+		},
 		"transient category": {
 			http.StatusConflict, `{"code":"SUBMISSION_ALREADY_IN_FLIGHT","cause":"in flight","errorCategory":2}`,
 			[]error{domain.ErrLedger, domain.ErrLedgerUnavailable},

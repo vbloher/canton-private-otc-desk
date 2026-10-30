@@ -24,6 +24,10 @@ func grpcError(ctx context.Context, err error) error {
 		return status.Error(codes.InvalidArgument, render.Error(ctx, err, "request failed").Error())
 	case errors.Is(err, domain.ErrNotFound):
 		return status.Error(codes.NotFound, render.Error(ctx, err, "request failed").Error())
+	case errors.Is(err, domain.ErrTopologyFrozen):
+		_ = render.Error(ctx, err, "request failed")
+
+		return status.Error(codes.FailedPrecondition, domain.ErrTopologyFrozen.Error())
 	case errors.Is(err, domain.ErrContractGone):
 		return status.Error(codes.Aborted, render.Error(ctx, err, "the ledger changed meanwhile, retry").Error())
 	default:

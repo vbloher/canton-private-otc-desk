@@ -46,6 +46,8 @@ func ledgerError(code, cause string, category, status int) error {
 		return fmt.Errorf("%w: %w", domain.ErrSignatureRejected, err)
 	case code == "CONTRACT_NOT_FOUND" || code == "LOCAL_VERDICT_INACTIVE_CONTRACTS":
 		return fmt.Errorf("%w: %w: %w", domain.ErrLedger, domain.ErrContractGone, err)
+	case strings.Contains(cause, "topology state") && strings.Contains(cause, "is frozen"):
+		return fmt.Errorf("%w: %w: %w", domain.ErrLedger, domain.ErrTopologyFrozen, err)
 	case retryable(category, status):
 		return unavailable(err)
 	default:

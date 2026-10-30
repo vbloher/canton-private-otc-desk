@@ -31,6 +31,8 @@ func (h *Handlers) RegisterComplete(
 			return http_server.RegisterComplete409JSONResponse{ConflictJSONResponse: conflict(ctx, err)}, nil
 		case errors.Is(err, domain.ErrRegistrationExpired):
 			return http_server.RegisterComplete410JSONResponse{GoneJSONResponse: gone(ctx, err)}, nil
+		case errors.Is(err, domain.ErrOnboardingPaused):
+			return http_server.RegisterComplete503JSONResponse{OnboardingPausedJSONResponse: onboardingPaused(ctx, err)}, nil
 		case errors.Is(err, domain.ErrLedger):
 			return http_server.RegisterComplete502JSONResponse{BadGatewayJSONResponse: badGateway(ctx, err)}, nil
 		default:

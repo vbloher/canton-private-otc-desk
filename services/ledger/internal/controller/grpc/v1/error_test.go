@@ -35,6 +35,10 @@ func Test_grpcError(t *testing.T) {
 		},
 		"a contract consumed meanwhile": {fmt.Errorf("canton.Submit: %w", fmt.Errorf("%w: %w: CONTRACT_NOT_FOUND",
 			domain.ErrLedger, domain.ErrContractGone)), codes.Aborted, "retry"},
+		"topology frozen": {
+			fmt.Errorf("canton.AllocateExternalParty: %w", fmt.Errorf("%w: %w: frozen", domain.ErrLedger, domain.ErrTopologyFrozen)),
+			codes.FailedPrecondition, "the network is being upgraded and does not accept new parties right now",
+		},
 		"ledger failure": {
 			fmt.Errorf("canton.Submit: %w", errors.Join(domain.ErrLedger)), codes.Internal,
 			"Internal Server Error",

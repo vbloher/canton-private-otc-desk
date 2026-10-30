@@ -21,6 +21,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/register/party": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create the wallet's Canton party with the signed onboarding hash, before the passkey is made */
+        post: operations["registerParty"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register/complete": {
         parameters: {
             query?: never;
@@ -161,6 +178,16 @@ export interface components {
             /** @description Base64 hash to sign with the party key (raw bytes, Ed25519) */
             multiHash: string;
         };
+        RegisterPartyInput: {
+            /** Format: uuid */
+            registrationId: string;
+            /** @description Base64 Ed25519 signature over the decoded multiHash */
+            signature: string;
+        };
+        RegisterPartyOutput: {
+            /** @example alice-3f9a1c::1220ab12 */
+            partyId: string;
+        };
         RegisterCompleteInput: {
             /** Format: uuid */
             registrationId: string;
@@ -273,6 +300,15 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
+        /** @description The network does not accept new parties right now, for example during a synchronizer upgrade */
+        OnboardingPaused: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Error"];
+            };
+        };
         /** @description Internal Server Error */
         InternalError: {
             headers: {
@@ -317,6 +353,35 @@ export interface operations {
             502: components["responses"]["BadGateway"];
         };
     };
+    registerParty: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterPartyInput"];
+            };
+        };
+        responses: {
+            /** @description Party created; repeating the call returns the same party */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterPartyOutput"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            410: components["responses"]["Gone"];
+            500: components["responses"]["InternalError"];
+            502: components["responses"]["BadGateway"];
+            503: components["responses"]["OnboardingPaused"];
+        };
+    };
     registerComplete: {
         parameters: {
             query?: never;
@@ -345,6 +410,7 @@ export interface operations {
             410: components["responses"]["Gone"];
             500: components["responses"]["InternalError"];
             502: components["responses"]["BadGateway"];
+            503: components["responses"]["OnboardingPaused"];
         };
     };
     createChallenge: {

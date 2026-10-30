@@ -186,6 +186,16 @@ func Test_AllocateExternalParty_Failure(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrLedger)
 }
 
+func Test_AllocateExternalParty_TopologyFrozen(t *testing.T) {
+	l := newLedger(t, fakeClient{allocate: func(*pb.AllocateExternalPartyInput) (*pb.AllocateExternalPartyOutput, error) {
+		return nil, status.Error(codes.FailedPrecondition, "the network is being upgraded")
+	}})
+
+	_, err := l.AllocateExternalParty(t.Context(), domain.Topology{}, nil)
+	require.ErrorIs(t, err, domain.ErrOnboardingPaused)
+	require.NotErrorIs(t, err, domain.ErrLedger)
+}
+
 func Test_AllocateExternalParty_EmptyAnswer(t *testing.T) {
 	l := newLedger(t, fakeClient{allocate: func(*pb.AllocateExternalPartyInput) (*pb.AllocateExternalPartyOutput, error) {
 		return &pb.AllocateExternalPartyOutput{}, nil

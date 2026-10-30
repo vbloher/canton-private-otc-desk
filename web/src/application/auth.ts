@@ -9,7 +9,7 @@ export interface AuthDeps {
   credentials: CredentialStore;
 }
 
-export type CreateStep = "passkey" | "unlock" | "party";
+export type CreateStep = "party" | "passkey" | "unlock";
 
 export interface Wallet {
   me: Me;
@@ -23,11 +23,39 @@ export interface AuthFlows {
   logout(): Promise<void>;
 }
 
+interface PendingWallet {
+  name: string;
+  seed: Uint8Array;
+  registrationId: string;
+  signature: Uint8Array;
+  credentialId?: string;
+}
+
 const equalBytes = (a: Uint8Array, b: Uint8Array): boolean =>
   a.length === b.length && a.every((v, i) => v === b[i]);
 
 export function createAuthFlows(deps: AuthDeps): AuthFlows {
-  let orphan: { name: string; credentialId: string } | undefined;
+  let pending: PendingWallet | undefined;
+
+  async function partyFor(name: string): Promise<PendingWallet> {
+    if (pending?.name === name) return pending;
+    pending?.seed.fill(0);
+    pending = undefined;
+    const seed = deps.keys.generateSeed();
+    try {
+      const registration = await deps.auth.registerStart({
+        displayName: name,
+        publicKey: await deps.keys.publicKey(seed),
+      });
+      const signature = await deps.keys.signer(seed).sign(registration.multiHash);
+      await deps.auth.registerParty({ registrationId: registration.registrationId, signature });
+      pending = { name, seed, registrationId: registration.registrationId, signature };
+      return pending;
+    } catch (e) {
+      seed.fill(0);
+      throw e;
+    }
+  }
 
   async function challengeFor(passkey: UnlockedPasskey): Promise<LoginChallenge> {
     try {
@@ -67,27 +95,30 @@ export function createAuthFlows(deps: AuthDeps): AuthFlows {
   return {
     async createWallet(displayName, onStep) {
       const name = displayName.trim();
-      onStep?.("passkey");
-      const credentialId =
-        orphan?.name === name ? orphan.credentialId : await deps.vault.createPasskey(name);
-      orphan = { name, credentialId };
-      onStep?.("unlock");
-      const passkey = await deps.vault.unlock(credentialId);
       onStep?.("party");
-      const seed = deps.keys.generateSeed();
-      const registration = await deps.auth.registerStart({
-        displayName: name,
-        publicKey: await deps.keys.publicKey(seed),
-      });
-      const me = await deps.auth.registerComplete({
-        registrationId: registration.registrationId,
-        signature: await deps.keys.signer(seed).sign(registration.multiHash),
-        credentialId: passkey.credentialId,
-        encryptedBlob: await passkey.wrap(seed),
-      });
-      orphan = undefined;
+      const wallet = await partyFor(name);
+      onStep?.("passkey");
+      wallet.credentialId ??= await deps.vault.createPasskey(name);
+      onStep?.("unlock");
+      const passkey = await deps.vault.unlock(wallet.credentialId);
+      let me: Me;
+      try {
+        me = await deps.auth.registerComplete({
+          registrationId: wallet.registrationId,
+          signature: wallet.signature,
+          credentialId: passkey.credentialId,
+          encryptedBlob: await passkey.wrap(wallet.seed),
+        });
+      } catch (e) {
+        if (isApiFailure(e) && e.status === 410) {
+          wallet.seed.fill(0);
+          pending = undefined;
+        }
+        throw e;
+      }
+      pending = undefined;
       deps.credentials.set(me.id, passkey.credentialId);
-      return { me, seed };
+      return { me, seed: wallet.seed };
     },
 
     async connectWallet() {

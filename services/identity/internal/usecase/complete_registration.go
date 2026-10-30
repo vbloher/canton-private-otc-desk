@@ -42,9 +42,9 @@ func (u *UseCase) CompleteRegistration(
 		return output, fmt.Errorf("postgres.GetUserByCredential: %w", err)
 	}
 
-	partyID, err := u.ledger.AllocateExternalParty(ctx, reg.Topology, input.Signature)
+	partyID, err := u.partyOf(ctx, reg, input.Signature)
 	if err != nil {
-		return output, fmt.Errorf("ledger.AllocateExternalParty: %w", err)
+		return output, err
 	}
 
 	user, err := reg.NewUser(partyID, input.CredentialID, input.EncryptedBlob)

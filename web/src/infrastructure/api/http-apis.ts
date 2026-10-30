@@ -66,6 +66,12 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
       toRegistration(
         await unwrap(identity.POST("/auth/register/start", { body: { displayName, publicKey: toBase64(publicKey) } })),
       ),
+    registerParty: async ({ registrationId, signature }) =>
+      (
+        await unwrap(
+          identity.POST("/auth/register/party", { body: { registrationId, signature: toBase64(signature) } }),
+        )
+      ).partyId,
     registerComplete: async ({ registrationId, signature, credentialId, encryptedBlob }) =>
       toMe(
         await unwrap(

@@ -112,6 +112,20 @@ type RegisterCompleteInput struct {
 	Signature string `json:"signature"`
 }
 
+// RegisterPartyInput defines model for RegisterPartyInput.
+type RegisterPartyInput struct {
+	RegistrationID openapi_types.UUID `json:"registrationId"`
+
+	// Signature Base64 Ed25519 signature over the decoded multiHash
+	Signature string `json:"signature"`
+}
+
+// RegisterPartyOutput defines model for RegisterPartyOutput.
+type RegisterPartyOutput struct {
+	// PartyID Example: alice-3f9a1c::1220ab12
+	PartyID string `json:"partyId"`
+}
+
 // RegisterStartInput defines model for RegisterStartInput.
 type RegisterStartInput struct {
 	// DisplayName Example: Alice
@@ -151,6 +165,9 @@ type InternalError = Error
 // NotFound Example: {"error":"request failed: registration expired"}
 type NotFound = Error
 
+// OnboardingPaused Example: {"error":"request failed: registration expired"}
+type OnboardingPaused = Error
+
 // Unauthorized Example: {"error":"request failed: registration expired"}
 type Unauthorized = Error
 
@@ -167,6 +184,9 @@ type LoginJSONRequestBody = LoginInput
 
 // RegisterCompleteJSONRequestBody defines body for RegisterComplete for application/json ContentType.
 type RegisterCompleteJSONRequestBody = RegisterCompleteInput
+
+// RegisterPartyJSONRequestBody defines body for RegisterParty for application/json ContentType.
+type RegisterPartyJSONRequestBody = RegisterPartyInput
 
 // RegisterStartJSONRequestBody defines body for RegisterStart for application/json ContentType.
 type RegisterStartJSONRequestBody = RegisterStartInput
@@ -188,6 +208,9 @@ type ServerInterface interface {
 	// RegisterComplete Finish creating the wallet with the signed onboarding hash
 	// (POST /auth/register/complete)
 	RegisterComplete(w http.ResponseWriter, r *http.Request)
+	// RegisterParty Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	// (POST /auth/register/party)
+	RegisterParty(w http.ResponseWriter, r *http.Request)
 	// RegisterStart Start creating a wallet and get the onboarding hash the browser key must sign
 	// (POST /auth/register/start)
 	RegisterStart(w http.ResponseWriter, r *http.Request)
@@ -227,6 +250,12 @@ func (_ Unimplemented) Logout(w http.ResponseWriter, r *http.Request, params Log
 // RegisterComplete Finish creating the wallet with the signed onboarding hash
 // (POST /auth/register/complete)
 func (_ Unimplemented) RegisterComplete(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotImplemented)
+}
+
+// RegisterParty Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+// (POST /auth/register/party)
+func (_ Unimplemented) RegisterParty(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
 }
 
@@ -331,6 +360,20 @@ func (siw *ServerInterfaceWrapper) RegisterComplete(w http.ResponseWriter, r *ht
 
 	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		siw.Handler.RegisterComplete(w, r)
+	}))
+
+	for _, middleware := range siw.HandlerMiddlewares {
+		handler = middleware(handler)
+	}
+
+	handler.ServeHTTP(w, r)
+}
+
+// RegisterParty operation middleware
+func (siw *ServerInterfaceWrapper) RegisterParty(w http.ResponseWriter, r *http.Request) {
+
+	handler := http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		siw.Handler.RegisterParty(w, r)
 	}))
 
 	for _, middleware := range siw.HandlerMiddlewares {
@@ -513,6 +556,9 @@ func HandlerWithOptions(si ServerInterface, options ChiServerOptions) http.Handl
 		r.Post(options.BaseURL+"/auth/register/start", wrapper.RegisterStart)
 	})
 	r.Group(func(r chi.Router) {
+		r.Post(options.BaseURL+"/auth/register/party", wrapper.RegisterParty)
+	})
+	r.Group(func(r chi.Router) {
 		r.Post(options.BaseURL+"/auth/register/complete", wrapper.RegisterComplete)
 	})
 	r.Group(func(r chi.Router) {
@@ -548,6 +594,8 @@ type GoneJSONResponse Error
 type InternalErrorJSONResponse Error
 
 type NotFoundJSONResponse Error
+
+type OnboardingPausedJSONResponse Error
 
 type UnauthorizedJSONResponse Error
 
@@ -829,6 +877,112 @@ func (response RegisterComplete502JSONResponse) VisitRegisterCompleteResponse(w 
 	return err
 }
 
+type RegisterComplete503JSONResponse struct{ OnboardingPausedJSONResponse }
+
+func (response RegisterComplete503JSONResponse) VisitRegisterCompleteResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterPartyRequestObject struct {
+	Body *RegisterPartyJSONRequestBody
+}
+
+type RegisterPartyResponseObject interface {
+	VisitRegisterPartyResponse(w http.ResponseWriter) error
+}
+
+type RegisterParty200JSONResponse RegisterPartyOutput
+
+func (response RegisterParty200JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterParty400JSONResponse struct{ BadRequestJSONResponse }
+
+func (response RegisterParty400JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterParty410JSONResponse struct{ GoneJSONResponse }
+
+func (response RegisterParty410JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(410)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterParty500JSONResponse struct{ InternalErrorJSONResponse }
+
+func (response RegisterParty500JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterParty502JSONResponse struct{ BadGatewayJSONResponse }
+
+func (response RegisterParty502JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(502)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type RegisterParty503JSONResponse struct{ OnboardingPausedJSONResponse }
+
+func (response RegisterParty503JSONResponse) VisitRegisterPartyResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(503)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type RegisterStartRequestObject struct {
 	Body *RegisterStartJSONRequestBody
 }
@@ -1069,6 +1223,9 @@ type StrictServerInterface interface {
 	// RegisterComplete Finish creating the wallet with the signed onboarding hash
 	// (POST /auth/register/complete)
 	RegisterComplete(ctx context.Context, request RegisterCompleteRequestObject) (RegisterCompleteResponseObject, error)
+	// RegisterParty Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+	// (POST /auth/register/party)
+	RegisterParty(ctx context.Context, request RegisterPartyRequestObject) (RegisterPartyResponseObject, error)
 	// RegisterStart Start creating a wallet and get the onboarding hash the browser key must sign
 	// (POST /auth/register/start)
 	RegisterStart(ctx context.Context, request RegisterStartRequestObject) (RegisterStartResponseObject, error)
@@ -1241,6 +1398,37 @@ func (sh *strictHandler) RegisterComplete(w http.ResponseWriter, r *http.Request
 	}
 }
 
+// RegisterParty operation middleware
+func (sh *strictHandler) RegisterParty(w http.ResponseWriter, r *http.Request) {
+	var request RegisterPartyRequestObject
+
+	var body RegisterPartyJSONRequestBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		sh.options.RequestErrorHandlerFunc(w, r, fmt.Errorf("can't decode JSON body: %w", err))
+		return
+	}
+	request.Body = &body
+
+	handler := func(ctx context.Context, w http.ResponseWriter, r *http.Request, request interface{}) (interface{}, error) {
+		return sh.ssi.RegisterParty(ctx, request.(RegisterPartyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "RegisterParty")
+	}
+
+	response, err := handler(r.Context(), w, r, request)
+
+	if err != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, err)
+	} else if validResponse, ok := response.(RegisterPartyResponseObject); ok {
+		if err := validResponse.VisitRegisterPartyResponse(w); err != nil {
+			sh.options.ResponseErrorHandlerFunc(w, r, err)
+		}
+	} else if response != nil {
+		sh.options.ResponseErrorHandlerFunc(w, r, fmt.Errorf("unexpected response type: %T", response))
+	}
+}
+
 // RegisterStart operation middleware
 func (sh *strictHandler) RegisterStart(w http.ResponseWriter, r *http.Request) {
 	var request RegisterStartRequestObject
@@ -1356,37 +1544,40 @@ func (sh *strictHandler) SetMakerMode(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"S5E5qZ6taa/z/w0A",
+	"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",
+	"/ramvVr8fwA=",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
