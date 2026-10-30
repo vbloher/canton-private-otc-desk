@@ -37,6 +37,34 @@ paths:
           $ref: '#/components/responses/BadGateway'
         '500':
           $ref: '#/components/responses/InternalError'
+  /auth/register/party:
+    post:
+      tags: [Auth]
+      operationId: registerParty
+      summary: Create the wallet's Canton party with the signed onboarding hash, before the passkey is made
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPartyInput'
+      responses:
+        '200':
+          description: Party created; repeating the call returns the same party
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterPartyOutput'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '502':
+          $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/OnboardingPaused'
+        '500':
+          $ref: '#/components/responses/InternalError'
   /auth/register/complete:
     post:
       tags: [Auth]
@@ -67,6 +95,8 @@ paths:
           $ref: '#/components/responses/Gone'
         '502':
           $ref: '#/components/responses/BadGateway'
+        '503':
+          $ref: '#/components/responses/OnboardingPaused'
         '500':
           $ref: '#/components/responses/InternalError'
   /auth/challenge:
@@ -237,6 +267,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    OnboardingPaused:
+      description: The network does not accept new parties right now, for example during a synchronizer upgrade
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InternalError:
       description: Internal Server Error
       content:
@@ -273,6 +309,26 @@ components:
         multiHash:
           type: string
           description: Base64 hash to sign with the party key (raw bytes, Ed25519)
+    RegisterPartyInput:
+      type: object
+      additionalProperties: false
+      required: [registrationId, signature]
+      properties:
+        registrationId:
+          type: string
+          format: uuid
+        signature:
+          type: string
+          description: Base64 Ed25519 signature over the decoded multiHash
+          minLength: 1
+          maxLength: 128
+    RegisterPartyOutput:
+      type: object
+      required: [partyId]
+      properties:
+        partyId:
+          type: string
+          example: alice-3f9a1c::1220ab12
     RegisterCompleteInput:
       type: object
       additionalProperties: false

@@ -129,6 +129,24 @@ func Test_CompleteRegistration_CreatesUserAndSession(t *testing.T) {
 	require.WithinRange(t, sessionExpiry, before.Add(testConfig.SessionTTL), after.Add(testConfig.SessionTTL))
 }
 
+func Test_CompleteRegistration_UsesThePartyCreatedBeforeThePasskey(t *testing.T) {
+	d := newDeps(t)
+
+	reg, signature := parkedRegistration(t)
+	reg.PartyID = reg.Topology.PartyID
+
+	var created domain.User
+
+	d.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
+	d.postgres.EXPECT().GetUserByCredential(Any, "cred-1").Return(domain.User{}, domain.ErrNotFound)
+	d.postgres.EXPECT().CreateUser(Any, Any).Run(func(_ context.Context, u domain.User) { created = u }).Return(nil)
+	d.postgres.EXPECT().CreateSession(Any, Any, Any, Any).Return(nil)
+
+	_, err := d.useCase().CompleteRegistration(t.Context(), completeInput(reg, signature))
+	require.NoError(t, err)
+	require.Equal(t, reg.PartyID, created.PartyID)
+}
+
 func Test_CompleteRegistration_BadSignature(t *testing.T) {
 	d := newDeps(t)
 

@@ -48,5 +48,9 @@ func mapError(err error) error {
 		return fmt.Errorf("%w: %w", domain.ErrNotFound, err)
 	}
 
+	if status.Code(err) == codes.FailedPrecondition {
+		return fmt.Errorf("%w: %w", domain.ErrOnboardingPaused, err)
+	}
+
 	return fmt.Errorf("%w: %w", domain.ErrLedger, err)
 }

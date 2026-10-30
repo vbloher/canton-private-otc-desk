@@ -12,6 +12,9 @@ var (
 	ErrRegistrationExpired = errors.New("registration expired")
 	ErrCredentialTaken     = errors.New("credential already registered")
 	ErrLedger              = errors.New("ledger failure")
+	ErrOnboardingPaused    = errors.New(
+		"the network is being upgraded and cannot create new wallets right now, try again later",
+	)
 )
 
 func IsInvalidInput(err error) bool {

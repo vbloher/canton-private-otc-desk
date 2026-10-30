@@ -33,6 +33,7 @@ export interface LoginChallenge {
 
 export interface AuthApi {
   registerStart(input: { displayName: string; publicKey: Uint8Array }): Promise<Registration>;
+  registerParty(input: { registrationId: string; signature: Uint8Array }): Promise<string>;
   registerComplete(input: {
     registrationId: string;
     signature: Uint8Array;

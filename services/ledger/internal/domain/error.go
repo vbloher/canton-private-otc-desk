@@ -20,6 +20,7 @@ var (
 	ErrLedgerUnavailable = errors.New("ledger unavailable")
 
 	ErrAmbiguousParty = errors.New("party hint is ambiguous")
+	ErrTopologyFrozen = errors.New("the network is being upgraded and does not accept new parties right now")
 
 	ErrSignatureRejected = errors.New("signature does not match this action's party")
 

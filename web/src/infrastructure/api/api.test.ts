@@ -207,10 +207,15 @@ describe("auth api", () => {
     const { apis, seen } = desk({
       "POST /api/v1/auth/register/start": () =>
         json(200, { registrationId: "r-1", partyId: ME.partyId, multiHash: "bXVsdGk=" }),
+      "POST /api/v1/auth/register/party": () => json(200, { partyId: ME.partyId }),
       "POST /api/v1/auth/register/complete": () => json(200, ME),
     });
 
     const reg = await apis.auth.registerStart({ displayName: "Alice", publicKey: new Uint8Array(32).fill(255) });
+    const partyId = await apis.auth.registerParty({
+      registrationId: reg.registrationId,
+      signature: new TextEncoder().encode("sig"),
+    });
     await apis.auth.registerComplete({
       registrationId: reg.registrationId,
       signature: new TextEncoder().encode("sig"),
@@ -219,8 +224,10 @@ describe("auth api", () => {
     });
 
     expect(new TextDecoder().decode(reg.multiHash)).toBe("multi");
+    expect(partyId).toBe(ME.partyId);
     expect(seen.map((s) => s.body)).toEqual([
       { displayName: "Alice", publicKey: "/".repeat(42) + "8=" },
+      { registrationId: "r-1", signature: "c2ln" },
       { registrationId: "r-1", signature: "c2ln", credentialId: "-_8BAg", encryptedBlob: "blob" },
     ]);
   });

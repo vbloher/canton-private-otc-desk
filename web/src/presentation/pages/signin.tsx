@@ -13,9 +13,9 @@ import { useServices } from "@/presentation/providers/services";
 import { useSession } from "@/presentation/providers/session";
 
 const STEP: Record<CreateStep, string> = {
-  passkey: "Creating your passkey… (1 of 3)",
-  unlock: "Confirm the passkey once more… (2 of 3)",
-  party: "Creating your Canton party… (3 of 3)",
+  party: "Creating your Canton party… (1 of 3)",
+  passkey: "Creating your passkey… (2 of 3)",
+  unlock: "Confirm the passkey once more… (3 of 3)",
 };
 
 const NAME_MIN = 2;
@@ -32,7 +32,7 @@ export function SignInPage() {
     retry: false,
   });
   const [name, setName] = useState("");
-  const [step, setStep] = useState<CreateStep>("passkey");
+  const [step, setStep] = useState<CreateStep>("party");
 
   const enter = (): void => void navigate("/trade", { replace: true });
   const create = useMutation({
