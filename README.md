@@ -192,7 +192,8 @@ curl -s -H "X-API-Key: $KEY" -H 'content-type: application/json' \
 
 Every service reads environment variables (and `.env` in its directory when present).
 Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (info),
-`LOGGER_PRETTY_CONSOLE`, `OTEL_ENDPOINT`, `OTEL_SERVICE_NAME`,
+`LOGGER_PRETTY_CONSOLE`, `OTEL_ENDPOINT` (OTLP/gRPC address of the collector, empty = export
+nothing; compose sets `otel-collector:4317`), `OTEL_SERVICE_NAME`, `OTEL_RATIO` (1.0),
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB_NAME`, `REDIS_ADDR`; services with gRPC also take
 `GRPC_HOST` and `GRPC_PORT`. The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and
 `GATEWAY_UPSTREAM` (gateway:8080).
@@ -204,6 +205,37 @@ Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (i
 | trading | `LEDGER_GRPC_ADDR` (localhost:9083), `IDENTITY_GRPC_ADDR` (localhost:9081), `FEE_BPS` (10), `WORKER_INTERVAL` (1s), `SETTLE_TIMEOUT` (10m) |
 | gateway | `IDENTITY_GRPC_ADDR` (localhost:9081), `IDENTITY_URL`, `TRADING_URL`, `LEDGER_URL` (localhost:8081–8083) |
 | maker-bot | `GATEWAY_URL` (http://localhost:8080), `MAKER_API_KEY` (required), `MAKER_SPREAD_BPS` (15), `PRICES_USD` (CBTC:100000,USDCx:1,CC:0.15), `QUOTE_TTL` (60s), `POLL_INTERVAL` (1s) |
+
+## Observability
+
+Logs, metrics and traces of gateway, identity, trading and ledger go to a Grafana stack of their
+own — VictoriaMetrics, VictoriaLogs, Tempo and Grafana — in
+[`deploy/observability/`](deploy/observability).
+
+- The services keep Prometheus metrics on `/metrics` and send traces and logs over OTLP to
+  `otel-collector`, which runs next to them in the app's compose project. The collector scrapes
+  `/metrics` every 15 s, tags everything with `env` (`local`, `dev`, `prod`) and forwards it over
+  the Docker network `observability`. Only the collector joins that network, so two environments
+  on one server never resolve each other's services.
+- The stack is a compose project of its own (`observability`), one per server. Only Grafana is
+  published, on `127.0.0.1:${GRAFANA_PORT:-3001}`. Retention: metrics 30 days, logs 14, traces 7.
+- Grafana starts provisioned from files: the datasources, the links between traces and logs and
+  three dashboards in the **Desk** folder — Services (requests, errors and latency per route and
+  gRPC method, calls to Canton and the token registries, error logs, a service map), Business and
+  workers (trades settled and failed, settlement time, events, worker ticks) and Go runtime.
+- Every request log line carries `trace_id`: in Explore a log line opens its trace
+  (**View trace**) and a span opens the logs of its trace. Background workers trace the work they
+  do, not their idle polls.
+
+Locally:
+
+```bash
+make obs-up     # the stack; Grafana at http://localhost:3001, admin / admin
+make up-all     # the app with its collector
+make obs-down
+```
+
+Services started with `make run-<name>` keep `OTEL_ENDPOINT` empty and export nothing.
 
 ## Deployment
 
@@ -217,12 +249,12 @@ Two environments, each on a VPS that runs the whole stack with Docker Compose:
 [`release.yml`](.github/workflows/release.yml) runs CI, publishes the six images (multi-arch, public
 like the repository) and deploys over SSH: it copies the rendered
 [`deploy/docker-compose.yml`](deploy/docker-compose.yml), `postgres/init.sql` and the network's
-template as `.env.example` to `~/otc-desk-<environment>/` on the server, checks that the server's
-`.env` sets `CANTON_NETWORK` to the environment's network, then runs `docker compose pull` and
-`docker compose up -d --wait`. The job fails when a container does not come up healthy. The maker
-bot is in the `demo` profile: the DevNet template turns it on with `COMPOSE_PROFILES=demo`, and
-without that profile the deploy stops a bot left running. On MainNet the job refuses to deploy
-while the profile is on.
+template as `.env.example` and `otel-collector.yml` to `~/otc-desk-<environment>/` on the server,
+checks that the server's `.env` sets `CANTON_NETWORK` to the environment's network, then runs
+`docker compose pull` and `docker compose up -d --wait`. The job fails when a container does not
+come up healthy. The maker bot is in the `demo` profile: the DevNet template turns it on with
+`COMPOSE_PROFILES=demo`, and without that profile the deploy stops a bot left running. On MainNet
+the job refuses to deploy while the profile is on.
 
 Only the web app is published, on `127.0.0.1:${WEB_PORT}`; its nginx serves the SPA and proxies
 `/api/` and the WebSocket to the gateway. A reverse proxy on the host terminates TLS for the
@@ -243,6 +275,13 @@ Once per server:
    ```
 
    With both environments on one server, give each its own `WEB_PORT` and site block.
+3. For Grafana, point a second name at the server and add its site block:
+
+   ```caddyfile
+   grafana.desk.example.com {
+       reverse_proxy 127.0.0.1:3001
+   }
+   ```
 
 ### GitHub
 
@@ -275,6 +314,18 @@ adds a setting, it shows up in `.env.example` next to it. Local changes to the s
 `docker-compose.override.yml` in the same directory, which Compose reads and the job leaves alone;
 `docker-compose.yml` itself is replaced on every deploy.
 
+The `dev` deploy also keeps the observability stack in `~/observability` up to date (one stack per
+server; a prod stack on the same server sends into it). It skips the stack with a warning until
+`~/observability/.env` exists:
+
+```bash
+cd ~/observability
+cp .env.example .env
+$EDITOR .env   # GRAFANA_ADMIN_PASSWORD, GRAFANA_ROOT_URL=https://grafana.<domain>
+```
+
+A failure there never stops the app deploy.
+
 ### Rollback
 
 Run the workflow by hand on the tag to go back to (**Actions → Release → Run workflow**, pick the
@@ -290,7 +341,8 @@ pkg/            shared infrastructure (logger, metrics, otel, postgres, redis, t
                 decimal money math, events, principal headers, gRPC helpers, migrations)
 services/       gateway, identity, trading, ledger, maker-bot
 web/            React SPA: domain / application / infrastructure / presentation
-deploy/         the stack for a VPS (docker-compose.yml, .env.<network>.example), Postgres init script
+deploy/         the stack for a VPS (docker-compose.yml, .env.<network>.example, otel-collector.yml),
+                Postgres init script, observability/ for the Grafana stack
 docs/           design and plan
 ```
 
