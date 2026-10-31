@@ -161,6 +161,8 @@ func (u *UseCase) failTrade(ctx context.Context, trade domain.Trade, reason stri
 	}
 
 	if failed {
+		tradesTotal.WithLabelValues(string(domain.TradeFailed)).Inc()
+
 		u.cancelSettlement(ctx, trade.QuoteID)
 		u.publishTrade(ctx, trade)
 		u.publishQuote(ctx, trade.Taker.ID, quote)

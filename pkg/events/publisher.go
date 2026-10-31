@@ -5,9 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/pkg/redis"
 )
+
+//nolint:gochecknoglobals
+var published = promauto.NewCounterVec(prometheus.CounterOpts{
+	Name: "events_published_total",
+	Help: "Total number of published domain events",
+}, []string{"type"})
 
 type Publisher struct {
 	redis *redis.Client
@@ -25,6 +34,8 @@ func (p *Publisher) Publish(ctx context.Context, ev Event, partyIDs ...string) e
 	if err != nil {
 		return fmt.Errorf("json.Marshal: %w", err)
 	}
+
+	published.WithLabelValues(ev.Type).Inc()
 
 	seen := make(map[string]struct{}, len(partyIDs))
 

@@ -335,6 +335,9 @@ func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.
 	}
 
 	if s.done {
+		tradesTotal.WithLabelValues(string(domain.TradeSettled)).Inc()
+		settlementDuration.Observe(now.Sub(s.trade.CreatedAt).Seconds())
+
 		u.publishTrade(ctx, s.trade)
 		u.publishQuote(ctx, s.rfq.TakerParty, s.won)
 		u.closed(ctx, s.rfq, s.lost)
