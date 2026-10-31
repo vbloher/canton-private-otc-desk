@@ -10,15 +10,17 @@ import (
 )
 
 func (u *UseCase) ExpireActions(ctx context.Context) (dto.ExpireActionsOutput, error) {
-	ctx, span := tracer.Start(ctx, "usecase ExpireActions")
-	defer span.End()
-
-	var output dto.ExpireActionsOutput
-
 	expired, err := u.postgres.ExpireActions(ctx, time.Now())
 	if err != nil {
-		return output, fmt.Errorf("postgres.ExpireActions: %w", err)
+		return dto.ExpireActionsOutput{}, fmt.Errorf("postgres.ExpireActions: %w", err)
 	}
+
+	if len(expired) == 0 {
+		return dto.ExpireActionsOutput{}, nil
+	}
+
+	ctx, span := tracer.StartRoot(ctx, "usecase ExpireActions")
+	defer span.End()
 
 	for _, action := range expired {
 		u.publish(ctx, signCompleted(action.ID), action.PartyID)

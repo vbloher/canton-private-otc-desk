@@ -116,7 +116,7 @@ func (u *UseCase) release(ctx context.Context, taker string, q domain.Quote) {
 func (u *UseCase) cancelSettlement(ctx context.Context, settlementID uuid.UUID) {
 	err := u.ledger.CancelSettlement(context.WithoutCancel(ctx), settlementID)
 	if err != nil {
-		log.Error().Err(err).Stringer("settlement", settlementID).Msg("usecase: ledger.CancelSettlement")
+		log.Error().Ctx(ctx).Err(err).Stringer("settlement", settlementID).Msg("usecase: ledger.CancelSettlement")
 	}
 }
 

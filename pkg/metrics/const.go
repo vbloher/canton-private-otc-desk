@@ -15,6 +15,7 @@ const (
 	labelMethod = "method"
 	labelStatus = "status"
 	labelHost   = "host"
+	labelWorker = "worker"
 )
 
 //nolint:gochecknoglobals

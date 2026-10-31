@@ -6,6 +6,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/usecase"
 )
@@ -51,7 +52,11 @@ func (w *Worker) run(ctx context.Context) {
 }
 
 func (w *Worker) expire(ctx context.Context) {
+	start := time.Now()
+
 	output, err := w.usecase.ExpireActions(ctx)
+	metrics.WorkerTick("ledger_expire", start, err)
+
 	if err != nil {
 		log.Error().Err(err).Msg("expire worker: usecase.ExpireActions")
 

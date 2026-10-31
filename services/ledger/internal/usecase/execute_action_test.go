@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/events"
+	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/dto"
 )
@@ -215,4 +216,41 @@ func Test_ExpireActions_NotifiesParties(t *testing.T) {
 	output, err := u.ExpireActions(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, 1, output.Expired)
+}
+
+func Test_ExpireActions_RecordsNoSpanWhenNothingExpired(t *testing.T) {
+	d := newDeps(t)
+	u := d.started(t)
+	recorder := recordSpans(t)
+
+	d.postgres.EXPECT().ExpireActions(Any, mock.AnythingOfType("time.Time")).Return(nil, nil).Once()
+
+	output, err := u.ExpireActions(tracer.Suppress(t.Context()))
+	require.NoError(t, err)
+	require.Equal(t, 0, output.Expired)
+	require.Empty(t, recorder.Ended())
+}
+
+func Test_ExpireActions_TracesExpiredActionsAsARoot(t *testing.T) {
+	d := newDeps(t)
+	u := d.started(t)
+	recorder := recordSpans(t)
+
+	expired := pendingAction(time.Now().Add(-time.Hour))
+
+	d.postgres.EXPECT().ExpireActions(Any, mock.AnythingOfType("time.Time")).Return([]domain.Action{expired}, nil).Once()
+	d.events.EXPECT().Publish(Any, event(events.SignCompleted, fmt.Sprintf(`{"actionId":%q}`, expired.ID)),
+		parties(alice)).Return(nil).Once()
+
+	_, err := u.ExpireActions(tracer.Suppress(t.Context()))
+	require.NoError(t, err)
+
+	spans := recorder.Ended()
+	root := roots(spans)
+	require.Len(t, root, 1)
+	require.Equal(t, "usecase ExpireActions", root[0].Name())
+
+	for _, s := range spans {
+		require.Equal(t, root[0].SpanContext().TraceID(), s.SpanContext().TraceID())
+	}
 }
