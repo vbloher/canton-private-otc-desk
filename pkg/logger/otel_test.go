@@ -112,3 +112,15 @@ func TestOTelWriter_DisabledLoggerSkipsRecord(t *testing.T) {
 	require.Equal(t, len(line), n)
 	require.Empty(t, records(rec))
 }
+
+func TestOTelWriter_UsesFieldsAsBodyWithoutMessage(t *testing.T) {
+	rec, w := newRecorderWriter()
+
+	l := zerolog.New(w).With().Timestamp().Logger()
+	l.Info().Int("code", 401).Str("method", "GET /api/v1/instruments").Send()
+
+	rs := records(rec)
+	require.Len(t, rs, 1)
+	require.JSONEq(t, `{"code":401,"method":"GET /api/v1/instruments"}`, rs[0].Body.AsString())
+	require.Equal(t, map[string]string{"code": "401", "method": "GET /api/v1/instruments"}, attributes(rs[0]))
+}

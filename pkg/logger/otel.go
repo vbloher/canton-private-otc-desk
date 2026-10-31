@@ -45,10 +45,7 @@ func (w otelWriter) emit(sev otellog.Severity, severityText string, fields map[s
 	record.SetSeverity(sev)
 	record.SetSeverityText(severityText)
 
-	if msg, ok := fields[zerolog.MessageFieldName].(string); ok {
-		record.SetBody(attribute.StringValue(msg))
-	}
-
+	msg, _ := fields[zerolog.MessageFieldName].(string)
 	ctx := withSpan(context.Background(), fields)
 
 	for _, key := range []string{
@@ -60,6 +57,12 @@ func (w otelWriter) emit(sev otellog.Severity, severityText string, fields map[s
 	for key, value := range fields {
 		record.AddAttributes(attribute.String(key, stringify(value)))
 	}
+
+	if msg == "" {
+		msg = stringify(fields)
+	}
+
+	record.SetBody(attribute.StringValue(msg))
 
 	w.logger.Emit(ctx, record)
 }
