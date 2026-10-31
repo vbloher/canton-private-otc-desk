@@ -15,6 +15,7 @@ import (
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/clientcredentials"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
@@ -52,7 +53,7 @@ type Canton struct {
 
 func New(c Config) *Canton {
 	base := strings.TrimRight(c.URL, "/")
-	transport := otelhttp.NewTransport(http.DefaultTransport)
+	transport := metrics.Transport(otelhttp.NewTransport(http.DefaultTransport))
 
 	return &Canton{
 		url:         base,

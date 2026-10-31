@@ -20,7 +20,7 @@ func NewProcess() *Process {
 	m.total = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "process_total",
 		Help: "Total number of processed something",
-	}, []string{labelName, "status"})
+	}, []string{labelName, labelStatus})
 	prometheus.MustRegister(m.total)
 
 	m.duration = prometheus.NewHistogramVec(prometheus.HistogramOpts{

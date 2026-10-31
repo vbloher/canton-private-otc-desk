@@ -12,6 +12,7 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/services/ledger/internal/domain"
 )
 
@@ -26,7 +27,7 @@ type Registry struct {
 }
 
 func New() *Registry {
-	return &Registry{http: &http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}}
+	return &Registry{http: &http.Client{Transport: metrics.Transport(otelhttp.NewTransport(http.DefaultTransport))}}
 }
 
 type disclosedContract struct {

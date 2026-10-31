@@ -18,7 +18,7 @@ func NewHTTPServer() *HTTPServer {
 	m.total = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "http_server_requests_total",
 		Help: "Total number of HTTP requests",
-	}, []string{labelMethod, "status"})
+	}, []string{labelMethod, labelStatus})
 	prometheus.MustRegister(m.total)
 
 	m.duration = prometheus.NewHistogramVec(prometheus.HistogramOpts{
