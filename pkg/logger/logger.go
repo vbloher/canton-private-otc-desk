@@ -1,12 +1,16 @@
 package logger
 
 import (
+	"io"
 	"os"
 	"time"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"go.opentelemetry.io/otel"
 )
+
+const scope = "github.com/vbloher/canton-private-otc-desk/pkg/logger"
 
 type Config struct {
 	Level         string `env:"LOGGER_LEVEL"          envDefault:"info"`
@@ -23,11 +27,15 @@ func Init(c Config) {
 		zerolog.SetGlobalLevel(level)
 	}
 
-	log.Logger = log.With().Logger()
+	var out io.Writer = os.Stderr
 
 	if c.PrettyConsole {
-		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
+		out = zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"}
 	}
+
+	w := zerolog.MultiLevelWriter(out, NewOTelWriter(otel.Logger(scope)))
+
+	log.Logger = zerolog.New(w).With().Timestamp().Logger().Hook(TraceHook{})
 
 	log.Info().Msg("logger initialized")
 }

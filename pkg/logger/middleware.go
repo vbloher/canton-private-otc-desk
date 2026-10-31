@@ -28,6 +28,7 @@ func Middleware(next http.Handler) http.Handler {
 		}
 
 		event.
+			Ctx(ctx).
 			Int("code", ww.Code()).
 			Str("method", fmt.Sprintf("%s %s", r.Method, router.ExtractPath(r.Context()))).
 			Send()

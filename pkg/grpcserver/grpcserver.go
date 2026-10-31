@@ -12,6 +12,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/logger"
+	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 )
 
 type Config struct {
@@ -27,7 +28,7 @@ func New(ctx context.Context, c Config, register func(s *grpc.Server)) (*Server,
 	s := grpc.NewServer(
 		grpc.Creds(insecure.NewCredentials()),
 		grpc.StatsHandler(otelgrpc.NewServerHandler()),
-		grpc.ChainUnaryInterceptor(logger.Interceptor),
+		grpc.ChainUnaryInterceptor(logger.Interceptor, metrics.GRPCInterceptor),
 	)
 
 	reflection.Register(s)

@@ -11,7 +11,6 @@ x-go-service: &go-service
 
 x-common-env: &common-env
   LOGGER_LEVEL: ${LOGGER_LEVEL:-info}
-  OTEL_ENDPOINT: ${OTEL_ENDPOINT:-}
   OTEL_NAMESPACE: ${OTEL_NAMESPACE:-}
   OTEL_RATIO: ${OTEL_RATIO:-}
 
@@ -22,6 +21,7 @@ x-db-env: &db-env
   POSTGRES_USER: ${POSTGRES_USER:-otc}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
   REDIS_ADDR: redis:6379
+  OTEL_ENDPOINT: otel-collector:4317
 
 services:
   postgres:
@@ -141,6 +141,7 @@ services:
     environment:
       <<: *common-env
       OTEL_SERVICE_NAME: gateway
+      OTEL_ENDPOINT: otel-collector:4317
       HTTP_PORT: '8080'
       REDIS_ADDR: redis:6379
       IDENTITY_GRPC_ADDR: identity:9081
@@ -185,6 +186,21 @@ services:
       interval: 3s
       timeout: 3s
       retries: 20
+
+  otel-collector:
+    <<: *logging
+    image: otel/opentelemetry-collector:0.164.0
+    restart: unless-stopped
+    command: ['--config=/etc/otelcol/config.yml']
+    environment:
+      ENV: ${DEPLOY_ENV}
+    volumes:
+      - ./otel-collector.yml:/etc/otelcol/config.yml:ro
+    networks: [default, observability]
+
+networks:
+  observability:
+    external: true
 
 volumes:
   pg-data:

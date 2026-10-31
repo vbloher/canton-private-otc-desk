@@ -25,6 +25,7 @@ func Interceptor(ctx context.Context, req any, info *grpc.UnaryServerInfo, handl
 	}
 
 	event.
+		Ctx(ctx).
 		Str("code", status.Code(err).String()).
 		Str("grpc_method", info.FullMethod).
 		Send()

@@ -16,9 +16,6 @@ import (
 const settleTimedOut = "settlement timed out"
 
 func (u *UseCase) Tick(ctx context.Context, now time.Time) error {
-	ctx, span := tracer.Start(ctx, "usecase Tick")
-	defer span.End()
-
 	quotesErr := u.expireQuotes(ctx, now)
 	rfqsErr := u.expireRFQs(ctx, now)
 	settlementsErr := u.advanceSettlements(ctx, now)
@@ -39,21 +36,28 @@ func (u *UseCase) expireQuotes(ctx context.Context, now time.Time) error {
 			continue
 		}
 
-		rfq, expired, done, err := u.transition(ctx, q, func(current domain.Quote) (domain.Quote, bool) {
-			return current.WithStatus(domain.QuoteExpired), current.Status.Live() && !current.ValidUntil.After(now)
-		})
-		if err != nil {
-			errs = append(errs, fmt.Errorf("expire quote %s: %w", q.ID, err))
-
-			continue
-		}
-
-		if done {
-			u.release(ctx, rfq.TakerParty, expired)
-		}
+		errs = append(errs, u.expireQuote(ctx, q, now))
 	}
 
 	return errors.Join(errs...)
+}
+
+func (u *UseCase) expireQuote(ctx context.Context, q domain.Quote, now time.Time) (err error) {
+	ctx, span := tracer.StartRoot(ctx, "usecase ExpireQuote")
+	defer func() { tracer.End(span, err) }()
+
+	rfq, expired, done, err := u.transition(ctx, q, func(current domain.Quote) (domain.Quote, bool) {
+		return current.WithStatus(domain.QuoteExpired), current.Status.Live() && !current.ValidUntil.After(now)
+	})
+	if err != nil {
+		return fmt.Errorf("expire quote %s: %w", q.ID, err)
+	}
+
+	if done {
+		u.release(ctx, rfq.TakerParty, expired)
+	}
+
+	return nil
 }
 
 func (u *UseCase) expireRFQs(ctx context.Context, now time.Time) error {
@@ -74,14 +78,17 @@ func (u *UseCase) expireRFQs(ctx context.Context, now time.Time) error {
 	return errors.Join(errs...)
 }
 
-func (u *UseCase) expireRFQ(ctx context.Context, id uuid.UUID, now time.Time) error {
+func (u *UseCase) expireRFQ(ctx context.Context, id uuid.UUID, now time.Time) (err error) {
+	ctx, span := tracer.StartRoot(ctx, "usecase ExpireRFQ")
+	defer func() { tracer.End(span, err) }()
+
 	var (
 		rfq     domain.RFQ
 		expired []domain.Quote
 		done    bool
 	)
 
-	err := u.tx.Wrap(ctx, func(ctx context.Context) error {
+	err = u.tx.Wrap(ctx, func(ctx context.Context) error {
 		var err error
 
 		rfq, err = u.postgres.GetRFQForUpdate(ctx, id)
@@ -122,7 +129,7 @@ func (u *UseCase) expireRFQ(ctx context.Context, id uuid.UUID, now time.Time) er
 	return nil
 }
 
-func (u *UseCase) advanceSettlements(ctx context.Context, now time.Time) error {
+func (u *UseCase) advanceSettlements(ctx context.Context, now time.Time) (err error) {
 	quotes, err := u.postgres.ListQuotesByStatus(ctx, domain.QuoteAllocating)
 	if err != nil {
 		return fmt.Errorf("postgres.ListQuotesByStatus: %w", err)
@@ -136,6 +143,9 @@ func (u *UseCase) advanceSettlements(ctx context.Context, now time.Time) error {
 	if len(quotes) == 0 && len(trades) == 0 {
 		return nil
 	}
+
+	ctx, span := tracer.StartRoot(ctx, "usecase AdvanceSettlements")
+	defer func() { tracer.End(span, err) }()
 
 	desk, err := u.desk(ctx)
 	if err != nil {
@@ -221,14 +231,14 @@ func (u *UseCase) settlementQueries(
 	for _, q := range quotes {
 		rfq, ok := rfqs[q.RFQID]
 		if !ok {
-			log.Error().Stringer("quote", q.ID).Msg("usecase Tick: the quote's rfq is missing")
+			log.Error().Ctx(ctx).Stringer("quote", q.ID).Msg("usecase Tick: the quote's rfq is missing")
 
 			continue
 		}
 
 		legs, err := domain.Legs(rfq, q, operator)
 		if err != nil {
-			log.Error().Err(err).Stringer("quote", q.ID).Msg("usecase Tick: domain.Legs")
+			log.Error().Ctx(ctx).Err(err).Stringer("quote", q.ID).Msg("usecase Tick: domain.Legs")
 
 			continue
 		}
@@ -239,7 +249,7 @@ func (u *UseCase) settlementQueries(
 	for _, t := range trades {
 		legs, err := t.Legs(operator)
 		if err != nil {
-			log.Error().Err(err).Stringer("trade", t.ID).Msg("usecase Tick: trade.Legs")
+			log.Error().Ctx(ctx).Err(err).Stringer("trade", t.ID).Msg("usecase Tick: trade.Legs")
 
 			continue
 		}
@@ -313,7 +323,7 @@ func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.
 
 	switch {
 	case errors.Is(err, domain.ErrSettlementGone):
-		log.Warn().Err(err).Stringer("trade", trade.ID).
+		log.Warn().Ctx(ctx).Err(err).Stringer("trade", trade.ID).
 			Msg("usecase Tick: the settlement's allocations are consumed already, recorded as settled")
 	case err != nil:
 		return fmt.Errorf("ledger.Settle %s: %w", trade.ID, err)
@@ -325,6 +335,9 @@ func (u *UseCase) settle(ctx context.Context, trade domain.Trade, legs []domain.
 	}
 
 	if s.done {
+		tradesTotal.WithLabelValues(string(domain.TradeSettled)).Inc()
+		settlementDuration.Observe(now.Sub(s.trade.CreatedAt).Seconds())
+
 		u.publishTrade(ctx, s.trade)
 		u.publishQuote(ctx, s.rfq.TakerParty, s.won)
 		u.closed(ctx, s.rfq, s.lost)
@@ -343,7 +356,7 @@ func (u *UseCase) recordSettlement(ctx context.Context, trade domain.Trade, now 
 		}
 
 		if quote.Status != domain.QuoteAccepted {
-			unrecorded(trade, quote.Status)
+			unrecorded(ctx, trade, quote.Status)
 
 			return nil
 		}
@@ -381,14 +394,14 @@ func (u *UseCase) recordSettlement(ctx context.Context, trade domain.Trade, now 
 	return s, nil
 }
 
-func unrecorded(trade domain.Trade, status domain.QuoteStatus) {
+func unrecorded(ctx context.Context, trade domain.Trade, status domain.QuoteStatus) {
 	if status == domain.QuoteWon {
-		log.Warn().Stringer("trade", trade.ID).Str("update", trade.UpdateID).
+		log.Warn().Ctx(ctx).Stringer("trade", trade.ID).Str("update", trade.UpdateID).
 			Msg("usecase Tick: the settlement is recorded already")
 
 		return
 	}
 
-	log.Error().Stringer("trade", trade.ID).Str("update", trade.UpdateID).Str("quote", string(status)).
+	log.Error().Ctx(ctx).Stringer("trade", trade.ID).Str("update", trade.UpdateID).Str("quote", string(status)).
 		Msg("usecase Tick: the ledger answered the settle, but the trade is no longer settling: not recorded")
 }

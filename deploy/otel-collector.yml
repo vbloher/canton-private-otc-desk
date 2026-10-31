@@ -1,0 +1,72 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+  prometheus:
+    config:
+      global:
+        scrape_interval: 15s
+      scrape_configs:
+        - job_name: gateway
+          static_configs:
+            - targets: ['gateway:8080']
+        - job_name: identity
+          static_configs:
+            - targets: ['identity:8081']
+        - job_name: trading
+          static_configs:
+            - targets: ['trading:8082']
+        - job_name: ledger
+          static_configs:
+            - targets: ['ledger:8083']
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+    spike_limit_percentage: 20
+
+  batch: {}
+
+  resource:
+    attributes:
+      - key: env
+        value: ${env:ENV}
+        action: upsert
+
+exporters:
+  prometheus_remote_write:
+    http:
+      endpoint: http://victoriametrics:8428/api/v1/write
+    external_labels:
+      env: ${env:ENV}
+    disable_scope_info: true
+    target_info:
+      enabled: false
+
+  otlp_http/victorialogs:
+    logs_endpoint: http://victorialogs:9428/insert/opentelemetry/v1/logs
+    headers:
+      VL-Stream-Fields: service.name,env
+
+  otlp_grpc/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+service:
+  pipelines:
+    metrics:
+      receivers: [prometheus]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus_remote_write]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_http/victorialogs]
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp_grpc/tempo]

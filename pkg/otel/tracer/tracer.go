@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -24,6 +25,20 @@ func Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) 
 	}
 
 	return tracer.Start(ctx, spanName, opts...) //nolint:spancheck
+}
+
+//nolint:ireturn
+func StartRoot(ctx context.Context, spanName string) (context.Context, trace.Span) {
+	return tracer.Start(context.WithValue(ctx, suppressKey{}, false), spanName, trace.WithNewRoot()) //nolint:spancheck
+}
+
+func End(span trace.Span, err error) {
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+
+	span.End()
 }
 
 func Suppress(ctx context.Context) context.Context {

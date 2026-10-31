@@ -2,17 +2,20 @@ package otel
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime/debug"
 	"time"
 
 	"github.com/rs/zerolog/log"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlplog/otlploggrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 
+	sdklog "go.opentelemetry.io/otel/sdk/log"
 	semconv "go.opentelemetry.io/otel/semconv/v1.43.0"
 	tracer_noop "go.opentelemetry.io/otel/trace/noop"
 
@@ -27,7 +30,7 @@ type Config struct {
 	Ratio       float64 `env:"OTEL_RATIO"        envDefault:"1.0"`
 }
 
-var shutdownTracing func(ctx context.Context) error //nolint:gochecknoglobals
+var shutdown func(ctx context.Context) error //nolint:gochecknoglobals
 
 func SilentModeInit() {
 	otel.SetTracerProvider(tracer_noop.NewTracerProvider())
@@ -50,26 +53,41 @@ func Init(ctx context.Context, c Config) error {
 
 	otel.SetTextMapPropagator(prop)
 
+	res := resource.NewWithAttributes(
+		semconv.SchemaURL,
+		semconv.ServiceNameKey.String(c.ServiceName),
+		semconv.ServiceNamespaceKey.String(c.Namespace),
+		semconv.ServiceInstanceIDKey.String(c.InstanceID),
+		semconv.ServiceVersionKey.String(version()),
+	)
+
 	traceExporter, err := otlptracegrpc.New(ctx, otlptracegrpc.WithEndpoint(c.Endpoint), otlptracegrpc.WithInsecure())
 	if err != nil {
 		return fmt.Errorf("failed to create OTLP trace exporter: %w", err)
 	}
 
+	logExporter, err := otlploggrpc.New(ctx, otlploggrpc.WithEndpoint(c.Endpoint), otlploggrpc.WithInsecure())
+	if err != nil {
+		return fmt.Errorf("failed to create OTLP log exporter: %w", err)
+	}
+
 	traceProvider := trace.NewTracerProvider(
 		trace.WithBatcher(traceExporter, trace.WithBatchTimeout(time.Second)),
 		trace.WithSampler(trace.ParentBased(trace.TraceIDRatioBased(c.Ratio))),
-		trace.WithResource(resource.NewWithAttributes(
-			semconv.SchemaURL,
-			semconv.ServiceNameKey.String(c.ServiceName),
-			semconv.ServiceNamespaceKey.String(c.Namespace),
-			semconv.ServiceInstanceIDKey.String(c.InstanceID),
-			semconv.ServiceVersionKey.String(version()),
-		)),
+		trace.WithResource(res),
 	)
 
-	shutdownTracing = traceProvider.Shutdown
+	logProvider := sdklog.NewLoggerProvider(
+		sdklog.WithProcessor(sdklog.NewBatchProcessor(logExporter)),
+		sdklog.WithResource(res),
+	)
+
+	shutdown = func(ctx context.Context) error {
+		return errors.Join(traceProvider.Shutdown(ctx), logProvider.Shutdown(ctx))
+	}
 
 	otel.SetTracerProvider(traceProvider)
+	otel.SetLoggerProvider(logProvider)
 	tracer.Init(otel.Tracer(""))
 
 	return nil
@@ -85,13 +103,13 @@ func version() string {
 }
 
 func Close() {
-	if shutdownTracing == nil {
+	if shutdown == nil {
 		return
 	}
 
-	err := shutdownTracing(context.Background())
+	err := shutdown(context.Background())
 	if err != nil {
-		log.Error().Err(err).Msg("otel: failed to shutdown tracing")
+		log.Error().Err(err).Msg("otel: failed to shutdown")
 	}
 
 	log.Info().Msg("otel: closed")

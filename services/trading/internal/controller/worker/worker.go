@@ -8,6 +8,7 @@ import (
 
 	"github.com/rs/zerolog/log"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/usecase"
 )
@@ -57,7 +58,11 @@ func (w *Worker) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			err := w.usecase.Tick(ctx, time.Now())
+			start := time.Now()
+
+			err := w.usecase.Tick(ctx, start)
+			metrics.WorkerTick("trading", start, err)
+
 			if err != nil {
 				log.Error().Err(err).Msg("worker: usecase.Tick")
 			}

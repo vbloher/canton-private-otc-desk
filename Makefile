@@ -11,7 +11,9 @@ PROTOS := identity_v1 ledger_v1
 
 SERVICES := gateway identity trading ledger maker-bot
 
-.PHONY: lint test integration-test vuln env up up-all down clean web-dev generate grpc-gen \
+OBS := GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-admin} docker compose -f deploy/observability/docker-compose.yml
+
+.PHONY: lint test integration-test vuln env network up up-all down clean obs-up obs-down web-dev generate grpc-gen \
 	bin-deps protoc-install lint-install
 
 run-%:
@@ -33,10 +35,13 @@ integration-test:
 vuln:
 	go tool govulncheck ./...
 
+network:
+	@docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
+
 up:
 	docker compose up -d --wait postgres redis
 
-up-all: env
+up-all: env network
 	docker compose up -d --build --wait
 
 down:
@@ -44,6 +49,12 @@ down:
 
 clean:
 	docker compose down -v
+
+obs-up: network
+	$(OBS) up -d --wait --force-recreate
+
+obs-down:
+	$(OBS) down
 
 web-dev:
 	pnpm --dir web dev

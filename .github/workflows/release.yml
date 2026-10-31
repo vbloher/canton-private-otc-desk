@@ -93,6 +93,7 @@ jobs:
       DEPLOY_DIR: otc-desk-${{ needs.target.outputs.environment }}
       IMAGE_TAG: ${{ needs.target.outputs.tag }}
       NETWORK: ${{ needs.target.outputs.network }}
+      DEPLOY_ENV: ${{ needs.target.outputs.environment }}
       SSH_HOST: ${{ secrets.SSH_HOST }}
       SSH_USER: ${{ secrets.SSH_USER }}
       SSH_PORT: ${{ secrets.SSH_PORT }}
@@ -103,7 +104,8 @@ jobs:
         run: |
           export IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
           mkdir -p out/postgres
-          envsubst '${IMAGE_PREFIX} ${IMAGE_TAG}' < deploy/docker-compose.yml > out/docker-compose.yml
+          envsubst '${IMAGE_PREFIX} ${IMAGE_TAG} ${DEPLOY_ENV}' < deploy/docker-compose.yml > out/docker-compose.yml
+          cp deploy/otel-collector.yml out/otel-collector.yml
           cp "deploy/.env.$NETWORK.example" out/.env.example
           cp deploy/postgres/init.sql out/postgres/init.sql
 
@@ -128,6 +130,24 @@ jobs:
       - name: Upload
         run: tar -C out -cf - . | ssh server "mkdir -p '$DEPLOY_DIR' && tar -C '$DEPLOY_DIR' -xf -"
 
+      - name: Observability
+        if: needs.target.outputs.environment == 'dev'
+        continue-on-error: true
+        run: |
+          tar -C deploy/observability -cf - . |
+            ssh server "mkdir -p observability && rm -rf observability/grafana && tar -C observability -xf -"
+          ssh server "cd observability && sh -s" <<'EOF'
+          set -eu
+          docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
+          if [ ! -f .env ]; then
+            echo "::warning::$(pwd)/.env is missing: copy .env.example there and fill it in to run the observability stack"
+            exit 0
+          fi
+          docker compose pull --quiet
+          docker compose up -d --wait --wait-timeout 300 --force-recreate --remove-orphans
+          docker compose ps
+          EOF
+
       - name: Start
         run: |
           ssh server "cd '$DEPLOY_DIR' && NETWORK='$NETWORK' sh -s" <<'EOF'
@@ -145,8 +165,10 @@ jobs:
             echo "::error::the maker bot must not run on mainnet: drop demo from COMPOSE_PROFILES in $(pwd)/.env"
             exit 1
           fi
+          docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
           docker compose pull --quiet
           docker compose up -d --wait --wait-timeout 600 --remove-orphans
+          docker compose up -d --wait --force-recreate --no-deps otel-collector
           if [ -z "$bot" ]; then
             docker compose --profile demo rm -sf maker-bot
           fi

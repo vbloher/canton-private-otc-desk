@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
@@ -137,7 +138,12 @@ func Test_Tick_SettlesWhenAllAllocated(t *testing.T) {
 	d.events.EXPECT().Publish(Any, quoteEvent(won, domain.QuoteWon), parties(taker, makerA)).Return(nil)
 	d.events.EXPECT().Publish(Any, rfqUpdated(rfq), parties(taker, makerA, makerB, makerC)).Return(nil)
 
+	settledBefore := counterValue(t, "trading_trades_total", map[string]string{"status": "settled"})
+	durationsBefore := histogramCount(t, "trading_settlement_duration_seconds")
+
 	require.NoError(t, d.useCase(t).Tick(t.Context(), now))
+	require.InDelta(t, settledBefore+1, counterValue(t, "trading_trades_total", map[string]string{"status": "settled"}), 0)
+	require.Equal(t, durationsBefore+1, histogramCount(t, "trading_settlement_duration_seconds"))
 	require.Equal(t, trade.ID, settled.ID)
 	require.Equal(t, domain.TradeSettled, settled.Status)
 	require.Equal(t, "update-1", settled.UpdateID)
@@ -146,9 +152,7 @@ func Test_Tick_SettlesWhenAllAllocated(t *testing.T) {
 	require.NotNil(t, filled.ClosedAt)
 }
 
-func Test_Tick_ExpiresRFQ(t *testing.T) {
-	d := newDeps(t)
-	now := time.Now()
+func (d deps) expectRFQExpiry(now time.Time) *domain.RFQ {
 	rfq := openRFQ(now.Add(-6 * time.Minute))
 	late := quoteOf(rfq, makerA, "100000", domain.QuoteAllocating, rfq.Deadline)
 	expired := quoteOf(rfq, makerB, "100100", domain.QuoteExpired, rfq.Deadline)
@@ -165,9 +169,48 @@ func Test_Tick_ExpiresRFQ(t *testing.T) {
 	d.events.EXPECT().Publish(Any, quoteEvent(late, domain.QuoteExpired), parties(makerA)).Return(nil)
 	d.events.EXPECT().Publish(Any, rfqUpdated(rfq), parties(taker, makerA, makerB, makerC)).Return(nil)
 
+	return &closed
+}
+
+func Test_Tick_ExpiresRFQ(t *testing.T) {
+	d := newDeps(t)
+	now := time.Now()
+
+	closed := d.expectRFQExpiry(now)
+
 	require.NoError(t, d.useCase(t).Tick(t.Context(), now))
 	require.Equal(t, domain.RFQExpired, closed.Status)
 	require.NotNil(t, closed.ClosedAt)
+}
+
+func Test_Tick_IdleDeskRecordsNoSpans(t *testing.T) {
+	d := newDeps(t)
+	recorder := recordSpans(t)
+	now := time.Now()
+
+	d.expectTick(now, book{})
+
+	require.NoError(t, d.useCase(t).Tick(tracer.Suppress(t.Context()), now))
+	require.Empty(t, recorder.Ended())
+}
+
+func Test_Tick_TracesAnExpiredRFQAsItsOwnRoot(t *testing.T) {
+	d := newDeps(t)
+	recorder := recordSpans(t)
+	now := time.Now()
+
+	d.expectRFQExpiry(now)
+
+	require.NoError(t, d.useCase(t).Tick(tracer.Suppress(t.Context()), now))
+
+	spans := recorder.Ended()
+	root := roots(spans)
+	require.Len(t, root, 1)
+	require.Equal(t, "usecase ExpireRFQ", root[0].Name())
+
+	for _, s := range spans {
+		require.Equal(t, root[0].SpanContext().TraceID(), s.SpanContext().TraceID())
+	}
 }
 
 func Test_Tick_KeepsRFQWithSettlingTrade(t *testing.T) {
@@ -241,7 +284,10 @@ func Test_Tick_FailsTradeAfterTimeout(t *testing.T) {
 	d.events.EXPECT().Publish(Any, tradeEvent(trade, domain.TradeFailed), parties(taker, makerA)).Return(nil)
 	d.events.EXPECT().Publish(Any, quoteEvent(accepted, domain.QuoteFailed), parties(makerA)).Return(nil)
 
+	failedBefore := counterValue(t, "trading_trades_total", map[string]string{"status": "failed"})
+
 	require.NoError(t, d.useCase(t).Tick(t.Context(), now))
+	require.InDelta(t, failedBefore+1, counterValue(t, "trading_trades_total", map[string]string{"status": "failed"}), 0)
 	require.Equal(t, trade.ID, failed.ID)
 	require.Equal(t, domain.TradeFailed, failed.Status)
 	require.Equal(t, "settlement timed out", failed.Reason)
