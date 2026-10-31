@@ -29,5 +29,7 @@ func Init(c Config) {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: "15:04:05"})
 	}
 
+	log.Logger = log.Logger.Hook(TraceHook{})
+
 	log.Info().Msg("logger initialized")
 }
