@@ -72,7 +72,8 @@
             "type": "tempo",
             "uid": "tempo"
           },
-          "queryType": "serviceMap"
+          "queryType": "serviceMap",
+          "serviceMapQuery": "{env=\"$env\"}"
         }
       ],
       "id": 1,

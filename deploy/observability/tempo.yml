@@ -23,6 +23,9 @@ backend_worker:
     block_retention: 168h
 
 metrics_generator:
+  processor:
+    service_graphs:
+      dimensions: [env]
   storage:
     path: /var/tempo/generator/wal
     remote_write:
