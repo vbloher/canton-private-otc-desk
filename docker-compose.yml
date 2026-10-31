@@ -180,7 +180,7 @@ services:
       retries: 20
 
   otel-collector:
-    image: otel/opentelemetry-collector:0.163.1
+    image: otel/opentelemetry-collector:0.164.0
     restart: unless-stopped
     command: ['--config=/etc/otelcol/config.yml']
     environment:

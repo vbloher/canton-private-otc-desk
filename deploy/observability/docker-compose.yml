@@ -10,7 +10,7 @@ x-logging: &logging
 services:
   victoriametrics:
     <<: *logging
-    image: victoriametrics/victoria-metrics:v1.154.0
+    image: victoriametrics/victoria-metrics:v1.155.0
     restart: unless-stopped
     command:
       - -storageDataPath=/storage
@@ -44,7 +44,7 @@ services:
 
   grafana:
     <<: *logging
-    image: grafana/grafana:13.2.5
+    image: grafana/grafana:13.3.0
     restart: unless-stopped
     ports:
       - '127.0.0.1:${GRAFANA_PORT:-3001}:3000'
@@ -57,6 +57,7 @@ services:
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
       GF_ANALYTICS_CHECK_FOR_UPDATES: 'false'
       GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: 'false'
+      GF_METRICS_ENABLED: 'false'
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/etc/grafana/dashboards:ro
