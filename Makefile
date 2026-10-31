@@ -11,7 +11,7 @@ PROTOS := identity_v1 ledger_v1
 
 SERVICES := gateway identity trading ledger maker-bot
 
-.PHONY: lint test integration-test vuln env up up-all down clean web-dev generate grpc-gen \
+.PHONY: lint test integration-test vuln env network up up-all down clean web-dev generate grpc-gen \
 	bin-deps protoc-install lint-install
 
 run-%:
@@ -33,10 +33,13 @@ integration-test:
 vuln:
 	go tool govulncheck ./...
 
+network:
+	@docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
+
 up:
 	docker compose up -d --wait postgres redis
 
-up-all: env
+up-all: env network
 	docker compose up -d --build --wait
 
 down:
