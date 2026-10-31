@@ -5,6 +5,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const (
+	traceIDField = "trace_id"
+	spanIDField  = "span_id"
+)
+
 type TraceHook struct{}
 
 func (TraceHook) Run(e *zerolog.Event, _ zerolog.Level, _ string) {
@@ -13,5 +18,5 @@ func (TraceHook) Run(e *zerolog.Event, _ zerolog.Level, _ string) {
 		return
 	}
 
-	e.Str("trace_id", sc.TraceID().String()).Str("span_id", sc.SpanID().String())
+	e.Str(traceIDField, sc.TraceID().String()).Str(spanIDField, sc.SpanID().String())
 }
