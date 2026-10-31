@@ -146,8 +146,8 @@ Open <http://localhost:3000>:
 
 ## Development
 
-Requirements: Go 1.27.3, Node 24 with `corepack enable` (pnpm's version is pinned in
-`web/package.json`), plus the quick-start requirements.
+Requirements: Go 1.27.3, Node 26 with corepack (`npm install -g corepack && corepack enable`;
+pnpm's version is pinned in `web/package.json`), plus the quick-start requirements.
 
 ```bash
 make bin-deps            # protoc and golangci-lint into ./bin
