@@ -51,7 +51,7 @@ func TestOTelWriter_MapsLine(t *testing.T) {
 	require.Equal(t, "boom", rs[0].Body.AsString())
 	require.Equal(t, otellog.SeverityError, rs[0].Severity)
 	require.Equal(t, "error", rs[0].SeverityText)
-	require.Equal(t, map[string]string{"code": "502", "method": "POST /api/v1/x"}, attributes(rs[0]))
+	require.Equal(t, map[string]string{"code": "502", "method": "POST /api/v1/x", "level": "error"}, attributes(rs[0]))
 
 	sc := trace.SpanContextFromContext(rs[0].Context)
 	require.Equal(t, traceID, sc.TraceID().String())
@@ -122,5 +122,5 @@ func TestOTelWriter_UsesFieldsAsBodyWithoutMessage(t *testing.T) {
 	rs := records(rec)
 	require.Len(t, rs, 1)
 	require.JSONEq(t, `{"code":401,"method":"GET /api/v1/instruments"}`, rs[0].Body.AsString())
-	require.Equal(t, map[string]string{"code": "401", "method": "GET /api/v1/instruments"}, attributes(rs[0]))
+	require.Equal(t, map[string]string{"code": "401", "method": "GET /api/v1/instruments", "level": "info"}, attributes(rs[0]))
 }

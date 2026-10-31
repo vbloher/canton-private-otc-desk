@@ -63,6 +63,7 @@ func (w otelWriter) emit(sev otellog.Severity, severityText string, fields map[s
 	}
 
 	record.SetBody(attribute.StringValue(msg))
+	record.AddAttributes(attribute.String(zerolog.LevelFieldName, severityText))
 
 	w.logger.Emit(ctx, record)
 }
