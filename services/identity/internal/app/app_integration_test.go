@@ -33,6 +33,7 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/grpcserver"
 	"github.com/vbloher/canton-private-otc-desk/pkg/httpserver"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel"
+	"github.com/vbloher/canton-private-otc-desk/pkg/presence"
 	"github.com/vbloher/canton-private-otc-desk/pkg/postgres"
 	"github.com/vbloher/canton-private-otc-desk/pkg/redis"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/config"
@@ -392,6 +393,15 @@ func Test_Service_EndToEnd(t *testing.T) {
 	toggled := api.do(http.MethodPut, "/api/v1/me/maker-mode", `{"enabled":true}`, caller)
 	require.Equal(t, http.StatusOK, toggled.status, string(toggled.body))
 	require.Equal(t, true, toggled.json(t)["makerMode"])
+
+	offline, err := identity.ResolveMakers(ctx, &identitypb.ResolveMakersInput{Hints: []string{me["hint"].(string)}})
+	require.NoError(t, err)
+	require.Empty(t, offline.GetMakers(), "a maker without a live connection cannot be asked")
+
+	presenceClient, err := redis.New(ctx, cfg.Redis)
+	require.NoError(t, err)
+	t.Cleanup(presenceClient.Close)
+	require.NoError(t, presenceClient.Set(ctx, presence.Key(me["partyId"].(string)), "1", time.Minute).Err())
 
 	resolved, err := identity.ResolveMakers(ctx, &identitypb.ResolveMakersInput{
 		Hints: []string{"nobody", me["hint"].(string)},

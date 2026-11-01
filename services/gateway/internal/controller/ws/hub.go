@@ -8,15 +8,24 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/rs/zerolog/log"
+
+	"github.com/vbloher/canton-private-otc-desk/pkg/presence"
 )
 
 const (
-	PingInterval = 30 * time.Second
+	PingInterval    = 30 * time.Second
+	PresenceRefresh = 20 * time.Second
 
-	pongTimeout  = 10 * time.Second
-	writeTimeout = 10 * time.Second
-	queueSize    = 64
+	pongTimeout     = 10 * time.Second
+	writeTimeout    = 10 * time.Second
+	presenceTimeout = 5 * time.Second
+	queueSize       = 64
 )
+
+type Presence interface {
+	MarkOnline(ctx context.Context, partyIDs []string, ttl time.Duration) error
+	ClearOnline(ctx context.Context, partyID string) error
+}
 
 type Conn interface {
 	Write(ctx context.Context, typ websocket.MessageType, p []byte) error
@@ -28,22 +37,38 @@ var _ Conn = (*websocket.Conn)(nil)
 
 type Hub struct {
 	pingInterval time.Duration
+	presence     Presence
 
 	mu      sync.RWMutex
 	parties map[string]map[*client]struct{}
 	closed  bool
 	wg      sync.WaitGroup
+
+	stopRefresh chan struct{}
+	stopOnce    sync.Once
+	refreshed   chan struct{}
 }
 
-func NewHub(pingInterval time.Duration) *Hub {
+func NewHub(pingInterval, presenceRefresh time.Duration, p Presence) *Hub {
 	if pingInterval <= 0 {
 		pingInterval = PingInterval
 	}
 
-	return &Hub{
-		pingInterval: pingInterval,
-		parties:      make(map[string]map[*client]struct{}),
+	if presenceRefresh <= 0 {
+		presenceRefresh = PresenceRefresh
 	}
+
+	h := &Hub{
+		pingInterval: pingInterval,
+		presence:     p,
+		parties:      make(map[string]map[*client]struct{}),
+		stopRefresh:  make(chan struct{}),
+		refreshed:    make(chan struct{}),
+	}
+
+	go h.refresh(presenceRefresh)
+
+	return h
 }
 
 func (h *Hub) Register(ctx context.Context, partyID string, conn Conn) func() {
@@ -65,7 +90,9 @@ func (h *Hub) Register(ctx context.Context, partyID string, conn Conn) func() {
 	}
 
 	sockets := h.parties[partyID]
-	if sockets == nil {
+
+	first := sockets == nil
+	if first {
 		sockets = make(map[*client]struct{})
 		h.parties[partyID] = sockets
 	}
@@ -74,6 +101,10 @@ func (h *Hub) Register(ctx context.Context, partyID string, conn Conn) func() {
 
 	h.wg.Add(1)
 	h.mu.Unlock()
+
+	if first {
+		h.markOnline(ctx, partyID)
+	}
 
 	go h.serve(ctx, c)
 
@@ -94,6 +125,9 @@ func (h *Hub) Deliver(partyID string, payload []byte) {
 }
 
 func (h *Hub) Close() {
+	h.stopOnce.Do(func() { close(h.stopRefresh) })
+	<-h.refreshed
+
 	h.mu.Lock()
 
 	h.closed = true
@@ -114,7 +148,9 @@ func (h *Hub) serve(ctx context.Context, c *client) {
 
 	code, reason := c.run(ctx, h.pingInterval)
 
-	h.remove(c)
+	if h.remove(c) {
+		h.clearOnline(ctx, c.partyID)
+	}
 
 	if code != websocket.StatusNormalClosure {
 		log.Info().Str("reason", reason).Msg("ws: dropping socket")
@@ -123,16 +159,75 @@ func (h *Hub) serve(ctx context.Context, c *client) {
 	c.closeConn(code, reason)
 }
 
-func (h *Hub) remove(c *client) {
+func (h *Hub) remove(c *client) (last bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	sockets := h.parties[c.partyID]
+	sockets, ok := h.parties[c.partyID]
+	if !ok {
+		return false
+	}
 
 	delete(sockets, c)
 
-	if len(sockets) == 0 {
-		delete(h.parties, c.partyID)
+	if len(sockets) > 0 {
+		return false
+	}
+
+	delete(h.parties, c.partyID)
+
+	return true
+}
+
+func (h *Hub) refresh(interval time.Duration) {
+	defer close(h.refreshed)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-h.stopRefresh:
+			return
+		case <-ticker.C:
+			h.markOnline(context.Background(), h.online()...)
+		}
+	}
+}
+
+func (h *Hub) online() []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	parties := make([]string, 0, len(h.parties))
+	for partyID := range h.parties {
+		parties = append(parties, partyID)
+	}
+
+	return parties
+}
+
+func (h *Hub) markOnline(ctx context.Context, partyIDs ...string) {
+	if len(partyIDs) == 0 {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), presenceTimeout)
+	defer cancel()
+
+	err := h.presence.MarkOnline(ctx, partyIDs, presence.TTL)
+	if err != nil {
+		log.Warn().Err(err).Int("parties", len(partyIDs)).Msg("ws: presence.MarkOnline")
+	}
+}
+
+func (h *Hub) clearOnline(ctx context.Context, partyID string) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), presenceTimeout)
+	defer cancel()
+
+	err := h.presence.ClearOnline(ctx, partyID)
+	if err != nil {
+		log.Warn().Err(err).Msg("ws: presence.ClearOnline")
 	}
 }
 

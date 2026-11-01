@@ -1,6 +1,7 @@
 package http_test
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/mock"
@@ -109,10 +111,16 @@ func newGateway(t *testing.T, idp *mocks.Identity) *gateway {
 	return g
 }
 
+type noPresence struct{}
+
+func (noPresence) MarkOnline(context.Context, []string, time.Duration) error { return nil }
+
+func (noPresence) ClearOnline(context.Context, string) error { return nil }
+
 func newRouter(t *testing.T, idp *mocks.Identity, cfg controller.Config) (http.Handler, *ws.Hub) {
 	t.Helper()
 
-	hub := ws.NewHub(ws.PingInterval)
+	hub := ws.NewHub(ws.PingInterval, ws.PresenceRefresh, noPresence{})
 	t.Cleanup(hub.Close)
 
 	r := router.New()
@@ -464,7 +472,7 @@ func Test_Router_RejectsInvalidUpstreamURL(t *testing.T) {
 			cfg := valid
 			damage(&cfg)
 
-			err := controller.GatewayRouter(router.New(), usecase.New(mocks.NewIdentity(t)), ws.NewHub(ws.PingInterval), cfg, sharedMetrics())
+			err := controller.GatewayRouter(router.New(), usecase.New(mocks.NewIdentity(t)), ws.NewHub(ws.PingInterval, ws.PresenceRefresh, noPresence{}), cfg, sharedMetrics())
 			require.Error(t, err)
 		})
 	}

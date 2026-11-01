@@ -3,6 +3,8 @@ package ws_test
 import (
 	"context"
 	"errors"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -10,6 +12,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/stretchr/testify/require"
 
+	"github.com/vbloher/canton-private-otc-desk/pkg/presence"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/controller/ws"
 )
 
@@ -103,13 +106,121 @@ func (f *fakeConn) closedWith(t *testing.T) websocket.StatusCode {
 	}
 }
 
+type fakePresence struct {
+	mu     sync.Mutex
+	marks  [][]string
+	ttls   []time.Duration
+	clears []string
+	err    error
+}
+
+func (f *fakePresence) MarkOnline(_ context.Context, partyIDs []string, ttl time.Duration) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.marks = append(f.marks, slices.Sorted(slices.Values(partyIDs)))
+	f.ttls = append(f.ttls, ttl)
+
+	return f.err
+}
+
+func (f *fakePresence) ClearOnline(_ context.Context, partyID string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.clears = append(f.clears, partyID)
+
+	return f.err
+}
+
+func (f *fakePresence) marked(parties ...string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for i, mark := range f.marks {
+		if slices.Equal(mark, parties) && f.ttls[i] == presence.TTL {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (f *fakePresence) cleared(party string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return slices.Contains(f.clears, party)
+}
+
 func newHub(t *testing.T, pingInterval time.Duration) *ws.Hub {
 	t.Helper()
 
-	hub := ws.NewHub(pingInterval)
+	return newHubWithPresence(t, pingInterval, quiet, &fakePresence{})
+}
+
+func newHubWithPresence(t *testing.T, pingInterval, refresh time.Duration, p ws.Presence) *ws.Hub {
+	t.Helper()
+
+	hub := ws.NewHub(pingInterval, refresh, p)
 	t.Cleanup(hub.Close)
 
 	return hub
+}
+
+func Test_Hub_MarksAPartyOnlineWhenItConnects(t *testing.T) {
+	p := &fakePresence{}
+	hub := newHubWithPresence(t, quiet, quiet, p)
+
+	hub.Register(t.Context(), "alice::1220", newFakeConn())
+
+	require.Eventually(t, func() bool { return p.marked("alice::1220") }, wait, tick)
+}
+
+func Test_Hub_KeepsAPartyOnlineWhileASocketLives(t *testing.T) {
+	p := &fakePresence{}
+	hub := newHubWithPresence(t, quiet, quiet, p)
+
+	closeFirst := hub.Register(t.Context(), "alice::1220", newFakeConn())
+	hub.Register(t.Context(), "alice::1220", newFakeConn())
+
+	closeFirst()
+
+	require.Eventually(t, func() bool { return hub.Len() == 1 }, wait, tick)
+	require.Never(t, func() bool { return p.cleared("alice::1220") }, 50*time.Millisecond, tick)
+}
+
+func Test_Hub_ClearsAPartyWhenItsLastSocketCloses(t *testing.T) {
+	p := &fakePresence{}
+	hub := newHubWithPresence(t, quiet, quiet, p)
+
+	closeIt := hub.Register(t.Context(), "bob::1220", newFakeConn())
+	closeIt()
+
+	require.Eventually(t, func() bool { return p.cleared("bob::1220") }, wait, tick)
+}
+
+func Test_Hub_RefreshesOnlineParties(t *testing.T) {
+	p := &fakePresence{}
+	hub := newHubWithPresence(t, quiet, 10*time.Millisecond, p)
+
+	hub.Register(t.Context(), "alice::1220", newFakeConn())
+	hub.Register(t.Context(), "bob::1220", newFakeConn())
+
+	require.Eventually(t, func() bool { return p.marked("alice::1220", "bob::1220") }, wait, tick)
+}
+
+func Test_Hub_PresenceErrorsKeepSockets(t *testing.T) {
+	p := &fakePresence{err: errors.New("redis is down")}
+	hub := newHubWithPresence(t, quiet, 10*time.Millisecond, p)
+
+	conn := newFakeConn()
+	hub.Register(t.Context(), "alice::1220", conn)
+
+	event := []byte(`{"type":"wallet.updated","data":{}}`)
+	hub.Deliver("alice::1220", event)
+
+	require.Equal(t, event, conn.next(t))
 }
 
 func Test_Hub_DeliversToPartyOnly(t *testing.T) {
@@ -223,7 +334,7 @@ func Test_Hub_DropsSlowSocketWithoutBlocking(t *testing.T) {
 }
 
 func Test_Hub_CloseSaysGoodbyeToEverySocket(t *testing.T) {
-	hub := ws.NewHub(quiet)
+	hub := ws.NewHub(quiet, quiet, &fakePresence{})
 
 	a, b := newFakeConn(), newFakeConn()
 	hub.Register(t.Context(), "alice::1220", a)

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel"
+	"github.com/vbloher/canton-private-otc-desk/pkg/presence"
 	redislib "github.com/vbloher/canton-private-otc-desk/pkg/redis"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/adapter/redis"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
@@ -24,16 +25,20 @@ func newRedis(t *testing.T) *redis.Redis {
 
 	otel.SilentModeInit()
 
+	client, err := redislib.New(t.Context(), redislib.Config{Addr: redisAddr()})
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+
+	return redis.New(client)
+}
+
+func redisAddr() string {
 	addr := os.Getenv("REDIS_ADDR")
 	if addr == "" {
 		addr = "localhost:6379"
 	}
 
-	client, err := redislib.New(t.Context(), redislib.Config{Addr: addr})
-	require.NoError(t, err)
-	t.Cleanup(client.Close)
-
-	return redis.New(client)
+	return addr
 }
 
 func registration(t *testing.T) domain.Registration {
@@ -208,4 +213,25 @@ func Test_SessionCache_Expires(t *testing.T) {
 
 	_, ok := r.GetCachedSession(t.Context(), hash)
 	require.False(t, ok)
+}
+
+func Test_Online(t *testing.T) {
+	r := newRedis(t)
+
+	client, err := redislib.New(t.Context(), redislib.Config{Addr: redisAddr()})
+	require.NoError(t, err)
+	t.Cleanup(client.Close)
+
+	alice := "alice-" + uuid.NewString()[:8] + "::1220"
+	bob := "bob-" + uuid.NewString()[:8] + "::1220"
+
+	require.NoError(t, client.Set(t.Context(), presence.Key(alice), "1", time.Minute).Err())
+
+	online, err := r.Online(t.Context(), []string{alice, bob})
+	require.NoError(t, err)
+	require.Equal(t, map[string]bool{alice: true}, online)
+
+	online, err = r.Online(t.Context(), nil)
+	require.NoError(t, err)
+	require.Empty(t, online)
 }

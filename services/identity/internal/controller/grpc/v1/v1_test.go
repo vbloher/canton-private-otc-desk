@@ -118,6 +118,8 @@ func Test_ResolveMakers(t *testing.T) {
 	makerB := domain.User{ID: uuid.New(), PartyID: "makerB::1", Hint: "makerB", DisplayName: "makerB", MakerMode: true}
 
 	f.postgres.EXPECT().ListMakers(Any).Return([]domain.User{makerA, makerB}, nil)
+	f.redis.EXPECT().Online(Any, []string{"makerA::1", "makerB::1"}).
+		Return(map[string]bool{"makerA::1": true, "makerB::1": true}, nil)
 
 	got, err := f.handlers.ResolveMakers(t.Context(), &pb.ResolveMakersInput{Hints: []string{"makerB", "ghost"}})
 	require.NoError(t, err)

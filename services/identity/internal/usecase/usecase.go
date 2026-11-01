@@ -36,6 +36,7 @@ type Redis interface {
 	TakeRegistration(ctx context.Context, id uuid.UUID) (domain.Registration, error)
 	SaveChallenge(ctx context.Context, challenge string, userID uuid.UUID, ttl time.Duration) error
 	TakeChallenge(ctx context.Context, challenge string) (uuid.UUID, error)
+	Online(ctx context.Context, partyIDs []string) (map[string]bool, error)
 	GetCachedSession(ctx context.Context, tokenHash string) (domain.User, bool)
 	CacheSession(ctx context.Context, tokenHash string, user domain.User, ttl time.Duration)
 	DropCachedSession(ctx context.Context, tokenHash string)

@@ -799,6 +799,8 @@ func Test_ListMakers(t *testing.T) {
 	makerB := domain.User{ID: uuid.New(), Hint: "makerB", DisplayName: "Maker B", PartyID: "makerB::1220ab"}
 
 	s.postgres.EXPECT().ListMakers(Any).Return([]domain.User{makerA, alice, makerB}, nil)
+	s.redis.EXPECT().Online(Any, []string{makerA.PartyID, alice.PartyID, makerB.PartyID}).
+		Return(map[string]bool{makerA.PartyID: true, alice.PartyID: true, makerB.PartyID: true}, nil)
 
 	rec := s.do(t, nethttp.MethodGet, "/api/v1/makers", "", asUser(alice))
 

@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel/tracer"
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
@@ -19,9 +18,9 @@ func (u *UseCase) ResolveMakers(ctx context.Context, input dto.ResolveMakersInpu
 		return output, nil
 	}
 
-	makers, err := u.postgres.ListMakers(ctx)
+	makers, err := u.onlineMakers(ctx)
 	if err != nil {
-		return output, fmt.Errorf("postgres.ListMakers: %w", err)
+		return output, err
 	}
 
 	byHint := make(map[string]domain.User, len(makers))

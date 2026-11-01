@@ -15,6 +15,7 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/pkg/router"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/config"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/adapter/identity"
+	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/adapter/redis"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/controller/http"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/controller/ws"
 	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/usecase"
@@ -43,7 +44,7 @@ func Run(ctx context.Context, c config.Config) error {
 
 	uc := usecase.New(identity.New(identityConn))
 
-	hub := ws.NewHub(ws.PingInterval)
+	hub := ws.NewHub(ws.PingInterval, ws.PresenceRefresh, redis.New(redisClient))
 	defer hub.Close()
 
 	stopFeed := feedHub(ctx, events.NewSubscriber(redisClient), hub)

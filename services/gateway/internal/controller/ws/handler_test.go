@@ -137,7 +137,7 @@ func Test_Handler_RefusesForeignOrigin(t *testing.T) {
 }
 
 func Test_Handler_HubShutdownClosesClient(t *testing.T) {
-	hub := ws.NewHub(quiet)
+	hub := ws.NewHub(quiet, quiet, &fakePresence{})
 	conn := dial(t, serve(t, hub, &alice), nil)
 
 	require.Eventually(t, registered(hub, 1), wait, tick)

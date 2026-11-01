@@ -217,7 +217,7 @@ paths:
     get:
       tags: [Me]
       operationId: listMakers
-      summary: Makers the caller can request quotes from (the caller excluded)
+      summary: Makers online right now that the caller can request quotes from (the caller excluded)
       responses:
         '200':
           description: Makers

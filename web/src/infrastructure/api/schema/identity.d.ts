@@ -147,7 +147,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Makers the caller can request quotes from (the caller excluded) */
+        /** Makers online right now that the caller can request quotes from (the caller excluded) */
         get: operations["listMakers"];
         put?: never;
         post?: never;

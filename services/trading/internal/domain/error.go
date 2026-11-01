@@ -11,7 +11,7 @@ var (
 	ErrRFQClosed         = errors.New("rfq is closed")
 	ErrAlreadyQuoted     = errors.New("rfq already quoted by this maker")
 	ErrQuoteNotOpen      = errors.New("quote is not open")
-	ErrNotAMaker         = errors.New("not a maker")
+	ErrNotAMaker         = errors.New("maker is not available")
 	ErrDust              = errors.New("trade too small")
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	ErrForbidden         = errors.New("forbidden")

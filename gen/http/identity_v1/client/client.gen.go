@@ -349,7 +349,7 @@ type ClientInterface interface {
 	// Corresponds with POST /auth/register/start (the `RegisterStart` operationId).
 	RegisterStart(ctx context.Context, body RegisterStartJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListMakers Makers the caller can request quotes from (the caller excluded)
+	// ListMakers Makers online right now that the caller can request quotes from (the caller excluded)
 	//
 	// Corresponds with GET /makers (the `ListMakers` operationId).
 	ListMakers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -559,7 +559,7 @@ func (c *Client) RegisterStart(ctx context.Context, body RegisterStartJSONReques
 	return c.Client.Do(req)
 }
 
-// ListMakers Makers the caller can request quotes from (the caller excluded)
+// ListMakers Makers online right now that the caller can request quotes from (the caller excluded)
 //
 // Corresponds with GET /makers (the `ListMakers` operationId).
 func (c *Client) ListMakers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -1082,7 +1082,7 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /auth/register/start (the `RegisterStart` operationId).
 	RegisterStartWithResponse(ctx context.Context, body RegisterStartJSONRequestBody, reqEditors ...RequestEditorFn) (*RegisterStartResponse, error)
 
-	// ListMakersWithResponse Makers the caller can request quotes from (the caller excluded)
+	// ListMakersWithResponse Makers online right now that the caller can request quotes from (the caller excluded)
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -1833,7 +1833,7 @@ func (c *ClientWithResponses) RegisterStartWithResponse(ctx context.Context, bod
 	return ParseRegisterStartResponse(rsp)
 }
 
-// ListMakersWithResponse Makers the caller can request quotes from (the caller excluded)
+// ListMakersWithResponse Makers online right now that the caller can request quotes from (the caller excluded)
 //
 // Returns a wrapper object for the known response body format(s).
 //

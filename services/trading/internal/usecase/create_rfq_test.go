@@ -61,6 +61,16 @@ func Test_CreateRFQ_UnknownMaker(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotAMaker)
 }
 
+func Test_CreateRFQ_UnavailableMaker(t *testing.T) {
+	d := newDeps(t)
+	d.cachedDesk()
+	d.identity.EXPECT().ResolveMakers(Any, []string{"makerA"}).Return(nil, nil)
+
+	_, err := d.useCase(t).CreateRFQ(t.Context(), createInput("makerA"))
+	require.ErrorIs(t, err, domain.ErrNotAMaker)
+	require.ErrorContains(t, err, `maker is not available: "makerA"`)
+}
+
 func Test_CreateRFQ_ReadsDeskFromLedgerOnCacheMiss(t *testing.T) {
 	d := newDeps(t)
 	d.redis.EXPECT().GetDesk(Any).Return(domain.Desk{}, false)
