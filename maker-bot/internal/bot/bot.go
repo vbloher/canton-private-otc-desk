@@ -24,9 +24,10 @@ type Bot struct {
 	log    *slog.Logger
 	now    func() time.Time
 
-	mu      sync.Mutex
-	sent    map[uuid.UUID]bool
-	refused map[uuid.UUID]bool
+	mu          sync.Mutex
+	sent        map[uuid.UUID]bool
+	refused     map[uuid.UUID]bool
+	faucetAfter time.Time
 }
 
 var _ stream.Handler = (*Bot)(nil)

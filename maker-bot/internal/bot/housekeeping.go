@@ -4,12 +4,16 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"time"
 
 	"github.com/vbloher/canton-private-otc-desk/maker-bot/internal/desk"
 	"github.com/vbloher/canton-private-otc-desk/maker-bot/internal/strategy"
 )
 
-const lowDrips = 10
+const (
+	lowDrips    = 10
+	faucetPause = time.Hour
+)
 
 func (b *Bot) acceptTransfers(ctx context.Context) {
 	transfers, err := b.desk.IncomingTransfers(ctx)
@@ -41,6 +45,10 @@ func (b *Bot) acceptTransfers(ctx context.Context) {
 }
 
 func (b *Bot) topUp(ctx context.Context) {
+	if b.now().Before(b.faucetAfter) {
+		return
+	}
+
 	network, err := b.desk.Network(ctx)
 	if err != nil {
 		b.log.Warn("network unreadable", "err", err)
@@ -62,6 +70,8 @@ func (b *Bot) topUp(ctx context.Context) {
 	if !low(network.Faucet, balances) {
 		return
 	}
+
+	b.faucetAfter = b.now().Add(faucetPause)
 
 	err = b.desk.Faucet(ctx)
 

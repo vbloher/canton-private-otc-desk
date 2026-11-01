@@ -27,7 +27,8 @@ Fork it, change the pricing, run your own maker.
 4. **Signs what it is handed**: the token-standard allocations that are its quotes and the
    accepts of incoming transfers. It never signs a `transfer-out`, so it never withdraws.
 5. **Keeps itself funded**: it accepts every incoming transfer and, where the desk runs a
-   faucet (DevNet), draws from it when a balance drops under ten drips.
+   faucet (DevNet), draws from it when a balance drops under ten drips — at most once an hour,
+   so a token the faucet cannot send is not asked for again and again.
 
 ## Run
 

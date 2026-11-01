@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -38,6 +39,37 @@ func Test_Housekeeping_DrawsFromTheFaucetWhenLow(t *testing.T) {
 	b.Housekeeping(t.Context())
 
 	require.Equal(t, 1, d.faucetCalls, "0.05 CBTC is under ten drips of 0.01")
+}
+
+func Test_Housekeeping_LeavesTheFaucetAloneAfterADrip(t *testing.T) {
+	d := &fakeDesk{network: faucetNetwork(t), balances: map[string]*big.Rat{"CBTC": rat(t, "0.05")}}
+	clock := noon
+	b := botAt(t, d, &clock)
+
+	b.Housekeeping(t.Context())
+	b.Housekeeping(t.Context())
+	require.Equal(t, 1, d.faucetCalls, "a drip that left a balance low is not asked for again at once")
+
+	clock = noon.Add(61 * time.Minute)
+	b.Housekeeping(t.Context())
+	require.Equal(t, 2, d.faucetCalls, "an hour later the bot may draw again")
+}
+
+func Test_Housekeeping_LeavesTheFaucetAloneAfterACooldownAnswer(t *testing.T) {
+	d := &fakeDesk{
+		network:   faucetNetwork(t),
+		balances:  map[string]*big.Rat{},
+		faucetErr: fmt.Errorf("faucet: %w", desk.ErrTooManyRequests),
+	}
+	clock := noon
+	b := botAt(t, d, &clock)
+
+	for range 6 {
+		b.Housekeeping(t.Context())
+		clock = clock.Add(10 * time.Second)
+	}
+
+	require.Equal(t, 1, d.faucetCalls)
 }
 
 func Test_Housekeeping_SkipsTheFaucetWhenFunded(t *testing.T) {

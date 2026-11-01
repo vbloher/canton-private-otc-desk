@@ -82,6 +82,18 @@ func newBot(t *testing.T, d *fakeDesk) (*bot.Bot, identity.Identity, *logs) {
 	return bot.New(d, id, c, log, func() time.Time { return noon }), id, out
 }
 
+func botAt(t *testing.T, d *fakeDesk, clock *time.Time) *bot.Bot {
+	t.Helper()
+
+	c, err := config.Parse(nil)
+	require.NoError(t, err)
+
+	id, err := identity.Generate()
+	require.NoError(t, err)
+
+	return bot.New(d, id, c, slog.New(slog.NewJSONHandler(&logs{}, nil)), func() time.Time { return *clock })
+}
+
 func rat(t *testing.T, s string) *big.Rat {
 	t.Helper()
 
