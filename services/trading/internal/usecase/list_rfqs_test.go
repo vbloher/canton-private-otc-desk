@@ -69,6 +69,21 @@ func Test_ListIncomingRFQs_ShowsOnlyTheMakersQuote(t *testing.T) {
 	}, out)
 }
 
+func Test_ListIncomingRFQs_MyQuoteIsTheLatest(t *testing.T) {
+	d := newDeps(t)
+	now := time.Now()
+	rfq := openRFQ(now.Add(-time.Minute))
+	lapsed := quoteOf(rfq, makerA, "100000", domain.QuoteExpired, now.Add(-time.Second))
+	fresh := quoteOf(rfq, makerA, "100100", domain.QuoteOpen, now.Add(time.Minute))
+
+	d.postgres.EXPECT().ListMakerRFQs(Any, makerA.ID, anHourAgo()).Return([]domain.RFQ{rfq}, nil)
+	d.postgres.EXPECT().ListQuotes(Any, []uuid.UUID{rfq.ID}).Return([]domain.Quote{lapsed, fresh}, nil)
+
+	out, err := d.useCase(t).ListIncomingRFQs(t.Context(), makerA)
+	require.NoError(t, err)
+	require.Equal(t, []dto.IncomingRFQ{{RFQ: rfq, MyQuote: &fresh}}, out)
+}
+
 func Test_ListRFQHistory_AndTrades_UseTheLimit(t *testing.T) {
 	d := newDeps(t)
 	rfq := openRFQ(time.Now())

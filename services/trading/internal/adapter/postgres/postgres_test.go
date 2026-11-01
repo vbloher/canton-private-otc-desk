@@ -185,6 +185,67 @@ func Test_Postgres_Book(t *testing.T) {
 	require.ErrorIs(t, pg.UpdateRFQ(ctx, domain.RFQ{ID: uuid.New()}), domain.ErrNotFound)
 }
 
+func bookOpenRFQ(t *testing.T, pg *postgres.Postgres) (domain.RFQ, domain.Party, time.Time) {
+	t.Helper()
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	run := uuid.NewString()[:8]
+	maker := domain.Party{ID: "maker-" + run + "::1220", Hint: "maker-" + run}
+
+	rfq := domain.RFQ{
+		ID: uuid.New(), TakerParty: "taker-" + run + "::1220", TakerHint: "taker-" + run, Direction: domain.Buy,
+		Qty: decimal.MustParse("0.5"), Base: "CBTC", Quote: "USDCx", Makers: []domain.Party{maker}, FeeBps: 10,
+		Deadline: now.Add(time.Hour), Status: domain.RFQOpen, CreatedAt: now,
+	}
+	require.NoError(t, pg.CreateRFQ(t.Context(), rfq))
+
+	return rfq, maker, now
+}
+
+func quoteBy(rfq domain.RFQ, maker domain.Party, createdAt time.Time) domain.Quote {
+	return domain.Quote{
+		ID: uuid.New(), RFQID: rfq.ID, Maker: maker, Price: decimal.MustParse("100000"),
+		ValidUntil: createdAt.Add(time.Minute), Status: domain.QuoteAllocating, CreatedAt: createdAt,
+	}
+}
+
+func Test_CreateQuote_AgainAfterADeadQuote(t *testing.T) {
+	for _, dead := range []domain.QuoteStatus{domain.QuoteExpired, domain.QuoteFailed} {
+		t.Run(string(dead), func(t *testing.T) {
+			pg, _ := connect(t)
+			ctx := t.Context()
+			rfq, maker, now := bookOpenRFQ(t, pg)
+
+			first := quoteBy(rfq, maker, now)
+			require.NoError(t, pg.CreateQuote(ctx, first))
+			require.NoError(t, pg.UpdateQuote(ctx, first.WithStatus(dead)))
+
+			second := quoteBy(rfq, maker, now.Add(time.Second))
+			require.NoError(t, pg.CreateQuote(ctx, second))
+
+			quotes, err := pg.ListQuotes(ctx, []uuid.UUID{rfq.ID})
+			require.NoError(t, err)
+			require.Equal(t, []uuid.UUID{first.ID, second.ID}, quoteIDs(quotes))
+		})
+	}
+}
+
+func Test_CreateQuote_SecondLiveQuoteRefused(t *testing.T) {
+	for _, live := range []domain.QuoteStatus{domain.QuoteOpen, domain.QuoteAccepted} {
+		t.Run(string(live), func(t *testing.T) {
+			pg, _ := connect(t)
+			ctx := t.Context()
+			rfq, maker, now := bookOpenRFQ(t, pg)
+
+			first := quoteBy(rfq, maker, now)
+			require.NoError(t, pg.CreateQuote(ctx, first))
+			require.NoError(t, pg.UpdateQuote(ctx, first.WithStatus(live)))
+
+			require.ErrorIs(t, pg.CreateQuote(ctx, quoteBy(rfq, maker, now.Add(time.Second))), domain.ErrAlreadyQuoted)
+		})
+	}
+}
+
 func ids(rfqs []domain.RFQ) []uuid.UUID {
 	out := make([]uuid.UUID, 0, len(rfqs))
 	for _, r := range rfqs {
