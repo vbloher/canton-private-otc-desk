@@ -2,6 +2,7 @@ package domain
 
 import (
 	"encoding/json"
+	"slices"
 	"time"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/decimal"
@@ -18,6 +19,30 @@ type Command struct {
 	Commands       []json.RawMessage
 	Disclosed      []Disclosed
 	SynchronizerID string
+}
+
+func Combine(cmds []Command) (Command, bool) {
+	var combined Command
+
+	for _, cmd := range cmds {
+		if cmd.SynchronizerID != "" {
+			if combined.SynchronizerID != "" && combined.SynchronizerID != cmd.SynchronizerID {
+				return Command{}, false
+			}
+
+			combined.SynchronizerID = cmd.SynchronizerID
+		}
+
+		combined.Commands = append(combined.Commands, cmd.Commands...)
+
+		for _, d := range cmd.Disclosed {
+			if !slices.ContainsFunc(combined.Disclosed, func(x Disclosed) bool { return x.ContractID == d.ContractID }) {
+				combined.Disclosed = append(combined.Disclosed, d)
+			}
+		}
+	}
+
+	return combined, true
 }
 
 type Prepared struct {

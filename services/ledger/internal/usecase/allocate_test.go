@@ -31,10 +31,8 @@ func Test_Allocate_HostedPartySubmits(t *testing.T) {
 	}, nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC", "h-cbtc")).Return(command("cbtc"), nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(command("usdcx"), nil).Once()
-	d.canton.EXPECT().Submit(Any, faucet, "allocate:s-1:"+faucet+":CBTC", command("cbtc")).
+	d.canton.EXPECT().Submit(Any, faucet, "allocate:s-1:"+faucet, commands("cbtc", "usdcx")).
 		Return(domain.Transaction{UpdateID: "u-1"}, nil).Once()
-	d.canton.EXPECT().Submit(Any, faucet, "allocate:s-1:"+faucet+":USDCx", command("usdcx")).
-		Return(domain.Transaction{UpdateID: "u-2"}, nil).Once()
 	d.events.EXPECT().Publish(Any, event(events.WalletUpdated, `{}`), parties(faucet)).Return(nil).Once()
 
 	output, err := u.Allocate(t.Context(), dto.AllocateInput{
@@ -59,19 +57,17 @@ func Test_Allocate_ExternalPartyEnqueues(t *testing.T) {
 	}, nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC")).Return(command("cbtc"), nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(command("usdcx"), nil).Once()
-	d.canton.EXPECT().Prepare(Any, alice, "allocate:s-1:"+alice+":CBTC", command("cbtc")).
-		Return(prepared("hash-cbtc"), nil).Once()
-	d.canton.EXPECT().Prepare(Any, alice, "allocate:s-1:"+alice+":USDCx", command("usdcx")).
-		Return(prepared("hash-usdcx"), nil).Once()
+	d.canton.EXPECT().Prepare(Any, alice, "allocate:s-1:"+alice, commands("cbtc", "usdcx")).
+		Return(prepared("hash-both"), nil).Once()
 
 	var saved []domain.Action
 
 	d.postgres.EXPECT().SaveActions(Any, mock.MatchedBy(func(actions []domain.Action) bool {
 		saved = actions
 
-		return len(actions) == 2
+		return len(actions) == 1
 	})).Return(nil).Once()
-	d.events.EXPECT().Publish(Any, eventOfType(events.SignRequested), parties(alice)).Return(nil).Times(2)
+	d.events.EXPECT().Publish(Any, eventOfType(events.SignRequested), parties(alice)).Return(nil).Once()
 
 	output, err := u.Allocate(t.Context(), dto.AllocateInput{
 		SettlementID: "s-1",
@@ -83,23 +79,55 @@ func Test_Allocate_ExternalPartyEnqueues(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, output.Executed)
 
-	ids := make([]uuid.UUID, 0, len(saved))
+	a := saved[0]
+	require.Equal(t, domain.ActionPending, a.Status)
+	require.Equal(t, alice, a.PartyID)
+	require.Equal(t, domain.PurposeAllocate, a.Purpose)
+	require.Equal(t, "s-1", a.Ref)
+	require.Equal(t, "hash-both", string(a.Hash))
+	require.Equal(t, a.Hash, a.Prepared.Hash)
+	require.WithinDuration(t, time.Now().Add(10*time.Minute), a.ExpiresAt, time.Minute)
+	require.Equal(t, "Allocate receipt of CBTC and 100000.0 USDCx for quote s-1", a.Description)
+	require.Equal(t, []uuid.UUID{a.ID}, output.ActionIDs)
+}
 
-	for i, a := range saved {
-		ids = append(ids, a.ID)
+func Test_Allocate_OneTransactionPerAllocationAcrossSynchronizers(t *testing.T) {
+	d := newDeps(t)
+	u := d.started(t)
 
-		require.Equal(t, domain.ActionPending, a.Status)
-		require.Equal(t, alice, a.PartyID)
-		require.Equal(t, domain.PurposeAllocate, a.Purpose)
-		require.Equal(t, "s-1", a.Ref)
-		require.Equal(t, []string{"hash-cbtc", "hash-usdcx"}[i], string(a.Hash))
-		require.Equal(t, a.Hash, a.Prepared.Hash)
-		require.WithinDuration(t, time.Now().Add(10*time.Minute), a.ExpiresAt, time.Minute)
-	}
+	cbtc := command("cbtc")
+	cbtc.SynchronizerID = "private"
+	usdcx := command("usdcx")
+	usdcx.SynchronizerID = "global"
 
-	require.Contains(t, saved[0].Description, "CBTC")
-	require.Contains(t, saved[1].Description, "100000.0 USDCx")
-	require.Equal(t, ids, output.ActionIDs)
+	d.postgres.EXPECT().ListPendingActions(Any, alice, Any).Return(nil, nil).Once()
+	d.canton.EXPECT().Holdings(Any, alice).Return([]domain.Holding{
+		holding("h-usdcx", alice, "USDCx", "150000.0"),
+	}, nil).Once()
+	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC")).Return(cbtc, nil).Once()
+	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(usdcx, nil).Once()
+	d.canton.EXPECT().Prepare(Any, alice, "allocate:s-1:"+alice+":CBTC", cbtc).Return(prepared("hash-cbtc"), nil).Once()
+	d.canton.EXPECT().Prepare(Any, alice, "allocate:s-1:"+alice+":USDCx", usdcx).Return(prepared("hash-usdcx"), nil).Once()
+
+	var saved []domain.Action
+
+	d.postgres.EXPECT().SaveActions(Any, mock.MatchedBy(func(actions []domain.Action) bool {
+		saved = actions
+
+		return len(actions) == 2
+	})).Return(nil).Once()
+	d.events.EXPECT().Publish(Any, eventOfType(events.SignRequested), parties(alice)).Return(nil).Times(2)
+
+	_, err := u.Allocate(t.Context(), dto.AllocateInput{
+		SettlementID: "s-1",
+		Deadline:     time.Now().Add(time.Hour),
+		Legs:         tradeLegs(maker, alice),
+		PartyID:      alice,
+		Description:  "quote s-1",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Allocate receipt of CBTC for quote s-1", saved[0].Description)
+	require.Equal(t, "Allocate 100000.0 USDCx for quote s-1", saved[1].Description)
 }
 
 func Test_Allocate_ExternalPartyGetsItsPendingActionsBack(t *testing.T) {
@@ -149,7 +177,7 @@ func Test_Allocate_SpendsAHoldingWhoseLockLapsed(t *testing.T) {
 	}, nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC", "h-lapsed")).Return(command("cbtc"), nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(command("usdcx"), nil).Once()
-	d.canton.EXPECT().Submit(Any, faucet, Any, Any).Return(domain.Transaction{}, nil).Times(2)
+	d.canton.EXPECT().Submit(Any, faucet, Any, Any).Return(domain.Transaction{}, nil).Once()
 	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(faucet)).Return(nil).Once()
 
 	output, err := u.Allocate(t.Context(), dto.AllocateInput{
