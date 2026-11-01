@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -98,6 +99,8 @@ type UseCase struct {
 	identity Identity
 	redis    Redis
 	events   Events
+
+	background sync.WaitGroup
 }
 
 func New(
@@ -112,6 +115,10 @@ func New(
 		redis:    redis,
 		events:   publisher,
 	}
+}
+
+func (u *UseCase) Close() {
+	u.background.Wait()
 }
 
 type deal struct {

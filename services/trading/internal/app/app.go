@@ -66,6 +66,7 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 		redis.New(redisClient),
 		events.NewPublisher(redisClient),
 	)
+	defer uc.Close()
 
 	settlementWorker, err := worker.New(c.Worker, uc)
 	if err != nil {

@@ -125,11 +125,7 @@ func (u *UseCase) allocateTrade(ctx context.Context, a deal, operator string) er
 	deadline := a.quote.SettlementDeadline()
 
 	if domain.HasFee(a.legs) {
-		err := u.ledger.Allocate(ctx, a.quote.ID, deadline, a.legs, operator,
-			fmt.Sprintf("Desk fee %s %s", a.trade.Fee, a.trade.Quote))
-		if err != nil {
-			return fmt.Errorf("ledger.Allocate operator: %w", err)
-		}
+		u.background.Go(func() { u.allocateFee(ctx, a, operator, deadline) })
 	}
 
 	err := u.ledger.Allocate(ctx, a.quote.ID, deadline, a.legs, a.rfq.TakerParty, describe(a.rfq, a.quote, true))
@@ -138,6 +134,21 @@ func (u *UseCase) allocateTrade(ctx context.Context, a deal, operator string) er
 	}
 
 	return nil
+}
+
+func (u *UseCase) allocateFee(ctx context.Context, a deal, operator string, deadline time.Time) {
+	err := u.ledger.Allocate(ctx, a.quote.ID, deadline, a.legs, operator,
+		fmt.Sprintf("Desk fee %s %s", a.trade.Fee, a.trade.Quote))
+	if err == nil {
+		return
+	}
+
+	log.Error().Err(err).Stringer("trade", a.trade.ID).Msg("usecase AcceptQuote: the desk fee was not allocated")
+
+	err = u.failTrade(ctx, a.trade, failureReason(err))
+	if err != nil {
+		log.Error().Err(err).Stringer("trade", a.trade.ID).Msg("usecase AcceptQuote: u.failTrade")
+	}
 }
 
 func failureReason(err error) string {

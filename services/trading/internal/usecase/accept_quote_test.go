@@ -62,11 +62,12 @@ func Test_AcceptQuote_AllocatesTakerAndOperator(t *testing.T) {
 
 	legs := legsOf(t, f.rfq, f.quote)
 	deadline := at(f.quote.ValidUntil.Add(30 * time.Minute))
-	operatorCall := d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), operator, Any).Return(nil).Once()
-	d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), taker.ID, Any).Return(nil).Once().
-		NotBefore(operatorCall)
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), operator, Any).Return(nil).Once()
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, deadline, sameLegs(legs), taker.ID, Any).Return(nil).Once()
 
-	out, err := d.useCase(t).AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+	uc := d.useCase(t)
+	out, err := uc.AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+	uc.Close()
 	require.NoError(t, err)
 	require.Equal(t, trade.ID, out.ID)
 	require.Equal(t, domain.TradeSettling, out.Status)
@@ -76,6 +77,44 @@ func Test_AcceptQuote_AllocatesTakerAndOperator(t *testing.T) {
 	require.Equal(t, makerA, out.Maker)
 	require.Equal(t, "50000.0", out.Notional.String())
 	require.Equal(t, "50.0", out.Fee.String())
+}
+
+func Test_AcceptQuote_DoesNotWaitForTheDeskFee(t *testing.T) {
+	d := newDeps(t)
+	f := newAcceptFixture(time.Now())
+
+	var trade domain.Trade
+
+	d.expectAccepted(f, &trade)
+
+	release := make(chan struct{})
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, operator, Any).RunAndReturn(
+		func(context.Context, uuid.UUID, time.Time, []domain.Leg, string, string) error {
+			<-release
+
+			return nil
+		}).Once()
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, taker.ID, Any).Return(nil).Once()
+
+	uc := d.useCase(t)
+	accepted := make(chan error, 1)
+
+	go func() {
+		_, err := uc.AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+		accepted <- err
+	}()
+
+	select {
+	case err := <-accepted:
+		close(release)
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		close(release)
+		<-accepted
+		t.Error("the accept waited for the desk fee allocation")
+	}
+
+	uc.Close()
 }
 
 func Test_AcceptQuote_NoFeeAllocatesTakerOnly(t *testing.T) {
@@ -164,19 +203,21 @@ func Test_AcceptQuote_AllocationFails(t *testing.T) {
 	var trade, failedTrade domain.Trade
 
 	lockRFQ := d.expectAccepted(f, &trade)
-	operatorCall := d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, operator, Any).Return(nil).Once()
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, operator, Any).Return(nil).Once()
 	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, taker.ID, Any).
-		Return(domain.Errorf(domain.ErrInsufficientFunds, "need 50000.0 USDCx, held 10.0")).Once().NotBefore(operatorCall)
+		Return(domain.Errorf(domain.ErrInsufficientFunds, "need 50000.0 USDCx, held 10.0")).Once()
 	d.expectTradeFailed(f, lockRFQ, &trade, &failedTrade)
 
-	_, err := d.useCase(t).AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+	uc := d.useCase(t)
+	_, err := uc.AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+	uc.Close()
 	require.ErrorIs(t, err, domain.ErrInsufficientFunds)
 	require.Equal(t, trade.ID, failedTrade.ID)
 	require.Equal(t, domain.TradeFailed, failedTrade.Status)
 	require.Equal(t, "insufficient funds", failedTrade.Reason)
 }
 
-func Test_AcceptQuote_OperatorFailureLeavesTheTakerAlone(t *testing.T) {
+func Test_AcceptQuote_FailsTheTradeWhenTheDeskFeeFails(t *testing.T) {
 	d := newDeps(t)
 	f := newAcceptFixture(time.Now())
 
@@ -185,10 +226,15 @@ func Test_AcceptQuote_OperatorFailureLeavesTheTakerAlone(t *testing.T) {
 	lockRFQ := d.expectAccepted(f, &trade)
 	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, operator, Any).
 		Return(domain.Errorf(domain.ErrUpstream, "ledger unavailable")).Once()
+	d.ledger.EXPECT().Allocate(Any, f.quote.ID, Any, Any, taker.ID, Any).Return(nil).Once()
 	d.expectTradeFailed(f, lockRFQ, &trade, &failedTrade)
 
-	_, err := d.useCase(t).AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
-	require.ErrorIs(t, err, domain.ErrUpstream)
+	uc := d.useCase(t)
+	out, err := uc.AcceptQuote(t.Context(), dto.AcceptQuoteInput{Taker: taker, QuoteID: f.quote.ID})
+	uc.Close()
+	require.NoError(t, err, "the taker signs right away; the fee is the desk's own business")
+	require.Equal(t, trade.ID, out.ID)
+	require.Equal(t, trade.ID, failedTrade.ID)
 	require.Equal(t, domain.TradeFailed, failedTrade.Status)
 	require.Equal(t, "allocation failed", failedTrade.Reason)
 }
