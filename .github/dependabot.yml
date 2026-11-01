@@ -42,7 +42,11 @@ updates:
     labels: [dependencies, docker, web]
 
   - package-ecosystem: docker-compose
-    directory: /
+    directories: [/, /deploy, /deploy/observability]
     schedule:
       interval: weekly
     labels: [dependencies, docker]
+    groups:
+      compose-images:
+        patterns: ['*']
+        group-by: dependency-name
