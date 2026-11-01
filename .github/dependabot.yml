@@ -48,5 +48,4 @@ updates:
     labels: [dependencies, docker]
     groups:
       compose-images:
-        patterns: ['*']
         group-by: dependency-name
