@@ -28,6 +28,8 @@ type Bot struct {
 	sent        map[uuid.UUID]bool
 	refused     map[uuid.UUID]bool
 	faucetAfter time.Time
+	faucetAsked []string
+	faucetDone  bool
 }
 
 var _ stream.Handler = (*Bot)(nil)

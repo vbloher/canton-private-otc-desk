@@ -27,8 +27,9 @@ Fork it, change the pricing, run your own maker.
 4. **Signs what it is handed**: the token-standard allocations that are its quotes and the
    accepts of incoming transfers. It never signs a `transfer-out`, so it never withdraws.
 5. **Keeps itself funded**: it accepts every incoming transfer and, where the desk runs a
-   faucet (DevNet), draws from it when a balance drops under ten drips — at most once an hour,
-   so a token the faucet cannot send is not asked for again and again.
+   faucet (DevNet), draws from it when a balance drops under one drip, at most once an hour.
+   The faucet is shared with everyone on the desk: if a token the bot asked for has not
+   arrived an hour later, it logs a warning and leaves the faucet alone until it restarts.
 
 ## Run
 

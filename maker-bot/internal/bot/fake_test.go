@@ -54,6 +54,7 @@ type fakeDesk struct {
 	accepted    []string
 	network     desk.Network
 	faucetErr   error
+	faucetSends map[string]*big.Rat
 	faucetCalls int
 }
 
@@ -241,5 +242,18 @@ func (f *fakeDesk) Faucet(context.Context) error {
 
 	f.faucetCalls++
 
-	return f.faucetErr
+	if f.faucetErr != nil {
+		return f.faucetErr
+	}
+
+	for symbol, amount := range f.faucetSends {
+		held := f.balances[symbol]
+		if held == nil {
+			held = new(big.Rat)
+		}
+
+		f.balances[symbol] = new(big.Rat).Add(held, amount)
+	}
+
+	return nil
 }
