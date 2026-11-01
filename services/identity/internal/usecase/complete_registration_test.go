@@ -129,6 +129,35 @@ func Test_CompleteRegistration_CreatesUserAndSession(t *testing.T) {
 	require.WithinRange(t, sessionExpiry, before.Add(testConfig.SessionTTL), after.Add(testConfig.SessionTTL))
 }
 
+func Test_CompleteRegistration_KeyAccount(t *testing.T) {
+	d := newDeps(t)
+
+	reg, signature := parkedRegistration(t)
+
+	var created domain.User
+
+	d.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
+	d.ledger.EXPECT().AllocateExternalParty(Any, reg.Topology, signature).Return(reg.Topology.PartyID, nil)
+	d.postgres.EXPECT().CreateUser(Any, Any).Run(func(_ context.Context, u domain.User) { created = u }).Return(nil)
+	d.postgres.EXPECT().CreateSession(Any, Any, Any, Any).Return(nil)
+
+	output, err := d.useCase().CompleteRegistration(t.Context(), dto.CompleteRegistrationInput{
+		RegistrationID: reg.ID,
+		Signature:      signature,
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, domain.KindKey, created.Kind)
+	require.Equal(t, reg.Topology.PartyID, created.PartyID)
+	require.Equal(t, reg.Hint, created.Hint)
+	require.Equal(t, reg.PublicKey, created.PublicKey)
+	require.Empty(t, created.CredentialID)
+	require.Empty(t, created.EncryptedBlob)
+	require.False(t, created.MakerMode)
+	require.Equal(t, created, output.User)
+	require.NotEmpty(t, output.Token)
+}
+
 func Test_CompleteRegistration_UsesThePartyCreatedBeforeThePasskey(t *testing.T) {
 	d := newDeps(t)
 
@@ -200,13 +229,12 @@ func Test_CompleteRegistration_CredentialTakenByARace(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrCredentialTaken)
 }
 
-func Test_CompleteRegistration_EmptyCredentialOrBlobNeverReachesTheLedger(t *testing.T) {
+func Test_CompleteRegistration_HalfACredential(t *testing.T) {
 	reg, signature := parkedRegistration(t)
 
 	cases := map[string]dto.CompleteRegistrationInput{
 		"no credential id": {RegistrationID: reg.ID, Signature: signature, CredentialID: "", EncryptedBlob: "blob-1"},
 		"no wrapped key":   {RegistrationID: reg.ID, Signature: signature, CredentialID: "cred-1", EncryptedBlob: ""},
-		"neither":          {RegistrationID: reg.ID, Signature: signature, CredentialID: "", EncryptedBlob: ""},
 	}
 
 	for name, input := range cases {

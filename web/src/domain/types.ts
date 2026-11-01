@@ -1,6 +1,6 @@
 export type Direction = "BUY" | "SELL";
 
-export type UserKind = "passkey";
+export type UserKind = "passkey" | "key";
 
 export interface Me {
   id: string;

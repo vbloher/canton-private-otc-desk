@@ -22,12 +22,20 @@ func (i CompleteRegistrationInput) Validate() error {
 		return fmt.Errorf("domain.ValidateSignature: %w", err)
 	}
 
+	if !i.Passkey() && i.EncryptedBlob == "" {
+		return nil
+	}
+
 	err = domain.ValidateCredential(i.CredentialID, i.EncryptedBlob)
 	if err != nil {
 		return fmt.Errorf("domain.ValidateCredential: %w", err)
 	}
 
 	return nil
+}
+
+func (i CompleteRegistrationInput) Passkey() bool {
+	return i.CredentialID != ""
 }
 
 type CompleteRegistrationOutput struct {

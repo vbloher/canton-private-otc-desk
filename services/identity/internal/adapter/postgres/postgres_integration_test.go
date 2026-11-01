@@ -115,6 +115,20 @@ func Test_PasskeyUser_RoundTrip(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
+func Test_CreateUser_KeyAccount(t *testing.T) {
+	p := newPostgres(t)
+
+	user, err := domain.NewKeyUser("bot-1a2b3c::1220ab", "bot-1a2b3c", "Demo Maker", bytes.Repeat([]byte{8}, 32))
+	require.NoError(t, err)
+	require.NoError(t, p.CreateUser(t.Context(), user))
+
+	got, err := p.GetUser(t.Context(), user.ID)
+	require.NoError(t, err)
+	requireSameUser(t, user, got)
+	require.Equal(t, domain.KindKey, got.Kind)
+	require.Empty(t, got.CredentialID)
+}
+
 func Test_CreateUser_Duplicates(t *testing.T) {
 	p := newPostgres(t)
 

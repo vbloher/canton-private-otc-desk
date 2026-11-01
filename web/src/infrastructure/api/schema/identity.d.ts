@@ -193,10 +193,10 @@ export interface components {
             registrationId: string;
             /** @description Base64 Ed25519 signature over the decoded multiHash */
             signature: string;
-            /** @description The passkey's credential id (base64url) */
-            credentialId: string;
-            /** @description The party key wrapped with the passkey (base64) */
-            encryptedBlob: string;
+            /** @description Passkey wallets only, sent together with encryptedBlob; without both the account is a key account */
+            credentialId?: string;
+            /** @description Passkey wallets only, the party key wrapped with the passkey (base64) */
+            encryptedBlob?: string;
         };
         ChallengeInput: {
             credentialId: string;
@@ -226,7 +226,7 @@ export interface components {
             /** @example Alice */
             displayName: string;
             /** @enum {string} */
-            kind: "passkey";
+            kind: "passkey" | "key";
             makerMode: boolean;
         };
         Maker: {

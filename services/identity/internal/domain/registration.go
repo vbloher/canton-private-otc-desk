@@ -41,6 +41,10 @@ func (r Registration) NewUser(partyID, credentialID, encryptedBlob string) (User
 	return NewPasskeyUser(partyID, r.Hint, r.DisplayName, r.PublicKey, credentialID, encryptedBlob)
 }
 
+func (r Registration) NewKeyUser(partyID string) (User, error) {
+	return NewKeyUser(partyID, r.Hint, r.DisplayName, r.PublicKey)
+}
+
 func (r Registration) VerifySignature(signature []byte) error {
 	if !VerifySignature(r.PublicKey, r.Topology.MultiHash, signature) {
 		return Invalidf("signature does not match the onboarding hash")

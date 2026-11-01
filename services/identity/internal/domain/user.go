@@ -13,6 +13,7 @@ type Kind string
 
 const (
 	KindPasskey Kind = "passkey"
+	KindKey     Kind = "key"
 )
 
 const (
@@ -65,6 +66,32 @@ func NewPasskeyUser(
 		CredentialID:  credentialID,
 		EncryptedBlob: encryptedBlob,
 		CreatedAt:     time.Now().UTC(),
+	}, nil
+}
+
+func NewKeyUser(partyID, hint, displayName string, publicKey []byte) (User, error) {
+	name, err := normalizeDisplayName(displayName)
+	if err != nil {
+		return User{}, err
+	}
+
+	err = validatePublicKey(publicKey)
+	if err != nil {
+		return User{}, err
+	}
+
+	if partyID == "" || hint == "" {
+		return User{}, Invalidf("party id and hint are required")
+	}
+
+	return User{
+		ID:          uuid.New(),
+		PartyID:     partyID,
+		Hint:        hint,
+		DisplayName: name,
+		Kind:        KindKey,
+		PublicKey:   publicKey,
+		CreatedAt:   time.Now().UTC(),
 	}, nil
 }
 

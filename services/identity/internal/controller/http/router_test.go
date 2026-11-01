@@ -284,6 +284,25 @@ func Test_RegisterComplete_CreatesWalletAndSetsCookie(t *testing.T) {
 	}
 }
 
+func Test_RegisterComplete_KeyAccount(t *testing.T) {
+	s := newServer(t, false)
+
+	reg, signature := parked(t)
+
+	s.redis.EXPECT().TakeRegistration(Any, reg.ID).Return(reg, nil)
+	s.ledger.EXPECT().AllocateExternalParty(Any, reg.Topology, signature).Return(reg.Topology.PartyID, nil)
+	s.postgres.EXPECT().CreateUser(Any, Any).Return(nil)
+	s.postgres.EXPECT().CreateSession(Any, Any, Any, Any).Return(nil)
+
+	body := `{"registrationId":"` + reg.ID.String() + `","signature":"` + b64(signature) + `"}`
+	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/register/complete", body, nil)
+
+	require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "key", rec.json(t)["kind"])
+	require.Equal(t, reg.Topology.PartyID, rec.json(t)["partyId"])
+	require.Regexp(t, cookiePattern, rec.Header().Get("Set-Cookie"))
+}
+
 func Test_RegisterComplete_Errors(t *testing.T) {
 	reg, signature := parked(t)
 

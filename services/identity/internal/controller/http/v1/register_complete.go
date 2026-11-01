@@ -20,8 +20,8 @@ func (h *Handlers) RegisterComplete(
 	output, err := h.usecase.CompleteRegistration(ctx, dto.CompleteRegistrationInput{
 		RegistrationID: request.Body.RegistrationID,
 		Signature:      signature,
-		CredentialID:   request.Body.CredentialID,
-		EncryptedBlob:  request.Body.EncryptedBlob,
+		CredentialID:   deref(request.Body.CredentialID),
+		EncryptedBlob:  deref(request.Body.EncryptedBlob),
 	})
 	if err != nil {
 		switch {

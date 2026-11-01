@@ -76,6 +76,28 @@ func Test_NewPasskeyUser_AcceptsBoundaryNames(t *testing.T) {
 	}
 }
 
+func Test_NewKeyUser(t *testing.T) {
+	user, err := domain.NewKeyUser("bot-1a2b3c::1220ab", "bot-1a2b3c", "  Demo Maker  ", key32())
+	require.NoError(t, err)
+
+	require.NotEqual(t, uuid.Nil, user.ID)
+	require.Equal(t, "bot-1a2b3c::1220ab", user.PartyID)
+	require.Equal(t, "bot-1a2b3c", user.Hint)
+	require.Equal(t, "Demo Maker", user.DisplayName, "the name is stored trimmed")
+	require.Equal(t, domain.KindKey, user.Kind)
+	require.Equal(t, key32(), user.PublicKey)
+	require.Empty(t, user.CredentialID)
+	require.Empty(t, user.EncryptedBlob)
+	require.False(t, user.MakerMode)
+	require.False(t, user.CreatedAt.IsZero())
+
+	_, err = domain.NewKeyUser("bot-1a2b3c::1220ab", "bot-1a2b3c", "Demo Maker", key32()[:31])
+	require.ErrorIs(t, err, domain.ErrValidation)
+
+	_, err = domain.NewKeyUser("", "bot-1a2b3c", "Demo Maker", key32())
+	require.ErrorIs(t, err, domain.ErrValidation)
+}
+
 func Test_ValidateCredential(t *testing.T) {
 	require.NoError(t, domain.ValidateCredential("cred-1", "blob-1"))
 

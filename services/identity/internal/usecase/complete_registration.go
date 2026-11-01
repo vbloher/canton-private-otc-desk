@@ -33,13 +33,11 @@ func (u *UseCase) CompleteRegistration(
 		return output, fmt.Errorf("reg.VerifySignature: %w", err)
 	}
 
-	_, err = u.postgres.GetUserByCredential(ctx, input.CredentialID)
-
-	switch {
-	case err == nil:
-		return output, domain.ErrCredentialTaken
-	case !errors.Is(err, domain.ErrNotFound):
-		return output, fmt.Errorf("postgres.GetUserByCredential: %w", err)
+	if input.Passkey() {
+		err = u.credentialFree(ctx, input.CredentialID)
+		if err != nil {
+			return output, err
+		}
 	}
 
 	partyID, err := u.partyOf(ctx, reg, input.Signature)
@@ -47,9 +45,9 @@ func (u *UseCase) CompleteRegistration(
 		return output, err
 	}
 
-	user, err := reg.NewUser(partyID, input.CredentialID, input.EncryptedBlob)
+	user, err := newUser(reg, partyID, input)
 	if err != nil {
-		return output, fmt.Errorf("reg.NewUser: %w", err)
+		return output, err
 	}
 
 	err = u.postgres.CreateUser(ctx, user)
@@ -67,4 +65,35 @@ func (u *UseCase) CompleteRegistration(
 		Token: token,
 		TTL:   u.config.SessionTTL,
 	}, nil
+}
+
+func (u *UseCase) credentialFree(ctx context.Context, credentialID string) error {
+	_, err := u.postgres.GetUserByCredential(ctx, credentialID)
+
+	switch {
+	case err == nil:
+		return domain.ErrCredentialTaken
+	case errors.Is(err, domain.ErrNotFound):
+		return nil
+	default:
+		return fmt.Errorf("postgres.GetUserByCredential: %w", err)
+	}
+}
+
+func newUser(reg domain.Registration, partyID string, input dto.CompleteRegistrationInput) (domain.User, error) {
+	if !input.Passkey() {
+		user, err := reg.NewKeyUser(partyID)
+		if err != nil {
+			return domain.User{}, fmt.Errorf("reg.NewKeyUser: %w", err)
+		}
+
+		return user, nil
+	}
+
+	user, err := reg.NewUser(partyID, input.CredentialID, input.EncryptedBlob)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("reg.NewUser: %w", err)
+	}
+
+	return user, nil
 }

@@ -3,8 +3,10 @@ info:
   title: Private OTC Desk — identity API
   version: 1.0.0
   description: |
-    Passkey wallets and sessions. A wallet is an external Canton party whose Ed25519 key is
-    generated in the browser and wrapped with a passkey; the server stores only the wrapped blob.
+    Passkey wallets, key accounts and sessions. A wallet is an external Canton party whose Ed25519
+    key is generated in the browser and wrapped with a passkey; the server stores only the wrapped
+    blob. A key account is an external party whose owner keeps the key, such as a maker bot; it
+    registers without a passkey and the server stores only its public key.
     Authenticated routes rely on the gateway: it resolves the `otc_session` cookie and forwards
     the caller in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`.
 servers:
@@ -332,7 +334,7 @@ components:
     RegisterCompleteInput:
       type: object
       additionalProperties: false
-      required: [registrationId, signature, credentialId, encryptedBlob]
+      required: [registrationId, signature]
       properties:
         registrationId:
           type: string
@@ -344,12 +346,12 @@ components:
           maxLength: 128
         credentialId:
           type: string
-          description: The passkey's credential id (base64url)
+          description: Passkey wallets only, sent together with encryptedBlob; without both the account is a key account
           minLength: 1
           maxLength: 1024
         encryptedBlob:
           type: string
-          description: The party key wrapped with the passkey (base64)
+          description: Passkey wallets only, the party key wrapped with the passkey (base64)
           minLength: 1
           maxLength: 4096
     ChallengeInput:
@@ -415,7 +417,7 @@ components:
           example: Alice
         kind:
           type: string
-          enum: [passkey]
+          enum: [passkey, key]
         makerMode:
           type: boolean
     Maker:

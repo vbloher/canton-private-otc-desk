@@ -19,12 +19,15 @@ import (
 
 // Defines values for MeKind.
 const (
+	MeKindKey     MeKind = "key"
 	MeKindPasskey MeKind = "passkey"
 )
 
 // Valid indicates whether the value is a known member of the MeKind enum.
 func (e MeKind) Valid() bool {
 	switch e {
+	case MeKindKey:
+		return true
 	case MeKindPasskey:
 		return true
 	default:
@@ -94,11 +97,11 @@ type MeKind string
 
 // RegisterCompleteInput defines model for RegisterCompleteInput.
 type RegisterCompleteInput struct {
-	// CredentialID The passkey's credential id (base64url)
-	CredentialID string `json:"credentialId"`
+	// CredentialID Passkey wallets only, sent together with encryptedBlob; without both the account is a key account
+	CredentialID *string `json:"credentialId,omitempty"`
 
-	// EncryptedBlob The party key wrapped with the passkey (base64)
-	EncryptedBlob  string             `json:"encryptedBlob"`
+	// EncryptedBlob Passkey wallets only, the party key wrapped with the passkey (base64)
+	EncryptedBlob  *string            `json:"encryptedBlob,omitempty"`
 	RegistrationID openapi_types.UUID `json:"registrationId"`
 
 	// Signature Base64 Ed25519 signature over the decoded multiHash
