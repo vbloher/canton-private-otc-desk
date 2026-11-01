@@ -111,7 +111,11 @@ type fakePresence struct {
 	marks  [][]string
 	ttls   []time.Duration
 	clears []string
+	online map[string]bool
 	err    error
+
+	clearEntered chan struct{}
+	clearGate    chan struct{}
 }
 
 func (f *fakePresence) MarkOnline(_ context.Context, partyIDs []string, ttl time.Duration) error {
@@ -121,16 +125,40 @@ func (f *fakePresence) MarkOnline(_ context.Context, partyIDs []string, ttl time
 	f.marks = append(f.marks, slices.Sorted(slices.Values(partyIDs)))
 	f.ttls = append(f.ttls, ttl)
 
+	if f.online == nil {
+		f.online = map[string]bool{}
+	}
+
+	for _, partyID := range partyIDs {
+		f.online[partyID] = true
+	}
+
 	return f.err
 }
 
 func (f *fakePresence) ClearOnline(_ context.Context, partyID string) error {
+	if f.clearEntered != nil {
+		f.clearEntered <- struct{}{}
+	}
+
+	if f.clearGate != nil {
+		<-f.clearGate
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.clears = append(f.clears, partyID)
+	delete(f.online, partyID)
 
 	return f.err
+}
+
+func (f *fakePresence) isOnline(party string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.online[party]
 }
 
 func (f *fakePresence) marked(parties ...string) bool {
@@ -198,6 +226,29 @@ func Test_Hub_ClearsAPartyWhenItsLastSocketCloses(t *testing.T) {
 	closeIt()
 
 	require.Eventually(t, func() bool { return p.cleared("bob::1220") }, wait, tick)
+}
+
+func Test_Hub_StaysOnlineWhenAPartyReconnectsDuringTheTeardown(t *testing.T) {
+	p := &fakePresence{clearEntered: make(chan struct{}, 1), clearGate: make(chan struct{})}
+	hub := newHubWithPresence(t, quiet, quiet, p)
+
+	closeOld := hub.Register(t.Context(), "alice::1220", newFakeConn())
+	require.True(t, p.isOnline("alice::1220"))
+
+	closeOld()
+
+	select {
+	case <-p.clearEntered:
+	case <-time.After(wait):
+		require.FailNow(t, "the old socket's teardown never cleared the party")
+	}
+
+	hub.Register(t.Context(), "alice::1220", newFakeConn())
+	close(p.clearGate)
+
+	require.Eventually(t, func() bool { return p.cleared("alice::1220") }, wait, tick)
+	require.Eventually(t, func() bool { return p.isOnline("alice::1220") }, wait, tick,
+		"a party with a live socket is online even when the old socket's clear lands after the new mark")
 }
 
 func Test_Hub_RefreshesOnlineParties(t *testing.T) {

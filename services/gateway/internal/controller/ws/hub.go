@@ -150,6 +150,10 @@ func (h *Hub) serve(ctx context.Context, c *client) {
 
 	if h.remove(c) {
 		h.clearOnline(ctx, c.partyID)
+
+		if h.connected(c.partyID) {
+			h.markOnline(ctx, c.partyID)
+		}
 	}
 
 	if code != websocket.StatusNormalClosure {
@@ -177,6 +181,13 @@ func (h *Hub) remove(c *client) (last bool) {
 	delete(h.parties, c.partyID)
 
 	return true
+}
+
+func (h *Hub) connected(partyID string) bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	return len(h.parties[partyID]) > 0
 }
 
 func (h *Hub) refresh(interval time.Duration) {
