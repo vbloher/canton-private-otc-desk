@@ -9,11 +9,11 @@ PROTOC_ARCH := $(shell uname -m | sed 's/arm64/aarch_64/;s/aarch64/aarch_64/')
 
 PROTOS := identity_v1 ledger_v1
 
-SERVICES := gateway identity trading ledger maker-bot
+SERVICES := gateway identity trading ledger
 
 OBS := GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-admin} docker compose -f deploy/observability/docker-compose.yml
 
-.PHONY: lint test integration-test vuln env network up up-all down clean obs-up obs-down web-dev generate grpc-gen \
+.PHONY: lint test integration-test vuln env network up up-all down clean obs-up obs-down web-dev maker-bot generate grpc-gen \
 	bin-deps protoc-install lint-install
 
 run-%:
@@ -25,15 +25,18 @@ env:
 
 lint:
 	$(LOCAL_BIN)/golangci-lint run ./...
+	cd maker-bot && $(LOCAL_BIN)/golangci-lint run ./...
 
 test:
 	go test -race -shuffle=on -cover ./...
+	cd maker-bot && go test -race -shuffle=on -cover ./...
 
 integration-test:
 	go test -count=1 -tags=integration ./services/...
 
 vuln:
 	go tool govulncheck ./...
+	cd maker-bot && go tool govulncheck ./...
 
 network:
 	@docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
@@ -58,6 +61,9 @@ obs-down:
 
 web-dev:
 	pnpm --dir web dev
+
+maker-bot:
+	cd maker-bot && go run ./cmd/maker-bot
 
 generate: grpc-gen
 	go generate ./...

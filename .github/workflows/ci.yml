@@ -99,6 +99,47 @@ jobs:
           git status --porcelain
           test -z "$(git status --porcelain)"
 
+  maker-bot:
+    name: Maker bot
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: maker-bot
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: maker-bot/go.mod
+          cache-dependency-path: maker-bot/go.sum
+
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code go.mod go.sum
+
+      - name: Depends on nothing of the desk
+        run: |
+          if go list -m all | grep -q '^github.com/vbloher/canton-private-otc-desk '; then
+            echo "::error::maker-bot must not depend on the desk module"
+            exit 1
+          fi
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test -race -shuffle=on ./...
+
+      - name: govulncheck
+        run: go tool govulncheck ./...
+
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+          working-directory: maker-bot
+          args: --fix=false
+
   vuln:
     name: govulncheck
     runs-on: ubuntu-latest
@@ -148,8 +189,8 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.image == 'web' && 'web' || '.' }}
-          build-args: ${{ matrix.image != 'web' && format('SERVICE={0}', matrix.image) || '' }}
+          context: ${{ (matrix.image == 'web' || matrix.image == 'maker-bot') && matrix.image || '.' }}
+          build-args: ${{ (matrix.image != 'web' && matrix.image != 'maker-bot') && format('SERVICE={0}', matrix.image) || '' }}
           platforms: linux/amd64,linux/arm64
           push: false
           cache-from: type=gha,scope=${{ matrix.image }}

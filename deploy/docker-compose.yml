@@ -71,7 +71,6 @@ services:
       CANTON_AUTH_AUDIENCE: ${CANTON_AUTH_AUDIENCE:-}
       CANTON_AUTH_SCOPE: ${CANTON_AUTH_SCOPE:-}
       OPERATOR_PARTY: ${OPERATOR_PARTY:?set OPERATOR_PARTY in .env}
-      MAKER_PARTY: ${MAKER_PARTY:-}
       INSTRUMENTS: ${INSTRUMENTS:?set INSTRUMENTS in .env}
       FAUCET_PARTY: ${FAUCET_PARTY:-}
       FAUCET_AMOUNTS: ${FAUCET_AMOUNTS:-}
@@ -99,8 +98,6 @@ services:
       GRPC_PORT: '9081'
       POSTGRES_DB_NAME: identity
       LEDGER_GRPC_ADDR: ledger:9083
-      MAKER_PARTY: ${MAKER_PARTY:-}
-      MAKER_API_KEY: ${MAKER_API_KEY:-}
       SESSION_TTL: ${SESSION_TTL:-}
       COOKIE_SECURE: 'true'
     depends_on:
@@ -154,23 +151,6 @@ services:
     healthcheck:
       <<: *ready
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/ready']
-
-  maker-bot:
-    <<: *go-service
-    image: ${IMAGE_PREFIX}/maker-bot:${IMAGE_TAG}
-    profiles: [demo]
-    environment:
-      <<: *common-env
-      OTEL_SERVICE_NAME: maker-bot
-      GATEWAY_URL: http://gateway:8080
-      MAKER_API_KEY: ${MAKER_API_KEY:-}
-      MAKER_SPREAD_BPS: ${MAKER_SPREAD_BPS:-}
-      PRICES_USD: ${PRICES_USD:-}
-      QUOTE_TTL: ${QUOTE_TTL:-}
-      POLL_INTERVAL: ${POLL_INTERVAL:-}
-    depends_on:
-      gateway:
-        condition: service_healthy
 
   web:
     <<: *logging

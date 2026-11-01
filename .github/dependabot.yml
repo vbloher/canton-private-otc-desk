@@ -8,7 +8,7 @@ multi-ecosystem-groups:
 
 updates:
   - package-ecosystem: gomod
-    directory: /
+    directories: [/, /maker-bot]
     patterns: ['*']
     multi-ecosystem-group: dependencies
     ignore:
@@ -31,7 +31,7 @@ updates:
     multi-ecosystem-group: dependencies
 
   - package-ecosystem: docker
-    directories: [/, /web]
+    directories: [/, /web, /maker-bot]
     patterns: ['*']
     multi-ecosystem-group: dependencies
     ignore:

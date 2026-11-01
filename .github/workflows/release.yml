@@ -72,8 +72,8 @@ jobs:
 
       - uses: docker/build-push-action@v7
         with:
-          context: ${{ matrix.image == 'web' && 'web' || '.' }}
-          build-args: ${{ matrix.image != 'web' && format('SERVICE={0}', matrix.image) || '' }}
+          context: ${{ (matrix.image == 'web' || matrix.image == 'maker-bot') && matrix.image || '.' }}
+          build-args: ${{ (matrix.image != 'web' && matrix.image != 'maker-bot') && format('SERVICE={0}', matrix.image) || '' }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -160,18 +160,31 @@ jobs:
             echo "::error::$(pwd)/.env must set CANTON_NETWORK=$NETWORK for this environment"
             exit 1
           fi
-          bot=$(docker compose config --services | grep -x maker-bot || true)
-          if [ "$NETWORK" = mainnet ] && [ -n "$bot" ]; then
-            echo "::error::the maker bot must not run on mainnet: drop demo from COMPOSE_PROFILES in $(pwd)/.env"
-            exit 1
-          fi
           docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
           docker compose pull --quiet
           docker compose up -d --wait --wait-timeout 600 --remove-orphans
           docker compose up -d --wait --force-recreate --no-deps otel-collector
-          if [ -z "$bot" ]; then
-            docker compose --profile demo rm -sf maker-bot
+          docker compose ps
+          EOF
+
+      - name: Maker bot
+        if: needs.target.outputs.environment == 'dev'
+        env:
+          BOT_DIR: otc-maker-bot-${{ needs.target.outputs.environment }}
+        run: |
+          export IMAGE_PREFIX="ghcr.io/${GITHUB_REPOSITORY,,}"
+          mkdir -p out-bot
+          envsubst '${IMAGE_PREFIX} ${IMAGE_TAG}' < deploy/maker-bot/docker-compose.yml > out-bot/docker-compose.yml
+          cp deploy/maker-bot/.env.example out-bot/.env.example
+          tar -C out-bot -cf - . | ssh server "mkdir -p '$BOT_DIR' && tar -C '$BOT_DIR' -xf -"
+          ssh server "cd '$BOT_DIR' && sh -s" <<'EOF'
+          set -eu
+          if [ ! -f .env ]; then
+            echo "::warning::$(pwd)/.env is missing: copy .env.example there and fill it in to run the maker bot"
+            exit 0
           fi
+          docker compose pull --quiet
+          docker compose up -d --remove-orphans
           docker compose ps
           EOF
 

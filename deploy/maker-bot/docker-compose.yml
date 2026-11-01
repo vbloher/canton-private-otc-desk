@@ -1,0 +1,18 @@
+x-logging: &logging
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: '5'
+
+services:
+  maker-bot:
+    <<: *logging
+    image: ${IMAGE_PREFIX}/maker-bot:${IMAGE_TAG}
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - state:/data
+
+volumes:
+  state:

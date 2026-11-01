@@ -147,23 +147,6 @@ services:
       <<: *ready
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8080/ready']
 
-  maker-bot:
-    <<: *go-service
-    build:
-      context: .
-      args:
-        SERVICE: maker-bot
-    env_file:
-      - path: services/maker-bot/.env
-        required: false
-    environment:
-      LOGGER_LEVEL: info
-      OTEL_SERVICE_NAME: maker-bot
-      GATEWAY_URL: http://gateway:8080
-    depends_on:
-      gateway:
-        condition: service_healthy
-
   web:
     build:
       context: ./web
