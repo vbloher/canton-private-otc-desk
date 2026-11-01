@@ -4,11 +4,15 @@ go 1.27.3
 
 require (
 	github.com/caarlos0/env/v11 v11.4.1
+	github.com/coder/websocket v1.8.15
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
+	github.com/oapi-codegen/runtime v1.8.0
 	github.com/stretchr/testify v1.12.1
 )
 
 require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/dprotaso/go-yit v0.0.0-20220510233725-9ba8df137936 // indirect
 	github.com/getkin/kin-openapi v0.142.0 // indirect
 	github.com/go-openapi/jsonpointer v0.23.1 // indirect

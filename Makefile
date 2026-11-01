@@ -61,6 +61,7 @@ web-dev:
 
 generate: grpc-gen
 	go generate ./...
+	cd maker-bot && go generate ./...
 
 grpc-gen:
 	@for p in $(PROTOS); do \
