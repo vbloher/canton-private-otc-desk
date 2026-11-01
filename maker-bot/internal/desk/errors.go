@@ -31,30 +31,49 @@ func Transient(err error) bool {
 }
 
 func statusError(status int, body []byte) error {
-	message := strings.TrimSpace(string(body))
+	message, fromDesk := deskMessage(body)
 
+	if status >= http.StatusInternalServerError {
+		return fmt.Errorf("%w: %d: %s", ErrUnavailable, status, message)
+	}
+
+	if !fromDesk {
+		return fmt.Errorf("desk URL answered %d without a desk error: %s", status, message)
+	}
+
+	sentinel := sentinelFor(status)
+	if sentinel == nil {
+		return fmt.Errorf("desk answered %d: %s", status, message)
+	}
+
+	return fmt.Errorf("%w: %s", sentinel, message)
+}
+
+func deskMessage(body []byte) (string, bool) {
 	var reply struct {
 		Error string `json:"error"`
 	}
 
 	if json.Unmarshal(body, &reply) == nil && reply.Error != "" {
-		message = reply.Error
+		return reply.Error, true
 	}
 
-	switch {
-	case status == http.StatusUnauthorized:
-		return fmt.Errorf("%w: %s", ErrUnauthorized, message)
-	case status == http.StatusNotFound:
-		return fmt.Errorf("%w: %s", ErrNotFound, message)
-	case status == http.StatusConflict:
-		return fmt.Errorf("%w: %s", ErrConflict, message)
-	case status == http.StatusGone:
-		return fmt.Errorf("%w: %s", ErrGone, message)
-	case status == http.StatusTooManyRequests:
-		return fmt.Errorf("%w: %s", ErrTooManyRequests, message)
-	case status >= http.StatusInternalServerError:
-		return fmt.Errorf("%w: %d: %s", ErrUnavailable, status, message)
+	return strings.TrimSpace(string(body)), false
+}
+
+func sentinelFor(status int) error {
+	switch status {
+	case http.StatusUnauthorized:
+		return ErrUnauthorized
+	case http.StatusNotFound:
+		return ErrNotFound
+	case http.StatusConflict:
+		return ErrConflict
+	case http.StatusGone:
+		return ErrGone
+	case http.StatusTooManyRequests:
+		return ErrTooManyRequests
 	default:
-		return fmt.Errorf("desk answered %d: %s", status, message)
+		return nil
 	}
 }

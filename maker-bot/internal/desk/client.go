@@ -3,10 +3,12 @@ package desk
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	identityapi "github.com/vbloher/canton-private-otc-desk/maker-bot/internal/deskapi/identity"
 	tradingapi "github.com/vbloher/canton-private-otc-desk/maker-bot/internal/deskapi/trading"
@@ -21,9 +23,11 @@ type signer struct {
 }
 
 type Client struct {
-	streamURL string
-	dialer    *http.Client
-	session   *session
+	log         *slog.Logger
+	streamURL   string
+	dialer      *http.Client
+	dialTimeout time.Duration
+	session     *session
 
 	identity *identityapi.ClientWithResponses
 	trading  *tradingapi.ClientWithResponses
@@ -33,7 +37,7 @@ type Client struct {
 	signer *signer
 }
 
-func New(baseURL string, httpClient *http.Client) (*Client, error) {
+func New(baseURL string, httpClient *http.Client, log *slog.Logger) (*Client, error) {
 	base := strings.TrimRight(baseURL, "/")
 
 	transport := httpClient.Transport
@@ -42,9 +46,11 @@ func New(baseURL string, httpClient *http.Client) (*Client, error) {
 	}
 
 	c := &Client{
-		streamURL: "ws" + strings.TrimPrefix(base, "http") + apiPrefix + "/ws",
-		dialer:    &http.Client{Transport: transport},
-		session:   &session{base: transport},
+		log:         log,
+		streamURL:   "ws" + strings.TrimPrefix(base, "http") + apiPrefix + "/ws",
+		dialer:      &http.Client{Transport: transport},
+		dialTimeout: httpClient.Timeout,
+		session:     &session{base: transport},
 	}
 	c.session.renew = c.SignIn
 

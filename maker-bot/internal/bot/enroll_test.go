@@ -3,6 +3,7 @@ package bot_test
 import (
 	"crypto/ed25519"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"testing"
@@ -50,7 +51,7 @@ func TestEnroll_FirstRun(t *testing.T) {
 	d := registeringDesk()
 	path := identityPath(t)
 
-	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"StartRegistration", "SetSigner", "RegisterParty", "CompleteRegistration"}, d.callNames())
@@ -72,6 +73,35 @@ func TestEnroll_FirstRun(t *testing.T) {
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm())
 }
 
+func TestEnroll_LogsTheRegistration(t *testing.T) {
+	d := registeringDesk()
+	out := &logs{}
+
+	_, err := bot.Enroll(t.Context(), d, identityPath(t), "OTC Demo Maker",
+		slog.New(slog.NewJSONHandler(out, nil)))
+	require.NoError(t, err)
+
+	records := out.records(t)
+	require.NotEmpty(t, records)
+
+	last := records[len(records)-1]
+	require.Equal(t, "registered a new party", last["msg"])
+	require.Equal(t, botParty, last["party"])
+	require.Equal(t, "otc-demo-maker-1a2b3c", last["hint"])
+}
+
+func TestEnroll_LogsARestart(t *testing.T) {
+	d := registeringDesk()
+	path := identityPath(t)
+	savedIdentity(t, path, false, uuid.New())
+
+	out := &logs{}
+
+	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", slog.New(slog.NewJSONHandler(out, nil)))
+	require.NoError(t, err)
+	require.Equal(t, 1, out.count(t, "INFO", "the registration expired"))
+}
+
 func TestEnroll_SavesTheKeyBeforeThePartyExists(t *testing.T) {
 	d := registeringDesk()
 	path := identityPath(t)
@@ -83,7 +113,7 @@ func TestEnroll_SavesTheKeyBeforeThePartyExists(t *testing.T) {
 		require.Equal(t, d.publicKey, saved.PublicKey())
 	}
 
-	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.NoError(t, err)
 }
 
@@ -92,7 +122,7 @@ func TestEnroll_ResumesAnUnfinishedRegistration(t *testing.T) {
 	path := identityPath(t)
 	saved := savedIdentity(t, path, false, d.registration.ID)
 
-	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"SetSigner", "RegisterParty", "CompleteRegistration"}, d.callNames())
@@ -105,7 +135,7 @@ func TestEnroll_StartsOverWhenTheRegistrationIsGone(t *testing.T) {
 	path := identityPath(t)
 	saved := savedIdentity(t, path, false, uuid.New())
 
-	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{
@@ -122,7 +152,7 @@ func TestEnroll_GivesUpWhenTheRestartIsGoneToo(t *testing.T) {
 	path := identityPath(t)
 	savedIdentity(t, path, false, uuid.New())
 
-	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.ErrorIs(t, err, desk.ErrGone)
 }
 
@@ -131,7 +161,7 @@ func TestEnroll_SignsInWithACompleteIdentity(t *testing.T) {
 	path := identityPath(t)
 	saved := savedIdentity(t, path, true, uuid.New())
 
-	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	id, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.NoError(t, err)
 
 	require.Equal(t, []string{"SetSigner", "SignIn"}, d.callNames())
@@ -148,8 +178,10 @@ func TestEnroll_UnknownPartyStops(t *testing.T) {
 	before, err := os.ReadFile(path)
 	require.NoError(t, err)
 
-	_, err = bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	_, err = bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.ErrorIs(t, err, bot.ErrUnknownParty)
+	require.ErrorIs(t, err, desk.ErrNotFound, "the desk's own answer stays in the chain")
+	require.ErrorContains(t, err, "challenge: not found")
 	require.ErrorContains(t, err, botParty)
 
 	after, err := os.ReadFile(path)
@@ -163,7 +195,7 @@ func TestEnroll_CorruptFileStops(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o700))
 	require.NoError(t, os.WriteFile(path, []byte("garbage"), 0o600))
 
-	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker")
+	_, err := bot.Enroll(t.Context(), d, path, "OTC Demo Maker", quiet)
 	require.ErrorIs(t, err, identity.ErrCorrupt)
 	require.Empty(t, d.callNames())
 

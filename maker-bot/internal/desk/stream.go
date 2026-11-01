@@ -26,6 +26,13 @@ func (c *Client) Dial(ctx context.Context) (*websocket.Conn, error) {
 }
 
 func (c *Client) dial(ctx context.Context, token string) (*websocket.Conn, error) {
+	if c.dialTimeout > 0 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, c.dialTimeout)
+		defer cancel()
+	}
+
 	header := http.Header{}
 	if token != "" {
 		header.Set("Cookie", sessionCookie+"="+token)
@@ -36,16 +43,20 @@ func (c *Client) dial(ctx context.Context, token string) (*websocket.Conn, error
 		_ = resp.Body.Close()
 	}
 
-	if err == nil {
-		return conn, nil
+	if err != nil {
+		return nil, handshakeError(resp, err)
 	}
 
+	return conn, nil
+}
+
+func handshakeError(resp *http.Response, err error) error {
 	switch {
 	case resp != nil && resp.StatusCode == http.StatusUnauthorized:
-		return nil, fmt.Errorf("%w: %w", ErrUnauthorized, err)
+		return fmt.Errorf("%w: %w", ErrUnauthorized, err)
 	case resp != nil && resp.StatusCode >= http.StatusInternalServerError:
-		return nil, fmt.Errorf("%w: %w", ErrUnavailable, err)
+		return fmt.Errorf("%w: %w", ErrUnavailable, err)
 	default:
-		return nil, fmt.Errorf("websocket.Dial: %w", err)
+		return fmt.Errorf("websocket.Dial: %w", err)
 	}
 }

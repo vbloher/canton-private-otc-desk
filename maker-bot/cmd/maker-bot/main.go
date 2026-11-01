@@ -42,7 +42,7 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	client, err := desk.New(c.DeskURL, &http.Client{Timeout: requestTimeout})
+	client, err := desk.New(c.DeskURL, &http.Client{Timeout: requestTimeout}, log)
 	if err != nil {
 		return fmt.Errorf("desk.New: %w", err)
 	}
@@ -52,7 +52,7 @@ func run() error {
 	err = bot.Retry(ctx, retryDelay, log, func(ctx context.Context) error {
 		var err error
 
-		id, err = bot.Enroll(ctx, client, c.StateFile, c.MakerName)
+		id, err = bot.Enroll(ctx, client, c.StateFile, c.MakerName, log)
 		if err != nil {
 			return fmt.Errorf("bot.Enroll: %w", err)
 		}

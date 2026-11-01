@@ -95,6 +95,8 @@ func (c *Client) SignIn(ctx context.Context) error {
 		return fmt.Errorf("login: %w", statusError(login.StatusCode(), login.Body))
 	}
 
+	c.log.Info("signed in", "party", s.partyID)
+
 	return nil
 }
 

@@ -1,10 +1,14 @@
 package desk_test
 
 import (
+	"bytes"
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +26,8 @@ import (
 )
 
 const party = "bot-1a2b3c::1220aa"
+
+var quietLog = slog.New(slog.NewTextHandler(io.Discard, nil))
 
 type fake struct {
 	t      *testing.T
@@ -115,7 +121,7 @@ func newClient(t *testing.T) (*fake, *desk.Client) {
 
 	f, srv := newFake(t, publicKey)
 
-	c, err := desk.New(srv.URL, srv.Client())
+	c, err := desk.New(srv.URL, srv.Client(), quietLog)
 	require.NoError(t, err)
 	c.SetSigner(party, func(message []byte) []byte { return ed25519.Sign(privateKey, message) })
 
@@ -143,6 +149,26 @@ func TestSignIn_SendsPartyIDAndSignature(t *testing.T) {
 	_, err := c.IncomingRFQs(t.Context())
 	require.NoError(t, err, "the next call carries the session")
 	require.Equal(t, int64(1), f.logins.Load())
+}
+
+func TestSignIn_IsLogged(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	_, srv := newFake(t, publicKey)
+
+	var out bytes.Buffer
+
+	c, err := desk.New(srv.URL, srv.Client(), slog.New(slog.NewJSONHandler(&out, nil)))
+	require.NoError(t, err)
+	c.SetSigner(party, func(message []byte) []byte { return ed25519.Sign(privateKey, message) })
+
+	require.NoError(t, c.SignIn(t.Context()))
+
+	var record map[string]any
+	require.NoError(t, json.Unmarshal(out.Bytes(), &record))
+	require.Equal(t, "signed in", record["msg"])
+	require.Equal(t, party, record["party"])
 }
 
 func TestSession_SignsInAgainOn401(t *testing.T) {
@@ -196,6 +222,20 @@ func TestSignIn_UnknownParty(t *testing.T) {
 	})
 
 	require.ErrorIs(t, c.SignIn(t.Context()), desk.ErrNotFound)
+}
+
+func TestSignIn_A404FromSomethingElseIsNotUnknown(t *testing.T) {
+	f, c := newClient(t)
+	f.route("POST /api/v1/auth/challenge", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("<html>404 page not found</html>"))
+	})
+
+	err := c.SignIn(t.Context())
+	require.Error(t, err)
+	require.NotErrorIs(t, err, desk.ErrNotFound, "only the desk's own answer means the party is unknown")
+	require.ErrorContains(t, err, "404")
 }
 
 func TestIncomingRFQs_ParsesTheWire(t *testing.T) {
@@ -383,11 +423,67 @@ func TestDial_SignsInAgainOn401(t *testing.T) {
 	require.Equal(t, int64(1), f.logins.Load())
 }
 
+func TestDial_GivesUpOnAStalledUpgrade(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	f, srv := newFake(t, publicKey)
+	f.route("GET /api/v1/ws", func(_ http.ResponseWriter, r *http.Request) { <-r.Context().Done() })
+
+	c, err := desk.New(srv.URL, &http.Client{Transport: srv.Client().Transport, Timeout: 200 * time.Millisecond}, quietLog)
+	require.NoError(t, err)
+	c.SetSigner(party, func(message []byte) []byte { return ed25519.Sign(privateKey, message) })
+
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+
+	start := time.Now()
+	_, err = c.Dial(ctx)
+	require.Error(t, err)
+	require.Less(t, time.Since(start), 2*time.Second, "a stalled upgrade ends with the client's request timeout")
+}
+
+func TestDial_TheConnectionOutlivesTheDialDeadline(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	f, srv := newFake(t, publicKey)
+	f.route("GET /api/v1/ws", func(w http.ResponseWriter, r *http.Request) {
+		if !f.session(r) {
+			reply(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
+
+			return
+		}
+
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		time.Sleep(300 * time.Millisecond)
+		_ = conn.Write(r.Context(), websocket.MessageText, []byte(`{"type":"wallet.updated","data":{}}`))
+		_ = conn.Close(websocket.StatusNormalClosure, "")
+	})
+
+	c, err := desk.New(srv.URL, &http.Client{Transport: srv.Client().Transport, Timeout: 100 * time.Millisecond}, quietLog)
+	require.NoError(t, err)
+	c.SetSigner(party, func(message []byte) []byte { return ed25519.Sign(privateKey, message) })
+
+	conn, err := c.Dial(t.Context())
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = conn.CloseNow() })
+
+	_, frame, err := conn.Read(t.Context())
+	require.NoError(t, err, "the request timeout bounds the handshake, not the connection")
+	require.JSONEq(t, `{"type":"wallet.updated","data":{}}`, string(frame))
+}
+
 func TestTransient(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	srv.Close()
 
-	c, err := desk.New(srv.URL, srv.Client())
+	c, err := desk.New(srv.URL, srv.Client(), quietLog)
 	require.NoError(t, err)
 
 	_, err = c.IncomingRFQs(t.Context())

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/vbloher/canton-private-otc-desk/maker-bot/internal/desk"
@@ -16,10 +17,11 @@ type enrollment struct {
 	desk      Account
 	path      string
 	makerName string
+	log       *slog.Logger
 }
 
-func Enroll(ctx context.Context, d Account, path, makerName string) (identity.Identity, error) {
-	e := enrollment{desk: d, path: path, makerName: makerName}
+func Enroll(ctx context.Context, d Account, path, makerName string, log *slog.Logger) (identity.Identity, error) {
+	e := enrollment{desk: d, path: path, makerName: makerName, log: log}
 
 	id, err := identity.Load(path)
 
@@ -53,6 +55,8 @@ func (e enrollment) start(ctx context.Context, id identity.Identity, restarted b
 		return identity.Identity{}, fmt.Errorf("identity.Save: %w", err)
 	}
 
+	e.log.Info("registration started", "party", id.PartyID, "identity_file", e.path)
+
 	return e.finish(ctx, id, restarted)
 }
 
@@ -61,6 +65,8 @@ func (e enrollment) finish(ctx context.Context, id identity.Identity, restarted 
 
 	me, err := e.register(ctx, id)
 	if errors.Is(err, desk.ErrGone) && !restarted {
+		e.log.Info("the registration expired, starting over with the same key", "party", id.PartyID)
+
 		return e.start(ctx, id, true)
 	}
 
@@ -74,6 +80,8 @@ func (e enrollment) finish(ctx context.Context, id identity.Identity, restarted 
 	if err != nil {
 		return identity.Identity{}, fmt.Errorf("identity.Save: %w", err)
 	}
+
+	e.log.Info("registered a new party", "party", id.PartyID, "hint", id.Hint)
 
 	return id, nil
 }
@@ -100,8 +108,8 @@ func (e enrollment) signIn(ctx context.Context, id identity.Identity) (identity.
 	err := e.desk.SignIn(ctx)
 	if errors.Is(err, desk.ErrNotFound) {
 		return identity.Identity{}, fmt.Errorf(
-			"%w: party %s: restore the identity file that belongs to it, or move %s away to register a new party",
-			ErrUnknownParty, id.PartyID, e.path)
+			"%w: party %s (%w): restore the identity file that belongs to it, or move %s away to register a new party",
+			ErrUnknownParty, id.PartyID, err, e.path)
 	}
 
 	if err != nil {
