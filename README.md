@@ -81,7 +81,7 @@ protobuf (`api/grpc`).
 
 ### How a trade settles
 
-1. The taker creates an RFQ (`BUY 0.5 CBTC` against `USDCx`) for chosen makers.
+1. The taker creates an RFQ (`BUY 0.5 CBTC` against `CC`) for chosen makers.
 2. A maker quotes a price. The quote is the maker's **committed allocation** on the ledger, so
    a quote is always funded; the taker sees it once it lands.
 3. The taker accepts. The taker (and, for the fee, the desk) allocate their sides.
@@ -89,8 +89,8 @@ protobuf (`api/grpc`).
    desk fee — in one transaction: one `SettlementFactory_SettleBatch` per instrument admin, all
    in a single submission. Losing quotes are cancelled and their funds released.
 
-Every factory and choice context comes from the instrument's registry (DA Utilities for CBTC
-and USDCx, Splice Scan for Canton Coin), so the desk holds no token logic of its own.
+Every factory and choice context comes from the instrument's registry (DA Utilities for CBTC,
+Splice Scan for Canton Coin), so the desk holds no token logic of its own.
 
 The fee (`FEE_BPS`, default 10) is paid by the maker in the quote asset. Amounts are exact
 decimals with ten fraction digits, floored like Daml's `Numeric 10`.
@@ -107,14 +107,14 @@ identity provider (client credentials; the token's `sub` is the ledger user unle
    `FAUCET_PARTY`. The ledger service waits for them on start and names the ones it cannot find.
 2. Give the ledger user the rights to allocate external parties: every wallet is one.
 3. Vet the [DA Utility Registry DARs](https://get.digitalasset.com/utility-dars/) so its parties
-   can hold CBTC and USDCx.
+   can hold CBTC.
 4. Fund the faucet reservoir with the instruments it hands out.
 
 `INSTRUMENTS` lists what the desk trades, one `SYMBOL|Name|decimals|instrumentId|admin|registryURL`
 entry per instrument, comma-separated. The registry URL is the root of the token-standard API,
 ending in `/registry`; a registry's `GET <root>/metadata/v1/info` names its admin. The templates
-carry the DevNet values (CBTC and USDCx on the DA Utilities registries, CC on Splice Scan) and the
-MainNet value for CC.
+carry the DevNet values (CBTC on the DA Utilities registry, CC on Splice Scan) and the MainNet value
+for CC. USDCx is left out on DevNet: the faucet reservoir holds none.
 
 | Network | Template | Faucet |
 |---|---|---|
@@ -142,7 +142,7 @@ Open <http://localhost:3000>:
 
 1. **Create wallet** — pick a name and confirm the passkey prompt.
 2. **Wallet → Get test tokens** — the faucet's drip arrives once the auto-signer accepts it.
-3. **Request quotes** — e.g. buy 0.001 CBTC for USDCx from the demo maker while `make maker-bot`
+3. **Request quotes** — e.g. buy 0.001 CBTC for CC from the demo maker while `make maker-bot`
    runs (it registers itself on the first run and draws from the faucet). It answers within a
    second.
 4. **Accept** the best quote and watch the trade settle; balances move in one transaction.
