@@ -226,7 +226,7 @@ export interface components {
             /** @example Alice */
             displayName: string;
             /** @enum {string} */
-            kind: "passkey" | "house";
+            kind: "passkey";
             makerMode: boolean;
         };
         Maker: {

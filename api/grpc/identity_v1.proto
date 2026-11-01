@@ -6,16 +6,11 @@ option go_package = "github.com/vbloher/canton-private-otc-desk/gen/grpc/identit
 
 service IdentityV1 {
   rpc Authenticate(AuthenticateInput) returns (User);
-  rpc AuthenticateAPIKey(AuthenticateAPIKeyInput) returns (User);
   rpc ResolveMakers(ResolveMakersInput) returns (ResolveMakersOutput);
 }
 
 message AuthenticateInput {
   string session_token = 1;
-}
-
-message AuthenticateAPIKeyInput {
-  string api_key = 1;
 }
 
 message User {

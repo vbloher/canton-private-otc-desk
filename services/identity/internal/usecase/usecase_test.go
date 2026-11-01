@@ -16,11 +16,7 @@ import (
 
 const Any = mock.Anything
 
-var testConfig = usecase.Config{
-	SessionTTL:  24 * time.Hour,
-	MakerParty:  "otc-desk-maker::1220ab",
-	MakerAPIKey: "maker-key",
-}
+var testConfig = usecase.Config{SessionTTL: 24 * time.Hour}
 
 type deps struct {
 	postgres *mocks.Postgres

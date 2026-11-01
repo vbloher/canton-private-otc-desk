@@ -14,7 +14,6 @@ import (
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/principal"
 	"github.com/vbloher/canton-private-otc-desk/pkg/render"
-	"github.com/vbloher/canton-private-otc-desk/services/gateway/internal/domain"
 )
 
 var ErrInvalidUpstream = errors.New("upstream URL must look like http://host:port")
@@ -85,8 +84,6 @@ func stripCallerHeaders(h http.Header) {
 }
 
 func stripCredentials(h http.Header, cookies cookiePolicy) {
-	h.Del(domain.APIKeyHeader)
-
 	if cookies == dropCookie {
 		h.Del(cookieHeader)
 	}

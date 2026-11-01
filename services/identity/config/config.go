@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"strings"
 	"time"
 
 	"github.com/caarlos0/env/v11"
@@ -56,15 +55,6 @@ func New() (Config, error) {
 
 	if config.UseCase.SessionTTL < minSessionTTL {
 		return config, fmt.Errorf("%w: SESSION_TTL must be at least %s", ErrInvalid, minSessionTTL)
-	}
-
-	maker := config.UseCase
-	if (maker.MakerParty == "") != (maker.MakerAPIKey == "") {
-		return config, fmt.Errorf("%w: MAKER_PARTY and MAKER_API_KEY go together", ErrInvalid)
-	}
-
-	if maker.MakerParty != "" && !strings.Contains(maker.MakerParty, "::") {
-		return config, fmt.Errorf("%w: MAKER_PARTY must be a full party id", ErrInvalid)
 	}
 
 	return config, nil

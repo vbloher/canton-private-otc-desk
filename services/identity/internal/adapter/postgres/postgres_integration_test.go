@@ -85,15 +85,6 @@ func passkeyUser(t *testing.T, hint, credentialID string) domain.User {
 	return user
 }
 
-func houseUser(t *testing.T, hint, apiKey string) domain.User {
-	t.Helper()
-
-	user, err := domain.NewHouseUser(hint+"::1220ab", hint, apiKey)
-	require.NoError(t, err)
-
-	return user
-}
-
 func requireSameUser(t *testing.T, want, got domain.User) {
 	t.Helper()
 
@@ -122,9 +113,6 @@ func Test_PasskeyUser_RoundTrip(t *testing.T) {
 
 	_, err = p.GetUserByCredential(t.Context(), "nope")
 	require.ErrorIs(t, err, domain.ErrNotFound)
-
-	_, err = p.GetUserByAPIKeyHash(t.Context(), domain.HashAPIKey("nope"))
-	require.ErrorIs(t, err, domain.ErrNotFound)
 }
 
 func Test_CreateUser_Duplicates(t *testing.T) {
@@ -147,60 +135,6 @@ func Test_CreateUser_RejectsHalfBuiltUsers(t *testing.T) {
 		ID: uuid.New(), PartyID: "p::1", Hint: "p", DisplayName: "P", Kind: domain.KindPasskey, CreatedAt: time.Now(),
 	})
 	require.Error(t, err)
-
-	err = p.CreateUser(t.Context(), domain.User{
-		ID: uuid.New(), PartyID: "q::1", Hint: "q", DisplayName: "Q", Kind: domain.KindHouse, CreatedAt: time.Now(),
-	})
-	require.Error(t, err)
-}
-
-func Test_UpsertHouseUser(t *testing.T) {
-	p := newPostgres(t)
-
-	maker := houseUser(t, "makerA", "demo-key-a")
-	require.NoError(t, p.UpsertHouseUser(t.Context(), maker))
-
-	byKey, err := p.GetUserByAPIKeyHash(t.Context(), domain.HashAPIKey("demo-key-a"))
-	require.NoError(t, err)
-	requireSameUser(t, maker, byKey)
-	require.Equal(t, domain.KindHouse, byKey.Kind)
-	require.True(t, byKey.MakerMode)
-	require.Nil(t, byKey.PublicKey)
-	require.Empty(t, byKey.CredentialID)
-
-	_, err = p.SetMakerMode(t.Context(), maker.ID, false)
-	require.NoError(t, err)
-
-	again := houseUser(t, "makerA", "rotated-key")
-	again.PartyID = "makerA::9999"
-	require.NoError(t, p.UpsertHouseUser(t.Context(), again))
-
-	updated, err := p.GetUserByAPIKeyHash(t.Context(), domain.HashAPIKey("rotated-key"))
-	require.NoError(t, err)
-	require.Equal(t, maker.ID, updated.ID, "the id survives a re-seed")
-	require.Equal(t, "makerA::9999", updated.PartyID)
-	require.True(t, updated.MakerMode)
-
-	_, err = p.GetUserByAPIKeyHash(t.Context(), domain.HashAPIKey("demo-key-a"))
-	require.ErrorIs(t, err, domain.ErrNotFound, "the old key stops working")
-}
-
-func Test_UpsertHouseUser_NeverOverwritesAWallet(t *testing.T) {
-	p := newPostgres(t)
-
-	wallet := passkeyUser(t, "alice-3f9a1c", "cred-1")
-	require.NoError(t, p.CreateUser(t.Context(), wallet))
-
-	err := p.UpsertHouseUser(t.Context(), houseUser(t, "alice-3f9a1c", "some-key"))
-	require.Error(t, err)
-	require.ErrorContains(t, err, "alice-3f9a1c")
-
-	got, err := p.GetUser(t.Context(), wallet.ID)
-	require.NoError(t, err)
-	requireSameUser(t, wallet, got)
-
-	_, err = p.GetUserByAPIKeyHash(t.Context(), domain.HashAPIKey("some-key"))
-	require.ErrorIs(t, err, domain.ErrNotFound, "the clashing key was not stored either")
 }
 
 func Test_ListMakers_And_SetMakerMode(t *testing.T) {
@@ -208,8 +142,13 @@ func Test_ListMakers_And_SetMakerMode(t *testing.T) {
 
 	alice := passkeyUser(t, "alice-3f9a1c", "cred-1")
 	require.NoError(t, p.CreateUser(t.Context(), alice))
-	require.NoError(t, p.UpsertHouseUser(t.Context(), houseUser(t, "makerB", "key-b")))
-	require.NoError(t, p.UpsertHouseUser(t.Context(), houseUser(t, "makerA", "key-a")))
+
+	for _, maker := range []domain.User{passkeyUser(t, "makerB", "cred-b"), passkeyUser(t, "makerA", "cred-a")} {
+		require.NoError(t, p.CreateUser(t.Context(), maker))
+
+		_, err := p.SetMakerMode(t.Context(), maker.ID, true)
+		require.NoError(t, err)
+	}
 
 	makers, err := p.ListMakers(t.Context())
 	require.NoError(t, err)

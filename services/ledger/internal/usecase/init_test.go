@@ -17,7 +17,6 @@ func Test_Init_WaitsForParties(t *testing.T) {
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return("", domain.ErrNotFound).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 	d.expectWarmUp()
 
 	u := d.useCase(t)
@@ -34,28 +33,26 @@ func Test_Init_GivesUpOnMissingParties(t *testing.T) {
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, maker).Return("", domain.ErrNotFound)
+	d.canton.EXPECT().ResolveParty(Any, faucet).Return("", domain.ErrNotFound)
 
-	c := config(t)
+	c := faucetConfig(t)
 	c.StartupTimeout = 50 * time.Millisecond
 
 	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
 
 	err := u.Init(t.Context())
-	require.ErrorContains(t, err, maker)
+	require.ErrorContains(t, err, faucet)
 }
 
-func Test_Init_WithoutAMaker(t *testing.T) {
+func Test_Init_HostsOperatorAndFaucetOnly(t *testing.T) {
 	d := newDeps(t)
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
+	d.canton.EXPECT().ResolveParty(Any, faucet).Return(faucet, nil).Once()
 	d.expectWarmUp()
 
-	c := config(t)
-	c.MakerParty = ""
-
-	u := usecase.New(c, d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
+	u := usecase.New(faucetConfig(t), d.tx, d.postgres, d.redis, d.canton, d.registry, d.events)
 	require.NoError(t, u.Init(t.Context()))
 }
 

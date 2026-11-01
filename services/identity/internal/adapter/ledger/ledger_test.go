@@ -17,15 +17,8 @@ import (
 type fakeClient struct {
 	pb.LedgerV1Client
 
-	resolve  func(in *pb.ResolvePartyInput) (*pb.ResolvePartyOutput, error)
 	generate func(in *pb.GenerateExternalPartyInput) (*pb.GenerateExternalPartyOutput, error)
 	allocate func(in *pb.AllocateExternalPartyInput) (*pb.AllocateExternalPartyOutput, error)
-}
-
-func (f fakeClient) ResolveParty(
-	_ context.Context, in *pb.ResolvePartyInput, _ ...grpc.CallOption,
-) (*pb.ResolvePartyOutput, error) {
-	return f.resolve(in)
 }
 
 func (f fakeClient) GenerateExternalParty(
@@ -46,49 +39,6 @@ func newLedger(t *testing.T, client fakeClient) *Ledger {
 	otel.SilentModeInit()
 
 	return &Ledger{client: client}
-}
-
-func Test_ResolveParty(t *testing.T) {
-	l := newLedger(t, fakeClient{resolve: func(in *pb.ResolvePartyInput) (*pb.ResolvePartyOutput, error) {
-		require.Equal(t, "makerA", in.GetHint())
-
-		return &pb.ResolvePartyOutput{PartyId: "makerA::1220ab"}, nil
-	}})
-
-	partyID, err := l.ResolveParty(t.Context(), "makerA")
-	require.NoError(t, err)
-	require.Equal(t, "makerA::1220ab", partyID)
-}
-
-func Test_ResolveParty_NotFound(t *testing.T) {
-	l := newLedger(t, fakeClient{resolve: func(*pb.ResolvePartyInput) (*pb.ResolvePartyOutput, error) {
-		return nil, status.Error(codes.NotFound, "no such party")
-	}})
-
-	_, err := l.ResolveParty(t.Context(), "ghost")
-	require.ErrorIs(t, err, domain.ErrNotFound)
-	require.NotErrorIs(t, err, domain.ErrLedger)
-}
-
-func Test_ResolveParty_OtherFailuresAreLedgerFailures(t *testing.T) {
-	for _, code := range []codes.Code{codes.Unavailable, codes.Internal, codes.DeadlineExceeded, codes.InvalidArgument} {
-		l := newLedger(t, fakeClient{resolve: func(*pb.ResolvePartyInput) (*pb.ResolvePartyOutput, error) {
-			return nil, status.Error(code, "boom")
-		}})
-
-		_, err := l.ResolveParty(t.Context(), "makerA")
-		require.ErrorIs(t, err, domain.ErrLedger, code.String())
-		require.NotErrorIs(t, err, domain.ErrNotFound, code.String())
-	}
-}
-
-func Test_ResolveParty_EmptyAnswer(t *testing.T) {
-	l := newLedger(t, fakeClient{resolve: func(*pb.ResolvePartyInput) (*pb.ResolvePartyOutput, error) {
-		return &pb.ResolvePartyOutput{}, nil
-	}})
-
-	_, err := l.ResolveParty(t.Context(), "makerA")
-	require.ErrorIs(t, err, domain.ErrLedger)
 }
 
 func Test_GenerateExternalParty(t *testing.T) {

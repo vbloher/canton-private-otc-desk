@@ -172,7 +172,6 @@ func Test_SessionCache(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	user.APIKeyHash = "some-hash"
 	user.MakerMode = true
 
 	hash := domain.HashSessionToken(uuid.NewString())
@@ -188,8 +187,8 @@ func Test_SessionCache(t *testing.T) {
 
 	want := user
 	want.CreatedAt, got.CreatedAt = time.Time{}, time.Time{}
-	want.EncryptedBlob, want.APIKeyHash = "", ""
-	require.Equal(t, want, got, "everything but the wrapped key and the API key hash is cached")
+	want.EncryptedBlob = ""
+	require.Equal(t, want, got, "everything but the wrapped key is cached")
 
 	r.DropCachedSession(t.Context(), hash)
 

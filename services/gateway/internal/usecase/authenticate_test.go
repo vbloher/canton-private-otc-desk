@@ -31,22 +31,7 @@ func Test_Authenticate_Cookie(t *testing.T) {
 
 	u := usecase.New(identity)
 
-	actual, err := u.Authenticate(t.Context(), "session-token", "")
-	require.NoError(t, err)
-	require.Equal(t, want, actual)
-}
-
-func Test_Authenticate_APIKeyWins(t *testing.T) {
-	otel.SilentModeInit()
-
-	want := principal.Principal{UserID: uuid.New(), PartyID: "makerA::1220cd", Hint: "makerA"}
-
-	identity := mocks.NewIdentity(t)
-	identity.EXPECT().AuthenticateAPIKey(Any, "demo-key-a").Return(want, nil)
-
-	u := usecase.New(identity)
-
-	actual, err := u.Authenticate(t.Context(), "session-token", "demo-key-a")
+	actual, err := u.Authenticate(t.Context(), "session-token")
 	require.NoError(t, err)
 	require.Equal(t, want, actual)
 }
@@ -56,7 +41,7 @@ func Test_Authenticate_None(t *testing.T) {
 
 	u := usecase.New(mocks.NewIdentity(t))
 
-	actual, err := u.Authenticate(t.Context(), "", "")
+	actual, err := u.Authenticate(t.Context(), "")
 	require.ErrorIs(t, err, domain.ErrUnauthorized)
 	require.Equal(t, principal.Principal{}, actual)
 }
@@ -66,19 +51,12 @@ func Test_Authenticate_Rejected(t *testing.T) {
 
 	tests := map[string]struct {
 		sessionToken string
-		apiKey       string
 		arrange      func(*mocks.Identity)
 	}{
 		"session token": {
 			sessionToken: "expired",
 			arrange: func(m *mocks.Identity) {
 				m.EXPECT().Authenticate(Any, "expired").Return(principal.Principal{}, domain.ErrUnauthorized)
-			},
-		},
-		"api key": {
-			apiKey: "wrong",
-			arrange: func(m *mocks.Identity) {
-				m.EXPECT().AuthenticateAPIKey(Any, "wrong").Return(principal.Principal{}, domain.ErrUnauthorized)
 			},
 		},
 	}
@@ -90,7 +68,7 @@ func Test_Authenticate_Rejected(t *testing.T) {
 
 			u := usecase.New(identity)
 
-			actual, err := u.Authenticate(t.Context(), tt.sessionToken, tt.apiKey)
+			actual, err := u.Authenticate(t.Context(), tt.sessionToken)
 			require.ErrorIs(t, err, domain.ErrUnauthorized)
 			require.Equal(t, principal.Principal{}, actual)
 		})
@@ -104,19 +82,12 @@ func Test_Authenticate_IdentityFailure(t *testing.T) {
 
 	tests := map[string]struct {
 		sessionToken string
-		apiKey       string
 		arrange      func(*mocks.Identity)
 	}{
 		"session token": {
 			sessionToken: "token",
 			arrange: func(m *mocks.Identity) {
 				m.EXPECT().Authenticate(Any, "token").Return(principal.Principal{}, down)
-			},
-		},
-		"api key": {
-			apiKey: "key",
-			arrange: func(m *mocks.Identity) {
-				m.EXPECT().AuthenticateAPIKey(Any, "key").Return(principal.Principal{}, down)
 			},
 		},
 	}
@@ -128,7 +99,7 @@ func Test_Authenticate_IdentityFailure(t *testing.T) {
 
 			u := usecase.New(identity)
 
-			actual, err := u.Authenticate(t.Context(), tt.sessionToken, tt.apiKey)
+			actual, err := u.Authenticate(t.Context(), tt.sessionToken)
 			require.ErrorIs(t, err, down)
 			require.NotErrorIs(t, err, domain.ErrUnauthorized, "an identity outage is not a bad credential")
 			require.Equal(t, principal.Principal{}, actual)

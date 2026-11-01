@@ -29,7 +29,6 @@ func (d deps) startedWithFaucet(t *testing.T, c usecase.Config) *usecase.UseCase
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 
 	if c.Network == domain.NetworkDevNet {
 		d.canton.EXPECT().ResolveParty(Any, faucet).Return(faucet, nil).Once()

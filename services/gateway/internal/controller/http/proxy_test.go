@@ -132,7 +132,6 @@ func identityKnowsAlice(t *testing.T) *mocks.Identity {
 
 	idp := mocks.NewIdentity(t)
 	idp.EXPECT().Authenticate(Any, "alice-session").Return(alice, nil).Maybe()
-	idp.EXPECT().AuthenticateAPIKey(Any, "alice-key").Return(alice, nil).Maybe()
 
 	return idp
 }
@@ -289,8 +288,6 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 
 	callers := map[string][]func(*http.Request){
 		"browser session": {withSession("alice-session"), withCookie("theme", "dark")},
-		"bot api key":     {withHeader(domain.APIKeyHeader, "alice-key")},
-		"both":            {withSession("alice-session"), withHeader(domain.APIKeyHeader, "alice-key")},
 	}
 
 	targets := map[string]struct{ path, upstream string }{
@@ -305,43 +302,22 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 
 				require.Equal(t, target.upstream, got.Upstream)
 				require.Empty(t, got.Header.Values("Cookie"), "no cookie at all, not just the session")
-				require.Empty(t, got.Header.Values(domain.APIKeyHeader))
 				require.Equal(t, []string{alice.PartyID}, got.Header.Values(principal.HeaderPartyID), "the caller is still vouched for")
 			})
 		}
 	}
 }
 
-func Test_Proxy_IdentityNeverSeesAPIKey(t *testing.T) {
-	g := newGateway(t, identityKnowsAlice(t))
-
-	tests := map[string]struct{ method, path string }{
-		"public route":        {http.MethodPost, "/api/v1/auth/login"},
-		"authenticated route": {http.MethodGet, "/api/v1/makers"},
-	}
-
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			got := echo(t, do(t, g, tt.method, tt.path, "", withHeader(domain.APIKeyHeader, "alice-key")))
-
-			require.Equal(t, identityName, got.Upstream)
-			require.Empty(t, got.Header.Values(domain.APIKeyHeader))
-		})
-	}
-}
-
 func Test_Proxy_Unauthorized(t *testing.T) {
 	idp := mocks.NewIdentity(t)
 	idp.EXPECT().Authenticate(Any, "expired").Return(principal.Principal{}, domain.ErrUnauthorized)
-	idp.EXPECT().AuthenticateAPIKey(Any, "wrong-key").Return(principal.Principal{}, domain.ErrUnauthorized)
 
 	g := newGateway(t, idp)
 
 	tests := map[string][]func(*http.Request){
 		"no credentials":        nil,
 		"expired session":       {withSession("expired")},
-		"unknown api key":       {withHeader(domain.APIKeyHeader, "wrong-key")},
-		"empty cookie and key":  {withSession(""), withHeader(domain.APIKeyHeader, "")},
+		"empty cookie":          {withSession("")},
 		"spoofed headers alone": {withHeader(principal.HeaderUserID, alice.UserID.String()), withHeader(principal.HeaderPartyID, alice.PartyID), withHeader(principal.HeaderPartyHint, alice.Hint)},
 	}
 
@@ -360,23 +336,16 @@ func Test_Proxy_Unauthorized(t *testing.T) {
 	require.Zero(t, g.totalHits(), "an unauthorized request never reaches a service")
 }
 
-func Test_Proxy_APIKeyWinsOverCookie(t *testing.T) {
-	maker := principal.Principal{UserID: uuid.New(), PartyID: "makerA::1220cd", Hint: "makerA"}
+func Test_Proxy_APIKeyHeaderIsNotACredential(t *testing.T) {
+	g := newGateway(t, mocks.NewIdentity(t))
 
-	idp := mocks.NewIdentity(t)
-	idp.EXPECT().AuthenticateAPIKey(Any, "demo-key-a").Return(maker, nil)
+	for _, path := range []string{"/api/v1/me", "/api/v1/rfqs/incoming", "/api/v1/wallet/balances", "/api/v1/ws"} {
+		rec := do(t, g, http.MethodGet, path, "", withHeader("X-API-Key", "alice-key"))
 
-	g := newGateway(t, idp)
+		require.Equal(t, http.StatusUnauthorized, rec.Code, path)
+	}
 
-	rec := do(t, g, http.MethodGet, "/api/v1/rfqs/incoming", "",
-		withSession("alice-session"),
-		withHeader(domain.APIKeyHeader, "demo-key-a"),
-	)
-
-	got := echo(t, rec)
-	require.Equal(t, tradingName, got.Upstream)
-	require.Equal(t, []string{maker.PartyID}, got.Header.Values(principal.HeaderPartyID))
-	require.Equal(t, []string{maker.Hint}, got.Header.Values(principal.HeaderPartyHint))
+	require.Zero(t, g.totalHits())
 }
 
 func Test_Proxy_IdentityOutage(t *testing.T) {

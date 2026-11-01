@@ -62,15 +62,15 @@ func Test_Withdraw_SamePendingWithdrawalIsReturned(t *testing.T) {
 
 func Test_Withdraw_HostedPartyNotifiesTheReceiver(t *testing.T) {
 	d := newDeps(t)
-	u := d.started(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
 
-	d.canton.EXPECT().Holdings(Any, maker).Return([]domain.Holding{holding("h-1", maker, "CBTC", "2.0")}, nil).Once()
+	d.canton.EXPECT().Holdings(Any, faucet).Return([]domain.Holding{holding("h-1", faucet, "CBTC", "2.0")}, nil).Once()
 	d.registry.EXPECT().TransferCommand(Any, Any).Return(command("transfer"), nil).Once()
-	d.canton.EXPECT().Submit(Any, maker, mock.AnythingOfType("string"), command("transfer")).
+	d.canton.EXPECT().Submit(Any, faucet, mock.AnythingOfType("string"), command("transfer")).
 		Return(domain.Transaction{}, nil).Once()
-	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(maker, alice)).Return(nil).Once()
+	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(faucet, alice)).Return(nil).Once()
 
-	output, err := u.Withdraw(t.Context(), dto.WithdrawInput{PartyID: maker, Symbol: "CBTC", Amount: "1", Receiver: alice})
+	output, err := u.Withdraw(t.Context(), dto.WithdrawInput{PartyID: faucet, Symbol: "CBTC", Amount: "1", Receiver: alice})
 	require.NoError(t, err)
 	require.Empty(t, output.Actions)
 }
@@ -195,16 +195,16 @@ func Test_GenerateExternalParty_UsesCachedSynchronizer(t *testing.T) {
 
 func Test_AcceptIncoming_UsesTheInstrumentsRegistry(t *testing.T) {
 	d := newDeps(t)
-	u := d.started(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
 
-	d.canton.EXPECT().TransferInstructions(Any, maker).Return([]domain.IncomingTransfer{
+	d.canton.EXPECT().TransferInstructions(Any, faucet).Return([]domain.IncomingTransfer{
 		{ContractID: "offer-1", Sender: alice, Admin: dso, InstrumentID: "Amulet", Amount: decimal.MustParse("40")},
 	}, nil).Once()
 	d.registry.EXPECT().AcceptTransferCommand(Any, scanURL, "offer-1").Return(command("accept"), nil).Once()
-	d.canton.EXPECT().Submit(Any, maker, "accept:offer-1", command("accept")).Return(domain.Transaction{}, nil).Once()
-	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(maker, alice)).Return(nil).Once()
+	d.canton.EXPECT().Submit(Any, faucet, "accept:offer-1", command("accept")).Return(domain.Transaction{}, nil).Once()
+	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(faucet, alice)).Return(nil).Once()
 
-	output, err := u.AcceptIncoming(t.Context(), dto.AcceptIncomingInput{PartyID: maker, ContractID: "offer-1"})
+	output, err := u.AcceptIncoming(t.Context(), dto.AcceptIncomingInput{PartyID: faucet, ContractID: "offer-1"})
 	require.NoError(t, err)
 	require.Empty(t, output.Actions)
 }

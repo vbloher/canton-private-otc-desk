@@ -61,8 +61,6 @@ func Test_New_Defaults(t *testing.T) {
 	require.Equal(t, "localhost:9083", c.Ledger.Addr)
 	require.Equal(t, 168*time.Hour, c.UseCase.SessionTTL)
 	require.False(t, c.Router.CookieSecure)
-	require.Empty(t, c.UseCase.MakerParty)
-	require.Empty(t, c.UseCase.MakerAPIKey)
 }
 
 func Test_New_Overrides(t *testing.T) {
@@ -74,8 +72,6 @@ func Test_New_Overrides(t *testing.T) {
 	t.Setenv("LEDGER_GRPC_ADDR", "ledger:9083")
 	t.Setenv("SESSION_TTL", "2h")
 	t.Setenv("COOKIE_SECURE", "true")
-	t.Setenv("MAKER_PARTY", "bot::1220ab")
-	t.Setenv("MAKER_API_KEY", "secret")
 
 	c, err := config.New()
 	require.NoError(t, err)
@@ -86,8 +82,6 @@ func Test_New_Overrides(t *testing.T) {
 	require.Equal(t, "ledger:9083", c.Ledger.Addr)
 	require.Equal(t, 2*time.Hour, c.UseCase.SessionTTL)
 	require.True(t, c.Router.CookieSecure)
-	require.Equal(t, "bot::1220ab", c.UseCase.MakerParty)
-	require.Equal(t, "secret", c.UseCase.MakerAPIKey)
 }
 
 func Test_New_ReadsDotEnv(t *testing.T) {
@@ -133,16 +127,6 @@ func Test_New_Rejects(t *testing.T) {
 		env  map[string]string
 		want []string
 	}{
-		{
-			name: "maker without a key",
-			env:  map[string]string{"MAKER_PARTY": "maker::1220ab"},
-			want: []string{"MAKER_PARTY and MAKER_API_KEY go together"},
-		},
-		{
-			name: "maker by hint",
-			env:  map[string]string{"MAKER_PARTY": "maker", "MAKER_API_KEY": "k"},
-			want: []string{"MAKER_PARTY must be a full party id"},
-		},
 		{
 			name: "session shorter than 1m",
 			env:  map[string]string{"SESSION_TTL": "30s"},
@@ -192,6 +176,16 @@ func Test_New_Rejects(t *testing.T) {
 			}
 		})
 	}
+}
+
+func Test_New_IgnoresMakerVariables(t *testing.T) {
+	t.Chdir(t.TempDir())
+	setRequired(t)
+	t.Setenv("MAKER_PARTY", "otc-maker")
+	t.Setenv("MAKER_API_KEY", "")
+
+	_, err := config.New()
+	require.NoError(t, err)
 }
 
 func Test_New_AcceptsASessionOfExactlyOneMinute(t *testing.T) {

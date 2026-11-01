@@ -26,7 +26,7 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/migration"
 )
 
-func Run(ctx context.Context, c config.Config) error { //nolint:funlen
+func Run(ctx context.Context, c config.Config) error {
 	err := migrate.Up(c.Postgres.URL(), migration.FS)
 	if err != nil {
 		return fmt.Errorf("migrate.Up: %w", err)
@@ -58,20 +58,6 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 		ledgerClient,
 		c.UseCase,
 	)
-
-	seedCtx, stopSeeding := context.WithCancel(ctx)
-	seeded := make(chan struct{})
-
-	go func() {
-		defer close(seeded)
-
-		seedHouseMaker(seedCtx, uc, seedRetryDelay)
-	}()
-
-	defer func() {
-		stopSeeding()
-		<-seeded
-	}()
 
 	grpcServer, err := grpcserver.New(ctx, c.GRPC, func(s *grpc.Server) {
 		pb.RegisterIdentityV1Server(s, grpcv1.New(uc))

@@ -65,50 +65,6 @@ func (x *AuthenticateInput) GetSessionToken() string {
 	return ""
 }
 
-type AuthenticateAPIKeyInput struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	ApiKey        string                 `protobuf:"bytes,1,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *AuthenticateAPIKeyInput) Reset() {
-	*x = AuthenticateAPIKeyInput{}
-	mi := &file_identity_v1_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *AuthenticateAPIKeyInput) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*AuthenticateAPIKeyInput) ProtoMessage() {}
-
-func (x *AuthenticateAPIKeyInput) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthenticateAPIKeyInput.ProtoReflect.Descriptor instead.
-func (*AuthenticateAPIKeyInput) Descriptor() ([]byte, []int) {
-	return file_identity_v1_proto_rawDescGZIP(), []int{1}
-}
-
-func (x *AuthenticateAPIKeyInput) GetApiKey() string {
-	if x != nil {
-		return x.ApiKey
-	}
-	return ""
-}
-
 type User struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -122,7 +78,7 @@ type User struct {
 
 func (x *User) Reset() {
 	*x = User{}
-	mi := &file_identity_v1_proto_msgTypes[2]
+	mi := &file_identity_v1_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -134,7 +90,7 @@ func (x *User) String() string {
 func (*User) ProtoMessage() {}
 
 func (x *User) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_proto_msgTypes[2]
+	mi := &file_identity_v1_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -147,7 +103,7 @@ func (x *User) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use User.ProtoReflect.Descriptor instead.
 func (*User) Descriptor() ([]byte, []int) {
-	return file_identity_v1_proto_rawDescGZIP(), []int{2}
+	return file_identity_v1_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *User) GetId() string {
@@ -194,7 +150,7 @@ type ResolveMakersInput struct {
 
 func (x *ResolveMakersInput) Reset() {
 	*x = ResolveMakersInput{}
-	mi := &file_identity_v1_proto_msgTypes[3]
+	mi := &file_identity_v1_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -206,7 +162,7 @@ func (x *ResolveMakersInput) String() string {
 func (*ResolveMakersInput) ProtoMessage() {}
 
 func (x *ResolveMakersInput) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_proto_msgTypes[3]
+	mi := &file_identity_v1_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -219,7 +175,7 @@ func (x *ResolveMakersInput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveMakersInput.ProtoReflect.Descriptor instead.
 func (*ResolveMakersInput) Descriptor() ([]byte, []int) {
-	return file_identity_v1_proto_rawDescGZIP(), []int{3}
+	return file_identity_v1_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ResolveMakersInput) GetHints() []string {
@@ -238,7 +194,7 @@ type ResolveMakersOutput struct {
 
 func (x *ResolveMakersOutput) Reset() {
 	*x = ResolveMakersOutput{}
-	mi := &file_identity_v1_proto_msgTypes[4]
+	mi := &file_identity_v1_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -250,7 +206,7 @@ func (x *ResolveMakersOutput) String() string {
 func (*ResolveMakersOutput) ProtoMessage() {}
 
 func (x *ResolveMakersOutput) ProtoReflect() protoreflect.Message {
-	mi := &file_identity_v1_proto_msgTypes[4]
+	mi := &file_identity_v1_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -263,7 +219,7 @@ func (x *ResolveMakersOutput) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ResolveMakersOutput.ProtoReflect.Descriptor instead.
 func (*ResolveMakersOutput) Descriptor() ([]byte, []int) {
-	return file_identity_v1_proto_rawDescGZIP(), []int{4}
+	return file_identity_v1_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ResolveMakersOutput) GetMakers() []*User {
@@ -279,9 +235,7 @@ const file_identity_v1_proto_rawDesc = "" +
 	"\n" +
 	"\x11identity_v1.proto\x12\videntity_v1\"8\n" +
 	"\x11AuthenticateInput\x12#\n" +
-	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\"2\n" +
-	"\x17AuthenticateAPIKeyInput\x12\x17\n" +
-	"\aapi_key\x18\x01 \x01(\tR\x06apiKey\"\x87\x01\n" +
+	"\rsession_token\x18\x01 \x01(\tR\fsessionToken\"\x87\x01\n" +
 	"\x04User\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x19\n" +
 	"\bparty_id\x18\x02 \x01(\tR\apartyId\x12\x12\n" +
@@ -292,11 +246,10 @@ const file_identity_v1_proto_rawDesc = "" +
 	"\x12ResolveMakersInput\x12\x14\n" +
 	"\x05hints\x18\x01 \x03(\tR\x05hints\"@\n" +
 	"\x13ResolveMakersOutput\x12)\n" +
-	"\x06makers\x18\x01 \x03(\v2\x11.identity_v1.UserR\x06makers2\xf2\x01\n" +
+	"\x06makers\x18\x01 \x03(\v2\x11.identity_v1.UserR\x06makers2\xa3\x01\n" +
 	"\n" +
 	"IdentityV1\x12A\n" +
-	"\fAuthenticate\x12\x1e.identity_v1.AuthenticateInput\x1a\x11.identity_v1.User\x12M\n" +
-	"\x12AuthenticateAPIKey\x12$.identity_v1.AuthenticateAPIKeyInput\x1a\x11.identity_v1.User\x12R\n" +
+	"\fAuthenticate\x12\x1e.identity_v1.AuthenticateInput\x1a\x11.identity_v1.User\x12R\n" +
 	"\rResolveMakers\x12\x1f.identity_v1.ResolveMakersInput\x1a .identity_v1.ResolveMakersOutputBAZ?github.com/vbloher/canton-private-otc-desk/gen/grpc/identity_v1b\x06proto3"
 
 var (
@@ -311,24 +264,21 @@ func file_identity_v1_proto_rawDescGZIP() []byte {
 	return file_identity_v1_proto_rawDescData
 }
 
-var file_identity_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_identity_v1_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_identity_v1_proto_goTypes = []any{
-	(*AuthenticateInput)(nil),       // 0: identity_v1.AuthenticateInput
-	(*AuthenticateAPIKeyInput)(nil), // 1: identity_v1.AuthenticateAPIKeyInput
-	(*User)(nil),                    // 2: identity_v1.User
-	(*ResolveMakersInput)(nil),      // 3: identity_v1.ResolveMakersInput
-	(*ResolveMakersOutput)(nil),     // 4: identity_v1.ResolveMakersOutput
+	(*AuthenticateInput)(nil),   // 0: identity_v1.AuthenticateInput
+	(*User)(nil),                // 1: identity_v1.User
+	(*ResolveMakersInput)(nil),  // 2: identity_v1.ResolveMakersInput
+	(*ResolveMakersOutput)(nil), // 3: identity_v1.ResolveMakersOutput
 }
 var file_identity_v1_proto_depIdxs = []int32{
-	2, // 0: identity_v1.ResolveMakersOutput.makers:type_name -> identity_v1.User
+	1, // 0: identity_v1.ResolveMakersOutput.makers:type_name -> identity_v1.User
 	0, // 1: identity_v1.IdentityV1.Authenticate:input_type -> identity_v1.AuthenticateInput
-	1, // 2: identity_v1.IdentityV1.AuthenticateAPIKey:input_type -> identity_v1.AuthenticateAPIKeyInput
-	3, // 3: identity_v1.IdentityV1.ResolveMakers:input_type -> identity_v1.ResolveMakersInput
-	2, // 4: identity_v1.IdentityV1.Authenticate:output_type -> identity_v1.User
-	2, // 5: identity_v1.IdentityV1.AuthenticateAPIKey:output_type -> identity_v1.User
-	4, // 6: identity_v1.IdentityV1.ResolveMakers:output_type -> identity_v1.ResolveMakersOutput
-	4, // [4:7] is the sub-list for method output_type
-	1, // [1:4] is the sub-list for method input_type
+	2, // 2: identity_v1.IdentityV1.ResolveMakers:input_type -> identity_v1.ResolveMakersInput
+	1, // 3: identity_v1.IdentityV1.Authenticate:output_type -> identity_v1.User
+	3, // 4: identity_v1.IdentityV1.ResolveMakers:output_type -> identity_v1.ResolveMakersOutput
+	3, // [3:5] is the sub-list for method output_type
+	1, // [1:3] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
 	1, // [1:1] is the sub-list for extension extendee
 	0, // [0:1] is the sub-list for field type_name
@@ -345,7 +295,7 @@ func file_identity_v1_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_identity_v1_proto_rawDesc), len(file_identity_v1_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

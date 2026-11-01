@@ -46,7 +46,6 @@ func config(t *testing.T) usecase.Config {
 	return usecase.Config{
 		Network:       domain.NetworkDevNet,
 		OperatorParty: operator,
-		MakerParty:    maker,
 		Instruments:   instruments,
 		FaucetAmounts: domain.Amounts{
 			"CBTC":  decimal.MustParse("1"),
@@ -104,7 +103,6 @@ func (d deps) started(t *testing.T) *usecase.UseCase {
 
 	d.canton.EXPECT().Ready(Any).Return(true).Once()
 	d.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
-	d.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 	d.expectWarmUp()
 
 	u := d.useCase(t)

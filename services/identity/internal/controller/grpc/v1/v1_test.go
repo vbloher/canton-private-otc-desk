@@ -111,40 +111,6 @@ func Test_Authenticate_StorageFailureIsInternalAndQuiet(t *testing.T) {
 	require.NotContains(t, err.Error(), "10.0.0.5")
 }
 
-func Test_AuthenticateAPIKey(t *testing.T) {
-	f := newFixture(t)
-
-	maker, err := domain.NewHouseUser("makerA::1220ab", "makerA", "demo-key-a")
-	require.NoError(t, err)
-
-	f.postgres.EXPECT().GetUserByAPIKeyHash(Any, domain.HashAPIKey("demo-key-a")).Return(maker, nil)
-
-	got, err := f.handlers.AuthenticateAPIKey(t.Context(), &pb.AuthenticateAPIKeyInput{ApiKey: "demo-key-a"})
-	require.NoError(t, err)
-
-	require.Equal(t, maker.ID.String(), got.GetId())
-	require.Equal(t, "makerA::1220ab", got.GetPartyId())
-	require.Equal(t, "makerA", got.GetHint())
-	require.Equal(t, "makerA", got.GetDisplayName())
-	require.True(t, got.GetMakerMode())
-}
-
-func Test_AuthenticateAPIKey_UnknownKeyIsUnauthenticated(t *testing.T) {
-	f := newFixture(t)
-
-	f.postgres.EXPECT().GetUserByAPIKeyHash(Any, Any).Return(domain.User{}, domain.ErrNotFound)
-
-	_, err := f.handlers.AuthenticateAPIKey(t.Context(), &pb.AuthenticateAPIKeyInput{ApiKey: "guess"})
-	requireCode(t, codes.Unauthenticated, err)
-}
-
-func Test_AuthenticateAPIKey_NoKeyIsUnauthenticated(t *testing.T) {
-	f := newFixture(t)
-
-	_, err := f.handlers.AuthenticateAPIKey(t.Context(), &pb.AuthenticateAPIKeyInput{})
-	requireCode(t, codes.Unauthenticated, err)
-}
-
 func Test_ResolveMakers(t *testing.T) {
 	f := newFixture(t)
 

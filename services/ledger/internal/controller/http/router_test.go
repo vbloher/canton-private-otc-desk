@@ -66,7 +66,6 @@ func newServer(t *testing.T) server {
 
 	s.canton.EXPECT().Ready(Any).Return(true).Once()
 	s.canton.EXPECT().ResolveParty(Any, operator).Return(operator, nil).Once()
-	s.canton.EXPECT().ResolveParty(Any, maker).Return(maker, nil).Once()
 	s.canton.EXPECT().SynchronizerID(Any, operator).Return("sync", nil).Once()
 	redis.EXPECT().SetSynchronizerID(Any, "sync").Once()
 
@@ -76,7 +75,7 @@ func newServer(t *testing.T) server {
 			"USDCx|USD Coin|2|USDCx|"+operator+"|https://registry.test/registry")))
 
 	uc := usecase.New(usecase.Config{
-		Network: domain.NetworkMainNet, OperatorParty: operator, MakerParty: maker,
+		Network: domain.NetworkMainNet, OperatorParty: operator,
 		Instruments: instruments, ActionTTL: 10 * time.Minute, StartupInterval: time.Millisecond,
 	}, tx, s.postgres, redis, s.canton, s.registry, s.events)
 	require.NoError(t, uc.Init(t.Context()))

@@ -19,9 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	IdentityV1_Authenticate_FullMethodName       = "/identity_v1.IdentityV1/Authenticate"
-	IdentityV1_AuthenticateAPIKey_FullMethodName = "/identity_v1.IdentityV1/AuthenticateAPIKey"
-	IdentityV1_ResolveMakers_FullMethodName      = "/identity_v1.IdentityV1/ResolveMakers"
+	IdentityV1_Authenticate_FullMethodName  = "/identity_v1.IdentityV1/Authenticate"
+	IdentityV1_ResolveMakers_FullMethodName = "/identity_v1.IdentityV1/ResolveMakers"
 )
 
 // IdentityV1Client is the client API for IdentityV1 service.
@@ -29,7 +28,6 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type IdentityV1Client interface {
 	Authenticate(ctx context.Context, in *AuthenticateInput, opts ...grpc.CallOption) (*User, error)
-	AuthenticateAPIKey(ctx context.Context, in *AuthenticateAPIKeyInput, opts ...grpc.CallOption) (*User, error)
 	ResolveMakers(ctx context.Context, in *ResolveMakersInput, opts ...grpc.CallOption) (*ResolveMakersOutput, error)
 }
 
@@ -51,16 +49,6 @@ func (c *identityV1Client) Authenticate(ctx context.Context, in *AuthenticateInp
 	return out, nil
 }
 
-func (c *identityV1Client) AuthenticateAPIKey(ctx context.Context, in *AuthenticateAPIKeyInput, opts ...grpc.CallOption) (*User, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(User)
-	err := c.cc.Invoke(ctx, IdentityV1_AuthenticateAPIKey_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *identityV1Client) ResolveMakers(ctx context.Context, in *ResolveMakersInput, opts ...grpc.CallOption) (*ResolveMakersOutput, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ResolveMakersOutput)
@@ -76,7 +64,6 @@ func (c *identityV1Client) ResolveMakers(ctx context.Context, in *ResolveMakersI
 // for forward compatibility.
 type IdentityV1Server interface {
 	Authenticate(context.Context, *AuthenticateInput) (*User, error)
-	AuthenticateAPIKey(context.Context, *AuthenticateAPIKeyInput) (*User, error)
 	ResolveMakers(context.Context, *ResolveMakersInput) (*ResolveMakersOutput, error)
 	mustEmbedUnimplementedIdentityV1Server()
 }
@@ -90,9 +77,6 @@ type UnimplementedIdentityV1Server struct{}
 
 func (UnimplementedIdentityV1Server) Authenticate(context.Context, *AuthenticateInput) (*User, error) {
 	return nil, status.Error(codes.Unimplemented, "method Authenticate not implemented")
-}
-func (UnimplementedIdentityV1Server) AuthenticateAPIKey(context.Context, *AuthenticateAPIKeyInput) (*User, error) {
-	return nil, status.Error(codes.Unimplemented, "method AuthenticateAPIKey not implemented")
 }
 func (UnimplementedIdentityV1Server) ResolveMakers(context.Context, *ResolveMakersInput) (*ResolveMakersOutput, error) {
 	return nil, status.Error(codes.Unimplemented, "method ResolveMakers not implemented")
@@ -136,24 +120,6 @@ func _IdentityV1_Authenticate_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
-func _IdentityV1_AuthenticateAPIKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AuthenticateAPIKeyInput)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(IdentityV1Server).AuthenticateAPIKey(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: IdentityV1_AuthenticateAPIKey_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(IdentityV1Server).AuthenticateAPIKey(ctx, req.(*AuthenticateAPIKeyInput))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _IdentityV1_ResolveMakers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(ResolveMakersInput)
 	if err := dec(in); err != nil {
@@ -182,10 +148,6 @@ var IdentityV1_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Authenticate",
 			Handler:    _IdentityV1_Authenticate_Handler,
-		},
-		{
-			MethodName: "AuthenticateAPIKey",
-			Handler:    _IdentityV1_AuthenticateAPIKey_Handler,
 		},
 		{
 			MethodName: "ResolveMakers",

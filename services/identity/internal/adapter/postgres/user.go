@@ -11,8 +11,8 @@ import (
 	"github.com/vbloher/canton-private-otc-desk/services/identity/internal/domain"
 )
 
-const userColumns = `id, party_id, hint, display_name, kind, public_key, credential_id, encrypted_blob, api_key_hash,
-                    maker_mode, created_at`
+const userColumns = `id, party_id, hint, display_name, kind, public_key, credential_id, encrypted_blob, maker_mode,
+                    created_at`
 
 func scanUser(row pgx.Row) (domain.User, error) {
 	var (
@@ -20,7 +20,6 @@ func scanUser(row pgx.Row) (domain.User, error) {
 		kind          string
 		credentialID  pgtype.Text
 		encryptedBlob pgtype.Text
-		apiKeyHash    pgtype.Text
 	)
 
 	dest := []any{
@@ -32,7 +31,6 @@ func scanUser(row pgx.Row) (domain.User, error) {
 		&user.PublicKey,
 		&credentialID,
 		&encryptedBlob,
-		&apiKeyHash,
 		&user.MakerMode,
 		&user.CreatedAt,
 	}
@@ -45,7 +43,6 @@ func scanUser(row pgx.Row) (domain.User, error) {
 	user.Kind = domain.Kind(kind)
 	user.CredentialID = credentialID.String
 	user.EncryptedBlob = encryptedBlob.String
-	user.APIKeyHash = apiKeyHash.String
 	user.CreatedAt = user.CreatedAt.UTC()
 
 	return user, nil

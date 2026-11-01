@@ -32,7 +32,6 @@ func serveSocketGateway(t *testing.T, idp *mocks.Identity) (url string, hubDeliv
 func Test_WS_DeliversEventsOfTheCaller(t *testing.T) {
 	tests := map[string]http.Header{
 		"browser session": {"Cookie": []string{domain.SessionCookie + "=alice-session"}},
-		"bot api key":     {domain.APIKeyHeader: []string{"alice-key"}},
 	}
 
 	for name, header := range tests {
@@ -83,14 +82,13 @@ func Test_WS_DeliversEventsOfTheCaller(t *testing.T) {
 func Test_WS_RequiresCaller(t *testing.T) {
 	idp := mocks.NewIdentity(t)
 	idp.EXPECT().Authenticate(Any, "expired").Return(principal.Principal{}, domain.ErrUnauthorized)
-	idp.EXPECT().AuthenticateAPIKey(Any, "wrong").Return(principal.Principal{}, domain.ErrUnauthorized)
 
 	url, _ := serveSocketGateway(t, idp)
 
 	tests := map[string]http.Header{
 		"no credentials":  {},
 		"expired session": {"Cookie": []string{domain.SessionCookie + "=expired"}},
-		"unknown api key": {domain.APIKeyHeader: []string{"wrong"}},
+		"api key header":  {"X-API-Key": []string{"alice-key"}},
 	}
 
 	for name, header := range tests {

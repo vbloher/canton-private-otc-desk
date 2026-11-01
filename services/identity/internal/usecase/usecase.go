@@ -20,10 +20,8 @@ const (
 
 type Postgres interface {
 	CreateUser(ctx context.Context, user domain.User) error
-	UpsertHouseUser(ctx context.Context, user domain.User) error
 	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
 	GetUserByCredential(ctx context.Context, credentialID string) (domain.User, error)
-	GetUserByAPIKeyHash(ctx context.Context, hash string) (domain.User, error)
 	GetUserBySession(ctx context.Context, tokenHash string, now time.Time) (domain.User, error)
 	ListMakers(ctx context.Context) ([]domain.User, error)
 	SetMakerMode(ctx context.Context, id uuid.UUID, enabled bool) (domain.User, error)
@@ -43,15 +41,12 @@ type Redis interface {
 }
 
 type Ledger interface {
-	ResolveParty(ctx context.Context, hint string) (string, error)
 	GenerateExternalParty(ctx context.Context, hint string, publicKey []byte) (domain.Topology, error)
 	AllocateExternalParty(ctx context.Context, t domain.Topology, signature []byte) (string, error)
 }
 
 type Config struct {
-	SessionTTL  time.Duration `env:"SESSION_TTL"   envDefault:"168h"`
-	MakerParty  string        `env:"MAKER_PARTY"`
-	MakerAPIKey string        `env:"MAKER_API_KEY"`
+	SessionTTL time.Duration `env:"SESSION_TTL" envDefault:"168h"`
 }
 
 type UseCase struct {

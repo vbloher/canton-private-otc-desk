@@ -13,7 +13,6 @@ type Kind string
 
 const (
 	KindPasskey Kind = "passkey"
-	KindHouse   Kind = "house"
 )
 
 const (
@@ -30,7 +29,6 @@ type User struct {
 	PublicKey     []byte    `json:"public_key"`
 	CredentialID  string    `json:"credential_id"`
 	EncryptedBlob string    `json:"-"`
-	APIKeyHash    string    `json:"-"`
 	MakerMode     bool      `json:"maker_mode"`
 	CreatedAt     time.Time `json:"created_at"`
 }
@@ -79,27 +77,6 @@ func ValidateCredential(credentialID, encryptedBlob string) error {
 	}
 
 	return nil
-}
-
-func NewHouseUser(partyID, hint, apiKey string) (User, error) {
-	if partyID == "" || hint == "" || apiKey == "" {
-		return User{}, Invalidf("house maker needs a party id, a hint and an API key")
-	}
-
-	return User{
-		ID:          uuid.New(),
-		PartyID:     partyID,
-		Hint:        hint,
-		DisplayName: hint,
-		Kind:        KindHouse,
-		APIKeyHash:  HashAPIKey(apiKey),
-		MakerMode:   true,
-		CreatedAt:   time.Now().UTC(),
-	}, nil
-}
-
-func HashAPIKey(key string) string {
-	return sha256Hex(key)
 }
 
 func normalizeDisplayName(displayName string) (string, error) {

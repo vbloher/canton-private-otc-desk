@@ -23,25 +23,25 @@ func allocateSpec(instrument string, inputs ...string) any {
 
 func Test_Allocate_HostedPartySubmits(t *testing.T) {
 	d := newDeps(t)
-	u := d.started(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
 
-	d.canton.EXPECT().Holdings(Any, maker).Return([]domain.Holding{
-		holding("h-cbtc", maker, "CBTC", "10.0"),
-		holding("h-usdcx", maker, "USDCx", "1000000.0"),
+	d.canton.EXPECT().Holdings(Any, faucet).Return([]domain.Holding{
+		holding("h-cbtc", faucet, "CBTC", "10.0"),
+		holding("h-usdcx", faucet, "USDCx", "1000000.0"),
 	}, nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC", "h-cbtc")).Return(command("cbtc"), nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(command("usdcx"), nil).Once()
-	d.canton.EXPECT().Submit(Any, maker, "allocate:s-1:"+maker+":CBTC", command("cbtc")).
+	d.canton.EXPECT().Submit(Any, faucet, "allocate:s-1:"+faucet+":CBTC", command("cbtc")).
 		Return(domain.Transaction{UpdateID: "u-1"}, nil).Once()
-	d.canton.EXPECT().Submit(Any, maker, "allocate:s-1:"+maker+":USDCx", command("usdcx")).
+	d.canton.EXPECT().Submit(Any, faucet, "allocate:s-1:"+faucet+":USDCx", command("usdcx")).
 		Return(domain.Transaction{UpdateID: "u-2"}, nil).Once()
-	d.events.EXPECT().Publish(Any, event(events.WalletUpdated, `{}`), parties(maker)).Return(nil).Once()
+	d.events.EXPECT().Publish(Any, event(events.WalletUpdated, `{}`), parties(faucet)).Return(nil).Once()
 
 	output, err := u.Allocate(t.Context(), dto.AllocateInput{
 		SettlementID: "s-1",
 		Deadline:     time.Now().Add(time.Hour),
-		Legs:         tradeLegs(maker, alice),
-		PartyID:      maker,
+		Legs:         tradeLegs(faucet, alice),
+		PartyID:      faucet,
 		Description:  "quote s-1",
 	})
 	require.NoError(t, err)
@@ -134,29 +134,29 @@ func pendingAllocation(party, settlementID, description string) domain.Action {
 
 func Test_Allocate_SpendsAHoldingWhoseLockLapsed(t *testing.T) {
 	d := newDeps(t)
-	u := d.started(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
 
-	lapsed := holding("h-lapsed", maker, "CBTC", "1.0")
+	lapsed := holding("h-lapsed", faucet, "CBTC", "1.0")
 	lapsed.Locked = true
 	lapsed.LockedUntil = time.Now().Add(-time.Hour)
 
-	live := holding("h-live", maker, "CBTC", "5.0")
+	live := holding("h-live", faucet, "CBTC", "5.0")
 	live.Locked = true
 	live.LockedUntil = time.Now().Add(time.Hour)
 
-	d.canton.EXPECT().Holdings(Any, maker).Return([]domain.Holding{
-		lapsed, live, holding("h-usdcx", maker, "USDCx", "1000000.0"),
+	d.canton.EXPECT().Holdings(Any, faucet).Return([]domain.Holding{
+		lapsed, live, holding("h-usdcx", faucet, "USDCx", "1000000.0"),
 	}, nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("CBTC", "h-lapsed")).Return(command("cbtc"), nil).Once()
 	d.registry.EXPECT().AllocateCommand(Any, allocateSpec("USDCx", "h-usdcx")).Return(command("usdcx"), nil).Once()
-	d.canton.EXPECT().Submit(Any, maker, Any, Any).Return(domain.Transaction{}, nil).Times(2)
-	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(maker)).Return(nil).Once()
+	d.canton.EXPECT().Submit(Any, faucet, Any, Any).Return(domain.Transaction{}, nil).Times(2)
+	d.events.EXPECT().Publish(Any, eventOfType(events.WalletUpdated), parties(faucet)).Return(nil).Once()
 
 	output, err := u.Allocate(t.Context(), dto.AllocateInput{
 		SettlementID: "s-1",
 		Deadline:     time.Now().Add(time.Hour),
-		Legs:         tradeLegs(maker, alice),
-		PartyID:      maker,
+		Legs:         tradeLegs(faucet, alice),
+		PartyID:      faucet,
 	})
 	require.NoError(t, err)
 	require.True(t, output.Executed)
@@ -164,18 +164,18 @@ func Test_Allocate_SpendsAHoldingWhoseLockLapsed(t *testing.T) {
 
 func Test_Allocate_InsufficientFunds(t *testing.T) {
 	d := newDeps(t)
-	u := d.started(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
 
-	d.canton.EXPECT().Holdings(Any, maker).Return([]domain.Holding{
-		holding("h-cbtc", maker, "CBTC", "0.5"),
-		holding("h-usdcx", maker, "USDCx", "1000000.0"),
+	d.canton.EXPECT().Holdings(Any, faucet).Return([]domain.Holding{
+		holding("h-cbtc", faucet, "CBTC", "0.5"),
+		holding("h-usdcx", faucet, "USDCx", "1000000.0"),
 	}, nil).Once()
 
 	_, err := u.Allocate(t.Context(), dto.AllocateInput{
 		SettlementID: "s-1",
 		Deadline:     time.Now().Add(time.Hour),
-		Legs:         tradeLegs(maker, alice),
-		PartyID:      maker,
+		Legs:         tradeLegs(faucet, alice),
+		PartyID:      faucet,
 	})
 	require.ErrorIs(t, err, domain.ErrInsufficientFunds)
 	require.ErrorContains(t, err, "insufficient funds: CBTC: need 1.0, held 0.5")

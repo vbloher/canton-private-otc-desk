@@ -19,15 +19,12 @@ import (
 
 // Defines values for MeKind.
 const (
-	MeKindHouse   MeKind = "house"
 	MeKindPasskey MeKind = "passkey"
 )
 
 // Valid indicates whether the value is a known member of the MeKind enum.
 func (e MeKind) Valid() bool {
 	switch e {
-	case MeKindHouse:
-		return true
 	case MeKindPasskey:
 		return true
 	default:

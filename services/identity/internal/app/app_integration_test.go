@@ -278,11 +278,7 @@ func Test_Service_EndToEnd(t *testing.T) {
 		Postgres: newDatabase(t),
 		Redis:    redis.Config{Addr: getenv("REDIS_ADDR", "localhost:6379")},
 		Ledger:   ledger.Config{Addr: ledgerAddr},
-		UseCase: usecase.Config{
-			SessionTTL:  time.Hour,
-			MakerParty:  "maker::1220feed",
-			MakerAPIKey: "maker-key",
-		},
+		UseCase:  usecase.Config{SessionTTL: time.Hour},
 	}
 
 	ctx, stop := context.WithCancel(t.Context())
@@ -324,28 +320,15 @@ func Test_Service_EndToEnd(t *testing.T) {
 	down := api.do(http.MethodPost, "/api/v1/auth/register/start", startBody, nil)
 	require.Equal(t, http.StatusBadGateway, down.status, string(down.body))
 
-	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
-	require.Equal(t, codes.Unauthenticated, status.Code(err), "the house makers are not seeded yet")
-
 	fake := startLedger(t, ledgerAddr)
 
+	var start reply
+
 	require.Eventually(t, func() bool {
-		user, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
+		start = api.do(http.MethodPost, "/api/v1/auth/register/start", startBody, nil)
 
-		return err == nil && user.GetHint() == "maker"
-	}, 15*time.Second, 100*time.Millisecond, "the house makers must be seeded once the ledger answers")
-
-	maker, err := identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "maker-key"})
-	require.NoError(t, err)
-	require.Equal(t, "maker::1220feed", maker.GetPartyId())
-	require.Equal(t, "maker", maker.GetDisplayName())
-	require.True(t, maker.GetMakerMode())
-
-	_, err = identity.AuthenticateAPIKey(ctx, &identitypb.AuthenticateAPIKeyInput{ApiKey: "unknown-key"})
-	require.Equal(t, codes.Unauthenticated, status.Code(err))
-
-	start := api.do(http.MethodPost, "/api/v1/auth/register/start", startBody, nil)
-	require.Equal(t, http.StatusOK, start.status, string(start.body))
+		return start.status == http.StatusOK
+	}, 15*time.Second, 100*time.Millisecond, "registration works once the ledger answers")
 
 	multiHash, err := base64.StdEncoding.DecodeString(start.json(t)["multiHash"].(string))
 	require.NoError(t, err)
@@ -404,25 +387,22 @@ func Test_Service_EndToEnd(t *testing.T) {
 
 	list := api.do(http.MethodGet, "/api/v1/makers", "", caller)
 	require.NoError(t, json.Unmarshal(list.body, &makers))
-	require.Equal(t, []map[string]string{
-		{"hint": "maker", "displayName": "maker"},
-	}, makers)
+	require.Empty(t, makers, "no wallet is a maker yet")
 
 	toggled := api.do(http.MethodPut, "/api/v1/me/maker-mode", `{"enabled":true}`, caller)
 	require.Equal(t, http.StatusOK, toggled.status, string(toggled.body))
 	require.Equal(t, true, toggled.json(t)["makerMode"])
 
 	resolved, err := identity.ResolveMakers(ctx, &identitypb.ResolveMakersInput{
-		Hints: []string{me["hint"].(string), "maker", "nobody"},
+		Hints: []string{"nobody", me["hint"].(string)},
 	})
 	require.NoError(t, err)
-	require.Len(t, resolved.GetMakers(), 2)
-	require.Equal(t, me["hint"], resolved.GetMakers()[0].GetHint(), "in request order, now that maker mode is on")
-	require.Equal(t, "maker", resolved.GetMakers()[1].GetHint())
+	require.Len(t, resolved.GetMakers(), 1)
+	require.Equal(t, me["hint"], resolved.GetMakers()[0].GetHint(), "a wallet resolves once maker mode is on")
 
 	list = api.do(http.MethodGet, "/api/v1/makers", "", caller)
 	require.NoError(t, json.Unmarshal(list.body, &makers))
-	require.Len(t, makers, 1, "the caller is never in their own list")
+	require.Empty(t, makers, "the caller is never in their own list")
 
 	challenge := api.do(http.MethodPost, "/api/v1/auth/challenge", `{"credentialId":"cred-e2e"}`, nil)
 	require.Equal(t, http.StatusOK, challenge.status, string(challenge.body))

@@ -10,7 +10,6 @@ import (
 
 type Identity interface {
 	Authenticate(ctx context.Context, sessionToken string) (principal.Principal, error)
-	AuthenticateAPIKey(ctx context.Context, apiKey string) (principal.Principal, error)
 }
 
 type UseCase struct {

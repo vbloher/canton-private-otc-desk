@@ -13,7 +13,7 @@ import (
 func authenticate(uc *usecase.UseCase) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
-			p, err := uc.Authenticate(r.Context(), sessionToken(r), r.Header.Get(domain.APIKeyHeader))
+			p, err := uc.Authenticate(r.Context(), sessionToken(r))
 			if err != nil {
 				authError(w, r, err)
 

@@ -298,72 +298,6 @@ func (_c *Postgres_GetUser_Call) RunAndReturn(run func(ctx context.Context, id u
 	return _c
 }
 
-// GetUserByAPIKeyHash provides a mock function for the type Postgres
-func (_mock *Postgres) GetUserByAPIKeyHash(ctx context.Context, hash string) (domain.User, error) {
-	ret := _mock.Called(ctx, hash)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetUserByAPIKeyHash")
-	}
-
-	var r0 domain.User
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (domain.User, error)); ok {
-		return returnFunc(ctx, hash)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) domain.User); ok {
-		r0 = returnFunc(ctx, hash)
-	} else {
-		r0 = ret.Get(0).(domain.User)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, hash)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Postgres_GetUserByAPIKeyHash_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetUserByAPIKeyHash'
-type Postgres_GetUserByAPIKeyHash_Call struct {
-	*mock.Call
-}
-
-// GetUserByAPIKeyHash is a helper method to define mock.On call
-//   - ctx context.Context
-//   - hash string
-func (_e *Postgres_Expecter) GetUserByAPIKeyHash(ctx any, hash any) *Postgres_GetUserByAPIKeyHash_Call {
-	return &Postgres_GetUserByAPIKeyHash_Call{Call: _e.mock.On("GetUserByAPIKeyHash", ctx, hash)}
-}
-
-func (_c *Postgres_GetUserByAPIKeyHash_Call) Run(run func(ctx context.Context, hash string)) *Postgres_GetUserByAPIKeyHash_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Postgres_GetUserByAPIKeyHash_Call) Return(user domain.User, err error) *Postgres_GetUserByAPIKeyHash_Call {
-	_c.Call.Return(user, err)
-	return _c
-}
-
-func (_c *Postgres_GetUserByAPIKeyHash_Call) RunAndReturn(run func(ctx context.Context, hash string) (domain.User, error)) *Postgres_GetUserByAPIKeyHash_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetUserByCredential provides a mock function for the type Postgres
 func (_mock *Postgres) GetUserByCredential(ctx context.Context, credentialID string) (domain.User, error) {
 	ret := _mock.Called(ctx, credentialID)
@@ -632,63 +566,6 @@ func (_c *Postgres_SetMakerMode_Call) Return(user domain.User, err error) *Postg
 }
 
 func (_c *Postgres_SetMakerMode_Call) RunAndReturn(run func(ctx context.Context, id uuid.UUID, enabled bool) (domain.User, error)) *Postgres_SetMakerMode_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// UpsertHouseUser provides a mock function for the type Postgres
-func (_mock *Postgres) UpsertHouseUser(ctx context.Context, user domain.User) error {
-	ret := _mock.Called(ctx, user)
-
-	if len(ret) == 0 {
-		panic("no return value specified for UpsertHouseUser")
-	}
-
-	var r0 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, domain.User) error); ok {
-		r0 = returnFunc(ctx, user)
-	} else {
-		r0 = ret.Error(0)
-	}
-	return r0
-}
-
-// Postgres_UpsertHouseUser_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpsertHouseUser'
-type Postgres_UpsertHouseUser_Call struct {
-	*mock.Call
-}
-
-// UpsertHouseUser is a helper method to define mock.On call
-//   - ctx context.Context
-//   - user domain.User
-func (_e *Postgres_Expecter) UpsertHouseUser(ctx any, user any) *Postgres_UpsertHouseUser_Call {
-	return &Postgres_UpsertHouseUser_Call{Call: _e.mock.On("UpsertHouseUser", ctx, user)}
-}
-
-func (_c *Postgres_UpsertHouseUser_Call) Run(run func(ctx context.Context, user domain.User)) *Postgres_UpsertHouseUser_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 domain.User
-		if args[1] != nil {
-			arg1 = args[1].(domain.User)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Postgres_UpsertHouseUser_Call) Return(err error) *Postgres_UpsertHouseUser_Call {
-	_c.Call.Return(err)
-	return _c
-}
-
-func (_c *Postgres_UpsertHouseUser_Call) RunAndReturn(run func(ctx context.Context, user domain.User) error) *Postgres_UpsertHouseUser_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1407,72 +1284,6 @@ func (_c *Ledger_GenerateExternalParty_Call) Return(topology domain.Topology, er
 }
 
 func (_c *Ledger_GenerateExternalParty_Call) RunAndReturn(run func(ctx context.Context, hint string, publicKey []byte) (domain.Topology, error)) *Ledger_GenerateExternalParty_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// ResolveParty provides a mock function for the type Ledger
-func (_mock *Ledger) ResolveParty(ctx context.Context, hint string) (string, error) {
-	ret := _mock.Called(ctx, hint)
-
-	if len(ret) == 0 {
-		panic("no return value specified for ResolveParty")
-	}
-
-	var r0 string
-	var r1 error
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) (string, error)); ok {
-		return returnFunc(ctx, hint)
-	}
-	if returnFunc, ok := ret.Get(0).(func(context.Context, string) string); ok {
-		r0 = returnFunc(ctx, hint)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-	if returnFunc, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = returnFunc(ctx, hint)
-	} else {
-		r1 = ret.Error(1)
-	}
-	return r0, r1
-}
-
-// Ledger_ResolveParty_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ResolveParty'
-type Ledger_ResolveParty_Call struct {
-	*mock.Call
-}
-
-// ResolveParty is a helper method to define mock.On call
-//   - ctx context.Context
-//   - hint string
-func (_e *Ledger_Expecter) ResolveParty(ctx any, hint any) *Ledger_ResolveParty_Call {
-	return &Ledger_ResolveParty_Call{Call: _e.mock.On("ResolveParty", ctx, hint)}
-}
-
-func (_c *Ledger_ResolveParty_Call) Run(run func(ctx context.Context, hint string)) *Ledger_ResolveParty_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		var arg0 context.Context
-		if args[0] != nil {
-			arg0 = args[0].(context.Context)
-		}
-		var arg1 string
-		if args[1] != nil {
-			arg1 = args[1].(string)
-		}
-		run(
-			arg0,
-			arg1,
-		)
-	})
-	return _c
-}
-
-func (_c *Ledger_ResolveParty_Call) Return(s string, err error) *Ledger_ResolveParty_Call {
-	_c.Call.Return(s, err)
-	return _c
-}
-
-func (_c *Ledger_ResolveParty_Call) RunAndReturn(run func(ctx context.Context, hint string) (string, error)) *Ledger_ResolveParty_Call {
 	_c.Call.Return(run)
 	return _c
 }

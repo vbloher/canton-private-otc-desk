@@ -52,17 +52,13 @@ func (u *UseCase) Init(ctx context.Context) error {
 	}
 
 	log.Info().Str("network", string(u.config.Network)).Str("operator", u.operator).
-		Str("maker", u.config.MakerParty).Str("faucet", u.faucet).Msg("ledger: parties found")
+		Str("faucet", u.faucet).Msg("ledger: parties found")
 
 	return u.warmUp(ctx)
 }
 
 func (u *UseCase) parties() []string {
 	parties := []string{u.config.OperatorParty}
-
-	if u.config.MakerParty != "" {
-		parties = append(parties, u.config.MakerParty)
-	}
 
 	if u.config.faucetEnabled() {
 		parties = append(parties, u.config.FaucetParty)

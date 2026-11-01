@@ -67,7 +67,6 @@ type Transactor interface {
 type Config struct {
 	Network        domain.Network        `env:"CANTON_NETWORK"          envDefault:"devnet"`
 	OperatorParty  string                `env:"OPERATOR_PARTY,notEmpty"`
-	MakerParty     string                `env:"MAKER_PARTY"`
 	Instruments    domain.InstrumentList `env:"INSTRUMENTS,notEmpty"`
 	FaucetParty    string                `env:"FAUCET_PARTY"`
 	FaucetAmounts  domain.Amounts        `env:"FAUCET_AMOUNTS"`

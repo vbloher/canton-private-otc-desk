@@ -27,17 +27,10 @@ type server struct {
 	err  error
 
 	sessionToken string
-	apiKey       string
 }
 
 func (s *server) Authenticate(_ context.Context, in *pb.AuthenticateInput) (*pb.User, error) {
 	s.sessionToken = in.GetSessionToken()
-
-	return s.user, s.err
-}
-
-func (s *server) AuthenticateAPIKey(_ context.Context, in *pb.AuthenticateAPIKeyInput) (*pb.User, error) {
-	s.apiKey = in.GetApiKey()
 
 	return s.user, s.err
 }
@@ -83,13 +76,6 @@ func calls() []call {
 				return i.Authenticate(context.Background(), "the-credential")
 			},
 			sent: func(s *server) string { return s.sessionToken },
-		},
-		{
-			name: "AuthenticateAPIKey",
-			do: func(i *identity.Identity) (principal.Principal, error) {
-				return i.AuthenticateAPIKey(context.Background(), "the-credential")
-			},
-			sent: func(s *server) string { return s.apiKey },
 		},
 	}
 }

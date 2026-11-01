@@ -415,7 +415,7 @@ components:
           example: Alice
         kind:
           type: string
-          enum: [passkey, house]
+          enum: [passkey]
         makerMode:
           type: boolean
     Maker:

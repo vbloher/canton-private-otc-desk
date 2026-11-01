@@ -18,8 +18,8 @@ func (p *Postgres) CreateUser(ctx context.Context, user domain.User) error {
 	defer span.End()
 
 	const sql = `INSERT INTO users (id, party_id, hint, display_name, kind, public_key, credential_id,
-                                   encrypted_blob, api_key_hash, maker_mode, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+                                   encrypted_blob, maker_mode, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	args := []any{
 		user.ID,
@@ -30,7 +30,6 @@ func (p *Postgres) CreateUser(ctx context.Context, user domain.User) error {
 		user.PublicKey,
 		nullText(user.CredentialID),
 		nullText(user.EncryptedBlob),
-		nullText(user.APIKeyHash),
 		user.MakerMode,
 		user.CreatedAt,
 	}
