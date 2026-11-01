@@ -35,17 +35,24 @@ func (e MeKind) Valid() bool {
 	}
 }
 
-// ChallengeInput defines model for ChallengeInput.
+// ChallengeInput Exactly one of credentialId (passkey wallets) and partyId (key accounts)
 type ChallengeInput struct {
-	CredentialID string `json:"credentialId"`
+	CredentialID *string `json:"credentialId,omitempty"`
+
+	// PartyID Key accounts only
+	//
+	// Example: demo-maker-1a2b3c::1220ab12
+	PartyID *string `json:"partyId,omitempty"`
 }
 
 // ChallengeOutput defines model for ChallengeOutput.
 type ChallengeOutput struct {
 	// Challenge Example: otc-desk:4kJ8m2...
-	Challenge     string `json:"challenge"`
-	EncryptedBlob string `json:"encryptedBlob"`
-	PublicKey     string `json:"publicKey"`
+	Challenge string `json:"challenge"`
+
+	// EncryptedBlob Passkey wallets only
+	EncryptedBlob *string `json:"encryptedBlob,omitempty"`
+	PublicKey     string  `json:"publicKey"`
 }
 
 // Error Example: {"error":"request failed: registration expired"}
@@ -54,10 +61,13 @@ type Error struct {
 	Error string  `json:"error"`
 }
 
-// LoginInput defines model for LoginInput.
+// LoginInput Exactly one of credentialId and partyId, the one the challenge was issued for
 type LoginInput struct {
-	Challenge    string `json:"challenge"`
-	CredentialID string `json:"credentialId"`
+	Challenge    string  `json:"challenge"`
+	CredentialID *string `json:"credentialId,omitempty"`
+
+	// PartyID Key accounts only
+	PartyID *string `json:"partyId,omitempty"`
 
 	// Signature Base64 Ed25519 signature over the challenge's UTF-8 bytes
 	Signature string `json:"signature"`
@@ -264,14 +274,14 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// CreateChallengeWithBody Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallengeWithBody Get a one-time challenge; a passkey wallet also gets its wrapped key
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /auth/challenge (the `CreateChallenge` operationId).
 	CreateChallengeWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreateChallenge Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallenge Get a one-time challenge; a passkey wallet also gets its wrapped key
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -364,7 +374,7 @@ type ClientInterface interface {
 	SetMakerMode(ctx context.Context, body SetMakerModeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-// CreateChallengeWithBody Get a one-time challenge and the wrapped key of a passkey wallet
+// CreateChallengeWithBody Get a one-time challenge; a passkey wallet also gets its wrapped key
 //
 // Takes any type of body and a specified content type.
 //
@@ -381,7 +391,7 @@ func (c *Client) CreateChallengeWithBody(ctx context.Context, contentType string
 	return c.Client.Do(req)
 }
 
-// CreateChallenge Get a one-time challenge and the wrapped key of a passkey wallet
+// CreateChallenge Get a one-time challenge; a passkey wallet also gets its wrapped key
 //
 // Takes a body of the `application/json` content type.
 //
@@ -995,14 +1005,14 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// CreateChallengeWithBodyWithResponse Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallengeWithBodyWithResponse Get a one-time challenge; a passkey wallet also gets its wrapped key
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /auth/challenge (the `CreateChallenge` operationId).
 	CreateChallengeWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateChallengeResponse, error)
 
-	// CreateChallengeWithResponse Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallengeWithResponse Get a one-time challenge; a passkey wallet also gets its wrapped key
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -1680,7 +1690,7 @@ func (r SetMakerModeResponse) ContentType() string {
 	return ""
 }
 
-// CreateChallengeWithBodyWithResponse Get a one-time challenge and the wrapped key of a passkey wallet
+// CreateChallengeWithBodyWithResponse Get a one-time challenge; a passkey wallet also gets its wrapped key
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -1693,7 +1703,7 @@ func (c *ClientWithResponses) CreateChallengeWithBodyWithResponse(ctx context.Co
 	return ParseCreateChallengeResponse(rsp)
 }
 
-// CreateChallengeWithResponse Get a one-time challenge and the wrapped key of a passkey wallet
+// CreateChallengeWithResponse Get a one-time challenge; a passkey wallet also gets its wrapped key
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

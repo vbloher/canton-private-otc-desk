@@ -22,6 +22,7 @@ type Postgres interface {
 	CreateUser(ctx context.Context, user domain.User) error
 	GetUser(ctx context.Context, id uuid.UUID) (domain.User, error)
 	GetUserByCredential(ctx context.Context, credentialID string) (domain.User, error)
+	GetUserByParty(ctx context.Context, partyID string) (domain.User, error)
 	GetUserBySession(ctx context.Context, tokenHash string, now time.Time) (domain.User, error)
 	ListMakers(ctx context.Context) ([]domain.User, error)
 	SetMakerMode(ctx context.Context, id uuid.UUID, enabled bool) (domain.User, error)

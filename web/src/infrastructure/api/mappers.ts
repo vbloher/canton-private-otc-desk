@@ -45,11 +45,14 @@ export const toRegistration = (d: IdentityDto["RegisterStartOutput"]): Registrat
   multiHash: fromBase64(d.multiHash),
 });
 
-export const toChallenge = (d: IdentityDto["ChallengeOutput"]): LoginChallenge => ({
-  challenge: d.challenge,
-  encryptedBlob: d.encryptedBlob,
-  publicKey: fromBase64(d.publicKey),
-});
+export const toChallenge = (d: IdentityDto["ChallengeOutput"]): LoginChallenge => {
+  if (d.encryptedBlob === undefined) throw new Error("the challenge carries no wrapped key for this wallet");
+  return {
+    challenge: d.challenge,
+    encryptedBlob: d.encryptedBlob,
+    publicKey: fromBase64(d.publicKey),
+  };
+};
 
 export const toRfq = (d: TradingDto["Rfq"]): Rfq => ({
   id: d.id,

@@ -13,7 +13,8 @@ func (h *Handlers) CreateChallenge(
 	ctx context.Context, request http_server.CreateChallengeRequestObject,
 ) (http_server.CreateChallengeResponseObject, error) {
 	output, err := h.usecase.CreateChallenge(ctx, dto.CreateChallengeInput{
-		CredentialID: request.Body.CredentialID,
+		CredentialID: deref(request.Body.CredentialID),
+		PartyID:      deref(request.Body.PartyID),
 	})
 	if err != nil {
 		switch {
@@ -28,7 +29,7 @@ func (h *Handlers) CreateChallenge(
 
 	return http_server.CreateChallenge200JSONResponse{
 		Challenge:     output.Challenge,
-		EncryptedBlob: output.EncryptedBlob,
+		EncryptedBlob: optional(output.EncryptedBlob),
 		PublicKey:     encodeBase64(output.PublicKey),
 	}, nil
 }

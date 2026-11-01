@@ -105,7 +105,7 @@ paths:
     post:
       tags: [Auth]
       operationId: createChallenge
-      summary: Get a one-time challenge and the wrapped key of a passkey wallet
+      summary: Get a one-time challenge; a passkey wallet also gets its wrapped key
       requestBody:
         required: true
         content:
@@ -357,27 +357,35 @@ components:
     ChallengeInput:
       type: object
       additionalProperties: false
-      required: [credentialId]
+      description: Exactly one of credentialId (passkey wallets) and partyId (key accounts)
       properties:
         credentialId:
           type: string
           minLength: 1
           maxLength: 1024
+        partyId:
+          type: string
+          description: Key accounts only
+          minLength: 1
+          maxLength: 512
+          example: demo-maker-1a2b3c::1220ab12
     ChallengeOutput:
       type: object
-      required: [challenge, encryptedBlob, publicKey]
+      required: [challenge, publicKey]
       properties:
         challenge:
           type: string
           example: otc-desk:4kJ8m2...
         encryptedBlob:
           type: string
+          description: Passkey wallets only
         publicKey:
           type: string
     LoginInput:
       type: object
       additionalProperties: false
-      required: [challenge, signature, credentialId]
+      description: Exactly one of credentialId and partyId, the one the challenge was issued for
+      required: [challenge, signature]
       properties:
         challenge:
           type: string
@@ -392,6 +400,11 @@ components:
           type: string
           minLength: 1
           maxLength: 1024
+        partyId:
+          type: string
+          description: Key accounts only
+          minLength: 1
+          maxLength: 512
     MakerModeInput:
       type: object
       additionalProperties: false

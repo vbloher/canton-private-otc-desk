@@ -7,3 +7,11 @@ func deref(s *string) string {
 
 	return *s
 }
+
+func optional(s string) *string {
+	if s == "" {
+		return nil
+	}
+
+	return &s
+}

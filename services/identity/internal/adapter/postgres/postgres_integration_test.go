@@ -129,6 +129,21 @@ func Test_CreateUser_KeyAccount(t *testing.T) {
 	require.Empty(t, got.CredentialID)
 }
 
+func Test_GetUserByParty(t *testing.T) {
+	p := newPostgres(t)
+
+	user, err := domain.NewKeyUser("bot-4d5e6f::1220ab", "bot-4d5e6f", "Demo Maker", bytes.Repeat([]byte{8}, 32))
+	require.NoError(t, err)
+	require.NoError(t, p.CreateUser(t.Context(), user))
+
+	got, err := p.GetUserByParty(t.Context(), "bot-4d5e6f::1220ab")
+	require.NoError(t, err)
+	requireSameUser(t, user, got)
+
+	_, err = p.GetUserByParty(t.Context(), "nobody::1220ab")
+	require.ErrorIs(t, err, domain.ErrNotFound)
+}
+
 func Test_CreateUser_Duplicates(t *testing.T) {
 	p := newPostgres(t)
 

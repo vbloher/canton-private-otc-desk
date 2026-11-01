@@ -20,7 +20,8 @@ func (h *Handlers) Login(
 	output, err := h.usecase.Login(ctx, dto.LoginInput{
 		Challenge:    request.Body.Challenge,
 		Signature:    signature,
-		CredentialID: request.Body.CredentialID,
+		CredentialID: deref(request.Body.CredentialID),
+		PartyID:      deref(request.Body.PartyID),
 	})
 	if err != nil {
 		switch {

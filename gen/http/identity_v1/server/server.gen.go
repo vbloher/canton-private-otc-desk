@@ -39,17 +39,24 @@ func (e MeKind) Valid() bool {
 	}
 }
 
-// ChallengeInput defines model for ChallengeInput.
+// ChallengeInput Exactly one of credentialId (passkey wallets) and partyId (key accounts)
 type ChallengeInput struct {
-	CredentialID string `json:"credentialId"`
+	CredentialID *string `json:"credentialId,omitempty"`
+
+	// PartyID Key accounts only
+	//
+	// Example: demo-maker-1a2b3c::1220ab12
+	PartyID *string `json:"partyId,omitempty"`
 }
 
 // ChallengeOutput defines model for ChallengeOutput.
 type ChallengeOutput struct {
 	// Challenge Example: otc-desk:4kJ8m2...
-	Challenge     string `json:"challenge"`
-	EncryptedBlob string `json:"encryptedBlob"`
-	PublicKey     string `json:"publicKey"`
+	Challenge string `json:"challenge"`
+
+	// EncryptedBlob Passkey wallets only
+	EncryptedBlob *string `json:"encryptedBlob,omitempty"`
+	PublicKey     string  `json:"publicKey"`
 }
 
 // Error Example: {"error":"request failed: registration expired"}
@@ -58,10 +65,13 @@ type Error struct {
 	Error string  `json:"error"`
 }
 
-// LoginInput defines model for LoginInput.
+// LoginInput Exactly one of credentialId and partyId, the one the challenge was issued for
 type LoginInput struct {
-	Challenge    string `json:"challenge"`
-	CredentialID string `json:"credentialId"`
+	Challenge    string  `json:"challenge"`
+	CredentialID *string `json:"credentialId,omitempty"`
+
+	// PartyID Key accounts only
+	PartyID *string `json:"partyId,omitempty"`
 
 	// Signature Base64 Ed25519 signature over the challenge's UTF-8 bytes
 	Signature string `json:"signature"`
@@ -196,7 +206,7 @@ type SetMakerModeJSONRequestBody = MakerModeInput
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// CreateChallenge Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallenge Get a one-time challenge; a passkey wallet also gets its wrapped key
 	// (POST /auth/challenge)
 	CreateChallenge(w http.ResponseWriter, r *http.Request)
 	// Login Connect the wallet by signing the challenge with the party key
@@ -229,7 +239,7 @@ type ServerInterface interface {
 
 type Unimplemented struct{}
 
-// CreateChallenge Get a one-time challenge and the wrapped key of a passkey wallet
+// CreateChallenge Get a one-time challenge; a passkey wallet also gets its wrapped key
 // (POST /auth/challenge)
 func (_ Unimplemented) CreateChallenge(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotImplemented)
@@ -1211,7 +1221,7 @@ func (response SetMakerMode500JSONResponse) VisitSetMakerModeResponse(w http.Res
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// CreateChallenge Get a one-time challenge and the wrapped key of a passkey wallet
+	// CreateChallenge Get a one-time challenge; a passkey wallet also gets its wrapped key
 	// (POST /auth/challenge)
 	CreateChallenge(ctx context.Context, request CreateChallengeRequestObject) (CreateChallengeResponseObject, error)
 	// Login Connect the wallet by signing the challenge with the party key
@@ -1544,41 +1554,42 @@ func (sh *strictHandler) SetMakerMode(w http.ResponseWriter, r *http.Request) {
 // const string: with thousands of chunks the chained `+` fold is several
 // times slower for the Go compiler than parsing a slice literal.
 var swaggerSpec = []string{
-	"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",
-	"ejTjvet9srisht+U91MnkYug+m1de7n4zwA=",
+	"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",
 }
 
 // decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,

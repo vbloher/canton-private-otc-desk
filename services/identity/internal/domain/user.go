@@ -95,6 +95,14 @@ func NewKeyUser(partyID, hint, displayName string, publicKey []byte) (User, erro
 	}, nil
 }
 
+func ValidateIdentifier(credentialID, partyID string) error {
+	if (credentialID == "") == (partyID == "") {
+		return Invalidf("send exactly one of a credential id and a party id")
+	}
+
+	return nil
+}
+
 func ValidateCredential(credentialID, encryptedBlob string) error {
 	switch {
 	case credentialID == "":

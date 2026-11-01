@@ -98,6 +98,13 @@ func Test_NewKeyUser(t *testing.T) {
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
 
+func Test_ValidateIdentifier(t *testing.T) {
+	require.NoError(t, domain.ValidateIdentifier("cred-1", ""))
+	require.NoError(t, domain.ValidateIdentifier("", "bot-1a2b3c::1220ab"))
+	require.ErrorIs(t, domain.ValidateIdentifier("", ""), domain.ErrValidation)
+	require.ErrorIs(t, domain.ValidateIdentifier("cred-1", "bot-1a2b3c::1220ab"), domain.ErrValidation)
+}
+
 func Test_ValidateCredential(t *testing.T) {
 	require.NoError(t, domain.ValidateCredential("cred-1", "blob-1"))
 

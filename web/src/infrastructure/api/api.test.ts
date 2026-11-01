@@ -231,4 +231,12 @@ describe("auth api", () => {
       { registrationId: "r-1", signature: "c2ln", credentialId: "-_8BAg", encryptedBlob: "blob" },
     ]);
   });
+
+  it("refuses a challenge without the wallet's wrapped key", async () => {
+    const { apis } = desk({
+      "POST /api/v1/auth/challenge": () => json(200, { challenge: "otc-desk:x", publicKey: "AAAA" }),
+    });
+
+    await expect(apis.auth.createChallenge("-_8BAg")).rejects.toThrow("wrapped key");
+  });
 });

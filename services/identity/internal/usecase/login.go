@@ -21,6 +21,11 @@ func (u *UseCase) Login(ctx context.Context, input dto.LoginInput) (dto.LoginOut
 		return output, fmt.Errorf("domain.ValidateSignature: %w", err)
 	}
 
+	err = input.Validate()
+	if err != nil {
+		return output, fmt.Errorf("input.Validate: %w", err)
+	}
+
 	userID, err := u.redis.TakeChallenge(ctx, input.Challenge)
 	if err != nil {
 		return output, fmt.Errorf("redis.TakeChallenge: %w", err)
@@ -35,8 +40,8 @@ func (u *UseCase) Login(ctx context.Context, input dto.LoginInput) (dto.LoginOut
 		return output, fmt.Errorf("postgres.GetUser: %w", err)
 	}
 
-	if user.CredentialID != input.CredentialID {
-		return output, fmt.Errorf("the challenge belongs to another credential: %w", domain.ErrUnauthorized)
+	if !owns(user, input) {
+		return output, fmt.Errorf("the challenge belongs to another account: %w", domain.ErrUnauthorized)
 	}
 
 	if !domain.VerifySignature(user.PublicKey, []byte(input.Challenge), input.Signature) {
@@ -53,4 +58,12 @@ func (u *UseCase) Login(ctx context.Context, input dto.LoginInput) (dto.LoginOut
 		Token: token,
 		TTL:   u.config.SessionTTL,
 	}, nil
+}
+
+func owns(user domain.User, input dto.LoginInput) bool {
+	if input.PartyID != "" {
+		return user.Kind == domain.KindKey && user.PartyID == input.PartyID
+	}
+
+	return user.CredentialID == input.CredentialID
 }

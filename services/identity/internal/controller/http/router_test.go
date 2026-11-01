@@ -131,6 +131,18 @@ func walletUser(t *testing.T) (domain.User, ed25519.PrivateKey) {
 	return user, privateKey
 }
 
+func keyAccount(t *testing.T) (domain.User, ed25519.PrivateKey) {
+	t.Helper()
+
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	user, err := domain.NewKeyUser("demo-maker-1a2b3c::1220ab", "demo-maker-1a2b3c", "Demo Maker", publicKey)
+	require.NoError(t, err)
+
+	return user, privateKey
+}
+
 func Test_Probes(t *testing.T) {
 	s := newServer(t, false)
 
@@ -500,6 +512,27 @@ func Test_CreateChallenge_OK(t *testing.T) {
 	}, rec.json(t))
 }
 
+func Test_CreateChallenge_ByParty(t *testing.T) {
+	s := newServer(t, false)
+
+	user, _ := keyAccount(t)
+
+	var challenge string
+
+	s.postgres.EXPECT().GetUserByParty(Any, user.PartyID).Return(user, nil)
+	s.redis.EXPECT().SaveChallenge(Any, Any, user.ID, 5*time.Minute).
+		Run(func(_ context.Context, c string, _ uuid.UUID, _ time.Duration) { challenge = c }).
+		Return(nil)
+
+	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/challenge", `{"partyId":"`+user.PartyID+`"}`, nil)
+
+	require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, map[string]any{
+		"challenge": challenge,
+		"publicKey": b64(user.PublicKey),
+	}, rec.json(t), "no wrapped key for a key account")
+}
+
 func Test_CreateChallenge_UnknownCredential(t *testing.T) {
 	s := newServer(t, false)
 
@@ -545,6 +578,25 @@ func Test_Login_OK(t *testing.T) {
 		"kind":        "passkey",
 		"makerMode":   false,
 	}, rec.json(t))
+	require.Regexp(t, cookiePattern, rec.Header().Get("Set-Cookie"))
+}
+
+func Test_Login_ByParty(t *testing.T) {
+	s := newServer(t, false)
+
+	user, privateKey := keyAccount(t)
+	challenge := domain.NewChallenge()
+
+	s.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
+	s.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
+	s.postgres.EXPECT().CreateSession(Any, Any, user.ID, Any).Return(nil)
+
+	body := `{"challenge":"` + challenge + `","signature":"` + b64(ed25519.Sign(privateKey, []byte(challenge))) +
+		`","partyId":"` + user.PartyID + `"}`
+	rec := s.do(t, nethttp.MethodPost, "/api/v1/auth/login", body, nil)
+
+	require.Equal(t, nethttp.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "key", rec.json(t)["kind"])
 	require.Regexp(t, cookiePattern, rec.Header().Get("Set-Cookie"))
 }
 

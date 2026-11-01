@@ -64,7 +64,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Get a one-time challenge and the wrapped key of a passkey wallet */
+        /** Get a one-time challenge; a passkey wallet also gets its wrapped key */
         post: operations["createChallenge"];
         delete?: never;
         options?: never;
@@ -198,20 +198,30 @@ export interface components {
             /** @description Passkey wallets only, the party key wrapped with the passkey (base64) */
             encryptedBlob?: string;
         };
+        /** @description Exactly one of credentialId (passkey wallets) and partyId (key accounts) */
         ChallengeInput: {
-            credentialId: string;
+            credentialId?: string;
+            /**
+             * @description Key accounts only
+             * @example demo-maker-1a2b3c::1220ab12
+             */
+            partyId?: string;
         };
         ChallengeOutput: {
             /** @example otc-desk:4kJ8m2... */
             challenge: string;
-            encryptedBlob: string;
+            /** @description Passkey wallets only */
+            encryptedBlob?: string;
             publicKey: string;
         };
+        /** @description Exactly one of credentialId and partyId, the one the challenge was issued for */
         LoginInput: {
             challenge: string;
             /** @description Base64 Ed25519 signature over the challenge's UTF-8 bytes */
             signature: string;
-            credentialId: string;
+            credentialId?: string;
+            /** @description Key accounts only */
+            partyId?: string;
         };
         MakerModeInput: {
             enabled: boolean;

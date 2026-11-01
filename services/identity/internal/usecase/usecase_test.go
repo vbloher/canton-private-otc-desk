@@ -40,6 +40,18 @@ func (d deps) useCase() *usecase.UseCase {
 	return usecase.New(d.postgres, d.redis, d.ledger, testConfig)
 }
 
+func keyAccount(t *testing.T) (domain.User, ed25519.PrivateKey) {
+	t.Helper()
+
+	publicKey, privateKey, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+
+	user, err := domain.NewKeyUser("demo-maker-1a2b3c::1220ab", "demo-maker-1a2b3c", "Demo Maker", publicKey)
+	require.NoError(t, err)
+
+	return user, privateKey
+}
+
 func walletUser(t *testing.T) (domain.User, ed25519.PrivateKey) {
 	t.Helper()
 

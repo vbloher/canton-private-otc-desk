@@ -130,3 +130,54 @@ func Test_Login_MalformedSignatureKeepsTheChallenge(t *testing.T) {
 	})
 	require.ErrorIs(t, err, domain.ErrValidation)
 }
+
+func Test_Login_ByParty_Success(t *testing.T) {
+	d := newDeps(t)
+
+	user, privateKey := keyAccount(t)
+
+	d.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
+	d.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
+	d.postgres.EXPECT().CreateSession(Any, Any, user.ID, Any).Return(nil)
+
+	output, err := d.useCase().Login(t.Context(), dto.LoginInput{
+		Challenge: challenge,
+		Signature: ed25519.Sign(privateKey, []byte(challenge)),
+		PartyID:   user.PartyID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, user, output.User)
+	require.NotEmpty(t, output.Token)
+}
+
+func Test_Login_ByParty_ChallengeOfAnotherParty(t *testing.T) {
+	d := newDeps(t)
+
+	user, privateKey := keyAccount(t)
+
+	d.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
+	d.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
+
+	_, err := d.useCase().Login(t.Context(), dto.LoginInput{
+		Challenge: challenge,
+		Signature: ed25519.Sign(privateKey, []byte(challenge)),
+		PartyID:   "someone-else-4d5e6f::1220ab",
+	})
+	require.ErrorIs(t, err, domain.ErrUnauthorized)
+}
+
+func Test_Login_ByParty_PasskeyWallet(t *testing.T) {
+	d := newDeps(t)
+
+	user, privateKey := walletUser(t)
+
+	d.redis.EXPECT().TakeChallenge(Any, challenge).Return(user.ID, nil)
+	d.postgres.EXPECT().GetUser(Any, user.ID).Return(user, nil)
+
+	_, err := d.useCase().Login(t.Context(), dto.LoginInput{
+		Challenge: challenge,
+		Signature: ed25519.Sign(privateKey, []byte(challenge)),
+		PartyID:   user.PartyID,
+	})
+	require.ErrorIs(t, err, domain.ErrUnauthorized)
+}
