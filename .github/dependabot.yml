@@ -1,51 +1,51 @@
 version: 2
+
+multi-ecosystem-groups:
+  dependencies:
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+
 updates:
   - package-ecosystem: gomod
     directory: /
-    schedule:
-      interval: weekly
-    labels: [dependencies, go]
-    groups:
-      go-minor-patch:
-        update-types: [minor, patch]
+    patterns: ['*']
+    multi-ecosystem-group: dependencies
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: npm
     directory: /web
-    schedule:
-      interval: weekly
+    patterns: ['*']
+    multi-ecosystem-group: dependencies
     cooldown:
       default-days: 14
-    labels: [dependencies, web]
-    groups:
-      web-minor-patch:
-        update-types: [minor, patch]
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: weekly
-    labels: [dependencies, ci]
-    groups:
-      actions:
-        patterns: ['*']
+    patterns: ['*']
+    multi-ecosystem-group: dependencies
 
   - package-ecosystem: docker
-    directory: /
-    schedule:
-      interval: weekly
-    labels: [dependencies, docker]
-
-  - package-ecosystem: docker
-    directory: /web
-    schedule:
-      interval: weekly
-    labels: [dependencies, docker, web]
+    directories: [/, /web]
+    patterns: ['*']
+    multi-ecosystem-group: dependencies
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: golang
+        update-types: ['version-update:semver-minor']
+      - dependency-name: nginx
+        update-types: ['version-update:semver-minor']
 
   - package-ecosystem: docker-compose
     directories: [/, /deploy, /deploy/observability]
-    schedule:
-      interval: weekly
-    labels: [dependencies, docker]
-    groups:
-      compose-images:
-        group-by: dependency-name
+    patterns: ['*']
+    multi-ecosystem-group: dependencies
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
