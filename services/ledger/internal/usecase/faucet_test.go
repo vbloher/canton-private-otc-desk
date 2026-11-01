@@ -1,7 +1,10 @@
 package usecase_test
 
 import (
+	"context"
+	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -103,6 +106,102 @@ func Test_Faucet_TransfersThenQueuesAccepts(t *testing.T) {
 		{Symbol: "CBTC", Amount: decimal.MustParse("1")},
 		{Symbol: "USDCx", Amount: decimal.MustParse("100000")},
 	}, network.Faucet)
+}
+
+func meeting(count int32) func() error {
+	var arrived atomic.Int32
+
+	all := make(chan struct{})
+
+	return func() error {
+		if arrived.Add(1) == count {
+			close(all)
+		}
+
+		select {
+		case <-all:
+			return nil
+		case <-time.After(time.Second):
+			return errors.New("the calls ran one after another")
+		}
+	}
+}
+
+func (d deps) expectFaucetDrip(
+	submit func(tx domain.Transaction) func(context.Context, string, string, domain.Command) (domain.Transaction, error),
+	prepare func(hash string) func(context.Context, string, string, domain.Command) (domain.Prepared, error),
+) {
+	d.redis.EXPECT().ClaimFaucet(Any, alice, time.Hour).Return(true, nil).Once()
+	d.canton.EXPECT().Holdings(Any, faucet).Return(reservoir(), nil).Once()
+	d.registry.EXPECT().TransferCommand(Any, dripSpec("CBTC", "1.0", "r-cbtc")).Return(command("t-cbtc"), nil).Once()
+	d.registry.EXPECT().TransferCommand(Any, dripSpec("USDCx", "100000.0", "r-usdcx")).
+		Return(command("t-usdcx"), nil).Once()
+	d.canton.EXPECT().Submit(Any, faucet, faucetCommandID(), command("t-cbtc")).
+		RunAndReturn(submit(domain.Transaction{Created: []string{"offer-cbtc"}})).Once()
+	d.canton.EXPECT().Submit(Any, faucet, faucetCommandID(), command("t-usdcx")).
+		RunAndReturn(submit(domain.Transaction{Created: []string{"offer-usdcx"}})).Once()
+	d.canton.EXPECT().TransferInstructions(Any, alice).Return([]domain.IncomingTransfer{
+		{ContractID: "offer-cbtc", Sender: faucet, Admin: operator, InstrumentID: "CBTC", Amount: decimal.MustParse("1")},
+		{ContractID: "offer-usdcx", Sender: faucet, Admin: operator, InstrumentID: "USDCx",
+			Amount: decimal.MustParse("100000")},
+	}, nil).Once()
+	d.registry.EXPECT().AcceptTransferCommand(Any, registryURL, "offer-cbtc").Return(command("accept-cbtc"), nil).Once()
+	d.registry.EXPECT().AcceptTransferCommand(Any, registryURL, "offer-usdcx").Return(command("accept-usdcx"), nil).Once()
+	d.canton.EXPECT().Prepare(Any, alice, "accept:offer-cbtc", command("accept-cbtc")).
+		RunAndReturn(prepare("hash-cbtc")).Once()
+	d.canton.EXPECT().Prepare(Any, alice, "accept:offer-usdcx", command("accept-usdcx")).
+		RunAndReturn(prepare("hash-usdcx")).Once()
+	d.postgres.EXPECT().SaveActions(Any, Any).Return(nil).Maybe()
+	d.events.EXPECT().Publish(Any, eventOfType(events.SignRequested), parties(alice)).Return(nil).Maybe()
+}
+
+func submitted(meet func() error) func(domain.Transaction) func(context.Context, string, string, domain.Command) (domain.Transaction, error) {
+	return func(tx domain.Transaction) func(context.Context, string, string, domain.Command) (domain.Transaction, error) {
+		return func(context.Context, string, string, domain.Command) (domain.Transaction, error) {
+			err := meet()
+			if err != nil {
+				return domain.Transaction{}, err
+			}
+
+			return tx, nil
+		}
+	}
+}
+
+func preparedWhen(meet func() error) func(string) func(context.Context, string, string, domain.Command) (domain.Prepared, error) {
+	return func(hash string) func(context.Context, string, string, domain.Command) (domain.Prepared, error) {
+		return func(context.Context, string, string, domain.Command) (domain.Prepared, error) {
+			err := meet()
+			if err != nil {
+				return domain.Prepared{}, err
+			}
+
+			return prepared(hash), nil
+		}
+	}
+}
+
+func Test_Faucet_DripsEveryInstrumentAtOnce(t *testing.T) {
+	d := newDeps(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
+
+	d.expectFaucetDrip(submitted(meeting(2)), preparedWhen(func() error { return nil }))
+
+	output, err := u.Faucet(t.Context(), dto.FaucetInput{PartyID: alice})
+	require.NoError(t, err)
+	require.Len(t, output.Actions, 2, "every drip lands while the others are still on their way")
+}
+
+func Test_Faucet_PreparesTheAcceptsAtOnce(t *testing.T) {
+	d := newDeps(t)
+	u := d.startedWithFaucet(t, faucetConfig(t))
+
+	d.expectFaucetDrip(submitted(func() error { return nil }), preparedWhen(meeting(2)))
+
+	output, err := u.Faucet(t.Context(), dto.FaucetInput{PartyID: alice})
+	require.NoError(t, err)
+	require.Equal(t, []string{"offer-cbtc", "offer-usdcx"}, []string{output.Actions[0].Ref, output.Actions[1].Ref},
+		"the accepts keep the order of the incoming transfers")
 }
 
 func Test_Faucet_Cooldown(t *testing.T) {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -66,41 +67,63 @@ func (u *UseCase) drip(ctx context.Context, receiver string) ([]string, error) {
 		return nil, fmt.Errorf("canton.Holdings: %w", err)
 	}
 
-	var (
-		created []string
-		errs    []error
-		sent    int
-	)
+	var drips []domain.Instrument
 
 	for _, inst := range u.config.Instruments {
-		amount, ok := u.config.FaucetAmounts[inst.Symbol]
-		if !ok {
+		if _, ok := u.config.FaucetAmounts[inst.Symbol]; ok {
+			drips = append(drips, inst)
+		}
+	}
+
+	created := make([][]string, len(drips))
+	errs := make([]error, len(drips))
+
+	var wg sync.WaitGroup
+
+	for i, inst := range drips {
+		wg.Go(func() {
+			created[i], errs[i] = u.dripOne(ctx, holdings, inst, receiver)
+		})
+	}
+
+	wg.Wait()
+
+	var (
+		all    []string
+		failed []error
+	)
+
+	for i, inst := range drips {
+		if errs[i] != nil {
+			log.Warn().Err(errs[i]).Str("symbol", inst.Symbol).Str("receiver", receiver).Msg("ledger: faucet drip failed")
+			failed = append(failed, fmt.Errorf("%s: %w", inst.Symbol, errs[i]))
+
 			continue
 		}
 
-		cmd, err := u.transferCommand(ctx, holdings, inst, u.faucet, receiver, amount)
-		if err == nil {
-			var tx domain.Transaction
-
-			tx, err = u.canton.Submit(ctx, u.faucet, "faucet:"+uuid.NewString(), cmd)
-			created = append(created, tx.Created...)
-		}
-
-		if err != nil {
-			log.Warn().Err(err).Str("symbol", inst.Symbol).Str("receiver", receiver).Msg("ledger: faucet drip failed")
-			errs = append(errs, fmt.Errorf("%s: %w", inst.Symbol, err))
-
-			continue
-		}
-
-		sent++
+		all = append(all, created[i]...)
 	}
 
-	if sent == 0 {
-		return nil, fmt.Errorf("the faucet sent nothing: %w", errors.Join(errs...))
+	if len(failed) == len(drips) {
+		return nil, fmt.Errorf("the faucet sent nothing: %w", errors.Join(failed...))
 	}
 
-	return created, nil
+	return all, nil
+}
+
+func (u *UseCase) dripOne(ctx context.Context, holdings []domain.Holding, inst domain.Instrument, receiver string,
+) ([]string, error) {
+	cmd, err := u.transferCommand(ctx, holdings, inst, u.faucet, receiver, u.config.FaucetAmounts[inst.Symbol])
+	if err != nil {
+		return nil, err
+	}
+
+	tx, err := u.canton.Submit(ctx, u.faucet, "faucet:"+uuid.NewString(), cmd)
+	if err != nil {
+		return nil, fmt.Errorf("canton.Submit: %w", err)
+	}
+
+	return tx.Created, nil
 }
 
 func (u *UseCase) acceptDrip(ctx context.Context, receiver string, created []string) ([]domain.Action, error) {
@@ -109,13 +132,16 @@ func (u *UseCase) acceptDrip(ctx context.Context, receiver string, created []str
 		return nil, err
 	}
 
-	var actions []domain.Action
+	transfers = slices.DeleteFunc(transfers, func(t domain.IncomingTransfer) bool {
+		return t.Sender != u.faucet || !slices.Contains(created, t.ContractID)
+	})
 
-	for _, t := range transfers {
-		if t.Sender != u.faucet || !slices.Contains(created, t.ContractID) {
-			continue
-		}
+	accepted := make([]*domain.Action, len(transfers))
+	errs := make([]error, len(transfers))
 
+	var wg sync.WaitGroup
+
+	for i, t := range transfers {
 		intent := domain.Intent{
 			PartyID:     receiver,
 			Purpose:     domain.PurposeTransferAccept,
@@ -123,11 +149,21 @@ func (u *UseCase) acceptDrip(ctx context.Context, receiver string, created []str
 			Ref:         t.ContractID,
 		}
 
-		action, err := u.accept(ctx, intent, t)
-		if err != nil {
-			return nil, err
-		}
+		wg.Go(func() {
+			accepted[i], errs[i] = u.accept(ctx, intent, t)
+		})
+	}
 
+	wg.Wait()
+
+	err = errors.Join(errs...)
+	if err != nil {
+		return nil, err
+	}
+
+	var actions []domain.Action
+
+	for _, action := range accepted {
 		actions = collect(actions, action)
 	}
 
