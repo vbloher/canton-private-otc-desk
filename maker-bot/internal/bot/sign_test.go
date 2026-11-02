@@ -22,10 +22,28 @@ func Test_SignPending_SignsAllocationsAndAccepts(t *testing.T) {
 
 	require.Len(t, d.executions, 2)
 
-	for i, action := range []desk.Action{allocate, accept} {
-		require.Equal(t, action.ID, d.executions[i].ID)
-		require.True(t, ed25519.Verify(id.PublicKey(), action.Hash, d.executions[i].Signature), action.Purpose)
+	signatures := map[uuid.UUID][]byte{}
+	for _, e := range d.executions {
+		signatures[e.ID] = e.Signature
 	}
+
+	for _, action := range []desk.Action{allocate, accept} {
+		require.True(t, ed25519.Verify(id.PublicKey(), action.Hash, signatures[action.ID]), action.Purpose)
+	}
+}
+
+func Test_SignPending_ExecutesTheActionsAtOnce(t *testing.T) {
+	pay := desk.Action{ID: uuid.New(), Purpose: "allocate", Description: "Allocate 66.63 CC", Hash: []byte("pay")}
+	receive := desk.Action{ID: uuid.New(), Purpose: "allocate", Description: "Allocate receipt of CBTC", Hash: []byte("receive")}
+
+	together := newMeeting(2)
+	d := &fakeDesk{pending: []desk.Action{pay, receive}, executeMeeting: together}
+	b, _, _ := newBot(t, d)
+
+	b.Event(t.Context(), event(t, "sign.requested", map[string]string{}))
+
+	require.Len(t, d.executions, 2)
+	require.True(t, together.met(), "a quote's allocations commit together, not one after another")
 }
 
 func Test_SignPending_RefusesTransferOut(t *testing.T) {

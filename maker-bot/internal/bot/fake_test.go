@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,9 +46,10 @@ type fakeDesk struct {
 	submissions []submission
 	submitErrs  []error
 
-	pending     []desk.Action
-	executions  []execution
-	executeErrs map[uuid.UUID][]error
+	pending        []desk.Action
+	executions     []execution
+	executeErrs    map[uuid.UUID][]error
+	executeMeeting *meeting
 
 	balances    map[string]*big.Rat
 	transfers   []desk.Transfer
@@ -182,6 +184,10 @@ func (f *fakeDesk) PendingActions(context.Context) ([]desk.Action, error) {
 func (f *fakeDesk) Execute(_ context.Context, actionID uuid.UUID, signature []byte) error {
 	f.called("Execute")
 
+	if f.executeMeeting != nil {
+		f.executeMeeting.arrive()
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -256,4 +262,38 @@ func (f *fakeDesk) Faucet(context.Context) error {
 	}
 
 	return nil
+}
+
+type meeting struct {
+	arrivals sync.WaitGroup
+	together atomic.Int32
+	expected int32
+}
+
+func newMeeting(count int) *meeting {
+	m := &meeting{expected: int32(count)}
+	m.arrivals.Add(count)
+
+	return m
+}
+
+func (m *meeting) arrive() {
+	m.arrivals.Done()
+
+	everyone := make(chan struct{})
+
+	go func() {
+		m.arrivals.Wait()
+		close(everyone)
+	}()
+
+	select {
+	case <-everyone:
+		m.together.Add(1)
+	case <-time.After(2 * time.Second):
+	}
+}
+
+func (m *meeting) met() bool {
+	return m.together.Load() == m.expected
 }

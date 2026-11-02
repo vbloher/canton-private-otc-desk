@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/google/uuid"
 
@@ -21,6 +22,8 @@ func (b *Bot) signPending(ctx context.Context) {
 
 	b.forgetFinished(actions)
 
+	var due []desk.Action
+
 	for _, a := range actions {
 		if a.Purpose == purposeTransferOut {
 			b.refuse(a)
@@ -33,19 +36,41 @@ func (b *Bot) signPending(ctx context.Context) {
 		}
 
 		b.sent[a.ID] = true
+		due = append(due, a)
+	}
 
-		err := b.desk.Execute(ctx, a.ID, b.signer.Sign(a.Hash))
+	retry := make([]bool, len(due))
 
-		switch {
-		case err == nil:
-			b.log.Info("signed", "action", a.ID, "purpose", a.Purpose, "description", a.Description)
-		case errors.Is(err, desk.ErrConflict), errors.Is(err, desk.ErrNotFound), errors.Is(err, desk.ErrGone):
-			b.log.Info("action is gone", "action", a.ID, "err", err)
-		default:
+	var wg sync.WaitGroup
+
+	for i, a := range due {
+		wg.Go(func() { retry[i] = b.execute(ctx, a) })
+	}
+
+	wg.Wait()
+
+	for i, a := range due {
+		if retry[i] {
 			delete(b.sent, a.ID)
-			b.log.Warn("signing failed, will retry", "action", a.ID, "err", err)
 		}
 	}
+}
+
+func (b *Bot) execute(ctx context.Context, a desk.Action) bool {
+	err := b.desk.Execute(ctx, a.ID, b.signer.Sign(a.Hash))
+
+	switch {
+	case err == nil:
+		b.log.Info("signed", "action", a.ID, "purpose", a.Purpose, "description", a.Description)
+	case errors.Is(err, desk.ErrConflict), errors.Is(err, desk.ErrNotFound), errors.Is(err, desk.ErrGone):
+		b.log.Info("action is gone", "action", a.ID, "err", err)
+	default:
+		b.log.Warn("signing failed, will retry", "action", a.ID, "err", err)
+
+		return true
+	}
+
+	return false
 }
 
 func (b *Bot) refuse(a desk.Action) {
