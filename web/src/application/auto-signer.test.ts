@@ -52,6 +52,28 @@ describe("autoSigner", () => {
     expect(calls).toEqual(["a1 7:hash-a1", "a2 7:hash-a2", "a3 7:hash-a3"]);
   });
 
+  it("executes a batch's actions at once rather than one after another", async () => {
+    const started: string[] = [];
+    let everyoneStarted: () => void = () => undefined;
+    const everyone = new Promise<void>((resolve) => {
+      everyoneStarted = resolve;
+    });
+    const execute = async (actionId: string): Promise<void> => {
+      started.push(actionId);
+      if (started.length === 2) everyoneStarted();
+      await everyone;
+    };
+    const signer = createAutoSigner({ keys, execute });
+    await signer.setSeed(seed(1));
+
+    const batch = signer.onActions([action("a1"), action("a2")]);
+    await Promise.race([batch, new Promise((resolve) => setTimeout(resolve, 200))]);
+
+    expect(started).toEqual(["a1", "a2"]);
+    everyoneStarted();
+    await batch;
+  });
+
   it("parks actions while locked, then drains them on setSeed", async () => {
     const { calls, execute } = recorder();
     const signer = createAutoSigner({ keys, execute });
@@ -209,17 +231,15 @@ describe("autoSigner", () => {
     expect(calls).toEqual(["a1 2:hash-a1", "a1 1:hash-a1"]);
   });
 
-  it("drops what was in flight when it reset: no outcome reported, the rest of the batch not kept", async () => {
+  it("drops what was in flight when it reset: no outcome reported, nothing kept for the next identity", async () => {
     const reported: string[] = [];
     const calls: string[] = [];
-    let release: (() => void) | undefined;
+    const settle: Array<() => void> = [];
     const execute = (actionId: string): Promise<void> => {
       calls.push(actionId);
-      return actionId === "a1"
-        ? new Promise((_resolve, reject) => {
-            release = () => reject(failure(502, "ledger hiccup"));
-          })
-        : Promise.resolve();
+      return new Promise((resolve, reject) => {
+        settle.push(() => (actionId === "a1" ? reject(failure(502, "ledger hiccup")) : resolve()));
+      });
     };
     const signer = createAutoSigner({
       keys,
@@ -230,13 +250,13 @@ describe("autoSigner", () => {
     await signer.setSeed(seed(1));
 
     const batch = signer.onActions([action("a1"), action("a2")]);
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     signer.reset();
-    release?.();
+    for (const done of settle) done();
     await batch;
     await signer.setSeed(seed(2));
 
-    expect(calls).toEqual(["a1"]);
+    expect(calls).toEqual(["a1", "a2"]);
     expect(reported).toEqual([]);
   });
 });

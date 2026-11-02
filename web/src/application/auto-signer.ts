@@ -62,11 +62,7 @@ export function createAutoSigner(deps: AutoSignerDeps): AutoSigner {
   }
 
   async function signAll(actions: readonly SignAction[]): Promise<void> {
-    const started = generation;
-    for (const action of actions) {
-      if (started !== generation) return;
-      await signOne(action);
-    }
+    await Promise.all(actions.map(signOne));
   }
 
   async function setSeed(seed: Uint8Array | null): Promise<void> {
