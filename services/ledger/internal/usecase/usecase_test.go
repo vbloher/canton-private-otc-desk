@@ -151,16 +151,6 @@ func command(name string) domain.Command {
 	return domain.Command{Commands: []json.RawMessage{json.RawMessage(`{"name":"` + name + `"}`)}}
 }
 
-func commands(names ...string) domain.Command {
-	var all domain.Command
-
-	for _, name := range names {
-		all.Commands = append(all.Commands, command(name).Commands...)
-	}
-
-	return all
-}
-
 func prepared(hash string) domain.Prepared {
 	return domain.Prepared{Transaction: "tx-" + hash, HashingSchemeVersion: "HASHING_SCHEME_VERSION_V2", Hash: []byte(hash)}
 }

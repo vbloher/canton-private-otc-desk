@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -57,7 +56,7 @@ func (u *UseCase) Allocate(ctx context.Context, input dto.AllocateInput) (dto.Al
 func (u *UseCase) allocateSlots(ctx context.Context, input dto.AllocateInput, slots []domain.Slot, inputs [][]string,
 ) ([]domain.Action, error) {
 	requestedAt := time.Now().Add(-clockSkew)
-	cmds := make([]domain.Command, 0, len(slots))
+	actions := make([]domain.Action, 0, len(slots))
 
 	for i, slot := range slots {
 		cmd, err := u.registry.AllocateCommand(ctx, domain.AllocateSpec{
@@ -72,30 +71,15 @@ func (u *UseCase) allocateSlots(ctx context.Context, input dto.AllocateInput, sl
 			return nil, fmt.Errorf("registry.AllocateCommand: %w", err)
 		}
 
-		cmds = append(cmds, cmd)
-	}
-
-	combined, ok := domain.Combine(cmds)
-	if !ok {
-		return u.allocateEach(ctx, input, slots, cmds)
-	}
-
-	action, err := u.submit(ctx, allocateIntent(input, slots), combined, "allocate:"+input.SettlementID+":"+input.PartyID)
-	if err != nil {
-		return nil, fmt.Errorf("u.submit: %w", err)
-	}
-
-	return collect(nil, action), nil
-}
-
-func (u *UseCase) allocateEach(ctx context.Context, input dto.AllocateInput, slots []domain.Slot, cmds []domain.Command,
-) ([]domain.Action, error) {
-	actions := make([]domain.Action, 0, len(slots))
-
-	for i, slot := range slots {
+		intent := domain.Intent{
+			PartyID:     input.PartyID,
+			Purpose:     domain.PurposeAllocate,
+			Description: slotDescription(slot, input.Description),
+			Ref:         input.SettlementID,
+		}
 		commandID := "allocate:" + input.SettlementID + ":" + input.PartyID + ":" + slot.InstrumentID
 
-		action, err := u.submit(ctx, allocateIntent(input, slots[i:i+1]), cmds[i], commandID)
+		action, err := u.submit(ctx, intent, cmd, commandID)
 		if err != nil {
 			return nil, fmt.Errorf("u.submit: %w", err)
 		}
@@ -104,15 +88,6 @@ func (u *UseCase) allocateEach(ctx context.Context, input dto.AllocateInput, slo
 	}
 
 	return actions, nil
-}
-
-func allocateIntent(input dto.AllocateInput, slots []domain.Slot) domain.Intent {
-	return domain.Intent{
-		PartyID:     input.PartyID,
-		Purpose:     domain.PurposeAllocate,
-		Description: slotsDescription(slots, input.Description),
-		Ref:         input.SettlementID,
-	}
 }
 
 func actionIDs(actions []domain.Action) []uuid.UUID {
@@ -177,19 +152,12 @@ func (u *UseCase) allocationInputs(ctx context.Context, party string, slots []do
 	return inputs, nil
 }
 
-func slotsDescription(slots []domain.Slot, about string) string {
-	parts := make([]string, 0, len(slots))
-
-	for _, slot := range slots {
-		part := "receipt of " + slot.Symbol
-		if slot.Send.IsPositive() {
-			part = slot.Send.String() + " " + slot.Symbol
-		}
-
-		parts = append(parts, part)
+func slotDescription(slot domain.Slot, about string) string {
+	text := "Allocate receipt of " + slot.Symbol
+	if slot.Send.IsPositive() {
+		text = "Allocate " + slot.Send.String() + " " + slot.Symbol
 	}
 
-	text := "Allocate " + strings.Join(parts, " and ")
 	if about != "" {
 		text += " for " + about
 	}
