@@ -16,6 +16,8 @@ const TITLES: Record<string, string> = {
   "/activity": "Activity",
 };
 
+const SETTLED_TOAST_MS = 8_000;
+
 export function DeskLayout() {
   const session = useSession();
   if (session.status === "loading") {
@@ -120,10 +122,26 @@ function useTradeToasts(): void {
     if (event.type !== "trade.updated") return;
     const { tradeId, status } = event.data;
     if (status === "settled") {
+      const id = `trade:${tradeId}:settled`;
       toast.success("Trade settled", {
-        id: `trade:${tradeId}:settled`,
-        description: "Both legs moved in one atomic Canton transaction.",
-        action: { label: "Activity", onClick: () => void navigate("/activity") },
+        id,
+        duration: SETTLED_TOAST_MS,
+        description: (
+          <div className="space-y-2.5">
+            <p>Both legs moved in one atomic Canton transaction.</p>
+            <Button
+              variant="outline"
+              size="xs"
+              className="text-foreground"
+              onClick={() => {
+                toast.dismiss(id);
+                void navigate("/activity");
+              }}
+            >
+              View in Activity
+            </Button>
+          </div>
+        ),
       });
     } else if (status === "failed") {
       toast.error("Settlement failed", {

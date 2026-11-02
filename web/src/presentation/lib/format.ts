@@ -10,6 +10,28 @@ export function formatAmount(value: string, decimals = 10): string {
   return `${negative ? "-" : ""}${grouped}${frac === "" ? "" : `.${frac}`}`;
 }
 
+const PRICE_SIGNIFICANT_DIGITS = 6;
+const PRICE_MIN_DECIMALS = 2;
+const PRICE_MAX_DECIMALS = 10;
+
+export function formatPrice(value: string): string {
+  const negative = value.startsWith("-");
+  const [whole = "0", fraction = ""] = (negative ? value.slice(1) : value).split(".");
+  const wholeDigits = whole.replace(/^0+/, "").length;
+  const zeros = wholeDigits === 0 ? fraction.length - fraction.replace(/^0+/, "").length : 0;
+  const decimals = Math.min(
+    PRICE_MAX_DECIMALS,
+    Math.max(
+      PRICE_MIN_DECIMALS,
+      wholeDigits === 0 ? zeros + PRICE_SIGNIFICANT_DIGITS : PRICE_SIGNIFICANT_DIGITS - wholeDigits,
+    ),
+  );
+  const units =
+    BigInt(whole + fraction.slice(0, decimals).padEnd(decimals, "0")) + (fraction.charAt(decimals) >= "5" ? 1n : 0n);
+  const digits = units.toString().padStart(decimals + 1, "0");
+  return formatAmount(`${negative ? "-" : ""}${digits.slice(0, -decimals)}.${digits.slice(-decimals)}`, decimals);
+}
+
 export function formatCountdown(ms: number): string {
   const s = Math.ceil(Math.max(0, ms) / 1000);
   if (s < 60) return `${s}s`;

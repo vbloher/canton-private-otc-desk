@@ -11,7 +11,7 @@ import { Skeleton } from "@/presentation/components/ui/skeleton";
 import { useInstrument, useRfqHistory, useTrades } from "@/presentation/hooks/queries";
 import { useNow } from "@/presentation/hooks/use-now";
 import { groupByDay } from "@/presentation/lib/days";
-import { count, formatAmount, formatDateTime, formatTime, shortId } from "@/presentation/lib/format";
+import { count, formatAmount, formatDateTime, formatPrice, formatTime, shortId } from "@/presentation/lib/format";
 import { cn } from "@/presentation/lib/utils";
 import { useSession } from "@/presentation/providers/session";
 
@@ -145,7 +145,7 @@ function TradeCard({ item }: { item: Extract<ActivityItem, { kind: "trade" }> })
           </p>
           <p className="mt-0.5 text-xs text-muted-foreground">
             <span className="tabular">
-              {formatAmount(t.price)} {t.quote} per {t.base}
+              {formatPrice(t.price)} {t.quote} per {t.base}
             </span>{" "}
             · {view.role === "taker" ? "maker" : "taker"} {view.counterparty}
           </p>

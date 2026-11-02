@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatAmount, formatCountdown, formatTtl, shortId } from "./format";
+import { formatAmount, formatCountdown, formatPrice, formatTtl, shortId } from "./format";
 
 describe("formatAmount", () => {
   it.each([
@@ -22,6 +22,30 @@ describe("formatAmount", () => {
 
   it("shows up to ten digits by default", () => {
     expect(formatAmount("100150.0000000001")).toBe("100,150.0000000001");
+  });
+});
+
+describe("formatPrice", () => {
+  it.each([
+    ["665666.6666666667", "665,666.67"],
+    ["97300.0", "97,300"],
+    ["100150.0000000001", "100,150"],
+    ["1234.5678", "1,234.57"],
+    ["1234.5", "1,234.5"],
+    ["6.6666666667", "6.66667"],
+    ["0.15", "0.15"],
+    ["0.00123456789", "0.00123457"],
+    ["9.9999999", "10"],
+    ["0.0999999999", "0.1"],
+    ["0", "0"],
+  ])("rounds %s to %s", (value, text) => {
+    expect(formatPrice(value)).toBe(text);
+  });
+
+  it("keeps the significant digits of a tiny price", () => {
+    expect(formatPrice("0.0000006667")).toBe("0.0000006667");
+    expect(formatPrice("0.0000000001")).toBe("0.0000000001");
+    expect(formatPrice("0.0000015022533")).toBe("0.0000015023");
   });
 });
 

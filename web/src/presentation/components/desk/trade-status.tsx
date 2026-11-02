@@ -4,7 +4,7 @@ import { viewTrade } from "@/domain/trade";
 import type { Quote, Rfq, Trade } from "@/domain/types";
 import { Button } from "@/presentation/components/ui/button";
 import { useInstrument, useUnlock } from "@/presentation/hooks/queries";
-import { formatAmount, formatDateTime, shortId } from "@/presentation/lib/format";
+import { formatAmount, formatDateTime, formatPrice, shortId } from "@/presentation/lib/format";
 import { cn } from "@/presentation/lib/utils";
 import { useSession } from "@/presentation/providers/session";
 import { useSigner } from "@/presentation/providers/signer";
@@ -41,8 +41,8 @@ export function TradeStatus({
           state="done"
           label={
             role === "taker"
-              ? `Quote accepted${maker === undefined ? "" : ` from ${maker}`}${price === undefined ? "" : ` at ${formatAmount(price)} ${rfq.quote}`}`
-              : `The taker accepted your quote${price === undefined ? "" : ` at ${formatAmount(price)} ${rfq.quote}`}`
+              ? `Quote accepted${maker === undefined ? "" : ` from ${maker}`}${price === undefined ? "" : ` at ${formatPrice(price)} ${rfq.quote}`}`
+              : `The taker accepted your quote${price === undefined ? "" : ` at ${formatPrice(price)} ${rfq.quote}`}`
           }
           sub="the price is locked"
         />
@@ -96,7 +96,7 @@ function Summary({ trade, myHint, decimalsOf }: { trade: Trade; myHint: string; 
       <DetailRow label="You received" value={`+${amount(view.got)}`} />
       <DetailRow label="You sent" value={`−${amount(view.gave)}`} />
       {view.fee !== undefined && <DetailRow label="Desk fee" value={`−${amount(view.fee)}`} />}
-      <DetailRow label="Price" value={`${formatAmount(trade.price)} ${trade.quote} per ${trade.base}`} />
+      <DetailRow label="Price" value={`${formatPrice(trade.price)} ${trade.quote} per ${trade.base}`} />
       <DetailRow label={view.role === "taker" ? "Maker" : "Taker"} value={view.counterparty} />
       {trade.updateId !== undefined && (
         <div className="flex items-center justify-between gap-4 border-t border-border pt-2">

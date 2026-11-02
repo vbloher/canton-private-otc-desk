@@ -2,7 +2,7 @@ import { bestQuote, incomingRowStatus, rfqRowStatus } from "@/domain/rfq";
 import type { IncomingRfq, Rfq, RfqWithQuotes } from "@/domain/types";
 import { useInstrument } from "@/presentation/hooks/queries";
 import { useNow } from "@/presentation/hooks/use-now";
-import { count, formatAmount } from "@/presentation/lib/format";
+import { count, formatAmount, formatPrice } from "@/presentation/lib/format";
 import { cn } from "@/presentation/lib/utils";
 import { StatusBadge } from "./status-badge";
 
@@ -17,8 +17,11 @@ export function RfqTitle({ rfq, className }: { rfq: Rfq; className?: string }) {
   const buy = rfq.direction === "BUY";
   return (
     <span className={cn("font-medium", className)}>
-      <span className={buy ? "text-success" : "text-destructive"}>{rfq.direction}</span>{" "}
-      <span className="tabular">{formatAmount(rfq.qty, instrument(rfq.base).decimals)}</span> {rfq.base}{" "}
+      <span className={buy ? "text-success" : "text-destructive"}>{rfq.direction}</span>&ensp;
+      <span className="whitespace-nowrap">
+        <span className="tabular">{formatAmount(rfq.qty, instrument(rfq.base).decimals)}</span> {rfq.base}
+      </span>
+      &ensp;
       <span className="text-muted-foreground">
         {buy ? "with" : "for"} {rfq.quote}
       </span>
@@ -56,7 +59,7 @@ export function MyRfqList({
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
               {status === "open"
-                ? `${count(live.length, "live quote", "live quotes")}${best === undefined ? "" : ` · best ${formatAmount(best.price)}`}`
+                ? `${count(live.length, "live quote", "live quotes")}${best === undefined ? "" : ` · best ${formatPrice(best.price)}`}`
                 : count(entry.quotes.length, "quote", "quotes")}
               {" · "}
               {count(entry.rfq.makers.length, "maker", "makers")} asked

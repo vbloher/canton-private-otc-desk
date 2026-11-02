@@ -6,7 +6,7 @@ import { Badge } from "@/presentation/components/ui/badge";
 import { Button } from "@/presentation/components/ui/button";
 import { useAcceptQuote, useCancelRfq, useInstrument, useTrades, useUnlockThen } from "@/presentation/hooks/queries";
 import { useNow } from "@/presentation/hooks/use-now";
-import { count, formatAmount } from "@/presentation/lib/format";
+import { count, formatAmount, formatPrice } from "@/presentation/lib/format";
 import { cn } from "@/presentation/lib/utils";
 import { useSession } from "@/presentation/providers/session";
 import { Countdown, TimeLeft } from "./countdown";
@@ -124,7 +124,7 @@ function QuoteRow({ entry, quote, best, now }: { entry: RfqWithQuotes; quote: Qu
           {best && <Badge className="h-4 px-1.5 text-[0.625rem] uppercase">best</Badge>}
         </p>
         <p className="tabular text-xs text-muted-foreground">
-          @ {formatAmount(quote.price)} {rfq.quote} per {rfq.base}
+          @ {formatPrice(quote.price)} {rfq.quote} per {rfq.base}
         </p>
         {quote.status === "open" && quote.validUntil > now && <TimeLeft until={quote.validUntil} prefix="valid " />}
       </div>
@@ -211,7 +211,7 @@ function MyQuote({ rfq, quote, now }: { rfq: Rfq; quote: Quote; now: number }) {
         <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-md border border-border p-3">
           <div className="min-w-0 flex-[1_1_12rem] space-y-0.5">
             <p className="tabular font-semibold">
-              {formatAmount(quote.price)} {rfq.quote} per {rfq.base}
+              {formatPrice(quote.price)} {rfq.quote} per {rfq.base}
             </p>
             <p className="tabular text-xs text-muted-foreground">
               If you win you {terms.deliversBase ? "deliver" : "receive"}{" "}

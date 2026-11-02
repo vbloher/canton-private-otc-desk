@@ -1,4 +1,4 @@
-import { Plus } from "lucide-react";
+import { Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router";
 import { toast } from "sonner";
@@ -30,6 +30,8 @@ const sideClass = (tint: "success" | "destructive"): string =>
       : "data-checked:border-destructive/50 data-checked:bg-destructive/15",
   );
 
+const MAKER_SEARCH_FROM = 8;
+
 const pillClass =
   "rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground data-checked:border-primary data-checked:bg-primary/15 data-checked:font-medium data-checked:text-foreground";
 
@@ -42,6 +44,7 @@ export function NewRfqDialog() {
   const [qty, setQty] = useState("");
   const [ttl, setTtl] = useState<number>(RFQ_TTL_DEFAULT_S);
   const [picked, setPicked] = useState<string[]>([]);
+  const [makerQuery, setMakerQuery] = useState("");
 
   const instruments = useInstruments();
   const makers = useMakers(open);
@@ -59,6 +62,13 @@ export function NewRfqDialog() {
   const candidates = makers.data ?? [];
   const chosen = picked.filter((hint) => candidates.some((m) => m.hint === hint));
   const allChosen = candidates.length > 0 && candidates.every((m) => chosen.includes(m.hint));
+  const capped = candidates.length > RFQ_MAKERS_MAX;
+  const full = chosen.length >= RFQ_MAKERS_MAX;
+  const needle = makerQuery.trim().toLowerCase();
+  const listed =
+    needle === ""
+      ? candidates
+      : candidates.filter((m) => `${m.displayName} ${m.hint}`.toLowerCase().includes(needle));
   const sell = side === "SELL";
   const valid =
     isPositiveDecimal(qty) &&
@@ -93,7 +103,10 @@ export function NewRfqDialog() {
       open={open}
       onOpenChange={(v) => {
         setOpen(v);
-        if (v) void makers.refetch();
+        if (v) {
+          setMakerQuery("");
+          void makers.refetch();
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -109,7 +122,7 @@ export function NewRfqDialog() {
         </DialogHeader>
 
         <form
-          className="space-y-4"
+          className="min-w-0 space-y-4"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
@@ -210,40 +223,87 @@ export function NewRfqDialog() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-3">
               <span className="label-caps">Makers to ask</span>
-              {candidates.length > 1 && (
-                <button
-                  type="button"
-                  className="text-xs text-primary underline-offset-2 hover:underline"
-                  onClick={() => setPicked(allChosen ? [] : candidates.slice(0, RFQ_MAKERS_MAX).map((m) => m.hint))}
-                >
-                  {allChosen ? "Clear" : "Select all"}
-                </button>
-              )}
+              <span className="flex items-center gap-3 text-xs">
+                {capped && (
+                  <span className="tabular text-muted-foreground">
+                    {chosen.length === 0 ? `up to ${RFQ_MAKERS_MAX}` : `${chosen.length} of ${RFQ_MAKERS_MAX}`}
+                  </span>
+                )}
+                {(capped ? chosen.length > 0 : candidates.length > 1) && (
+                  <button
+                    type="button"
+                    className="text-primary underline-offset-2 hover:underline"
+                    onClick={() => setPicked(capped || allChosen ? [] : candidates.map((m) => m.hint))}
+                  >
+                    {capped || allChosen ? "Clear" : "Select all"}
+                  </button>
+                )}
+              </span>
             </div>
             {makers.isPending ? (
               <p className="text-sm text-muted-foreground">Loading makers…</p>
             ) : candidates.length === 0 ? (
               <p className="text-sm text-muted-foreground">No makers have maker mode on right now.</p>
             ) : (
-              <div className="-my-2 max-h-40 space-y-1.5 overflow-y-auto py-2">
-                {candidates.map((m) => (
-                  <label key={m.hint} className="flex items-center gap-2 text-sm">
-                    <Checkbox
-                      checked={chosen.includes(m.hint)}
-                      onCheckedChange={(v) =>
-                        setPicked((cur) => (v === true ? [...cur, m.hint] : cur.filter((h) => h !== m.hint)))
-                      }
+              <div className="overflow-hidden rounded-lg border border-border">
+                {candidates.length >= MAKER_SEARCH_FROM && (
+                  <label className="flex items-center gap-2 border-b border-border px-3">
+                    <Search className="size-3.5 flex-none text-muted-foreground" />
+                    <input
+                      value={makerQuery}
+                      onChange={(e) => setMakerQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") e.preventDefault();
+                      }}
+                      placeholder={`Search ${candidates.length} makers`}
+                      aria-label="Search makers"
+                      autoComplete="off"
+                      className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
                     />
-                    <span>{m.displayName}</span>
-                    {m.displayName !== m.hint && <span className="tabular text-xs text-muted-foreground">{m.hint}</span>}
                   </label>
-                ))}
+                )}
+                <ul className="relative max-h-[9.25rem] overflow-y-auto overscroll-contain py-1">
+                  {listed.map((m) => {
+                    const on = chosen.includes(m.hint);
+                    const blocked = !on && full;
+                    return (
+                      <li key={m.hint}>
+                        <label
+                          className={cn(
+                            "flex items-center gap-2.5 px-3 py-1.5 text-sm transition-colors",
+                            blocked ? "text-muted-foreground" : "hover:bg-accent",
+                            on && "bg-primary/5",
+                          )}
+                        >
+                          <Checkbox
+                            checked={on}
+                            disabled={blocked}
+                            onCheckedChange={(v) =>
+                              setPicked((cur) => (v === true ? [...cur, m.hint] : cur.filter((h) => h !== m.hint)))
+                            }
+                          />
+                          <span className="max-w-[70%] flex-none truncate">{m.displayName}</span>
+                          {m.displayName !== m.hint && (
+                            <span
+                              className="tabular ml-auto truncate pl-2 text-xs text-muted-foreground"
+                              title={m.hint}
+                            >
+                              {m.hint}
+                            </span>
+                          )}
+                        </label>
+                      </li>
+                    );
+                  })}
+                  {listed.length === 0 && (
+                    <li className="px-3 py-1.5 text-sm text-muted-foreground">
+                      No maker matches &ldquo;{makerQuery.trim()}&rdquo;.
+                    </li>
+                  )}
+                </ul>
               </div>
-            )}
-            {chosen.length > RFQ_MAKERS_MAX && (
-              <p className="text-xs text-destructive">Ask at most {RFQ_MAKERS_MAX} makers.</p>
             )}
           </div>
 
