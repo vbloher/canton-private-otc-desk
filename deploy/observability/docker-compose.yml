@@ -23,15 +23,14 @@ services:
       timeout: 3s
       retries: 30
 
-  victorialogs:
+  loki:
     <<: *logging
-    image: victoriametrics/victoria-logs:v1.53.0
+    image: grafana/loki:3.7.9
     restart: unless-stopped
-    command:
-      - -storageDataPath=/storage
-      - -retentionPeriod=14d
+    command: ['-config.file=/etc/loki/loki.yml']
     volumes:
-      - vl-data:/storage
+      - ./loki.yml:/etc/loki/loki.yml:ro
+      - loki-data:/loki
 
   tempo:
     <<: *logging
@@ -63,7 +62,6 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env}
       GF_SERVER_ROOT_URL: ${GRAFANA_ROOT_URL:-http://localhost:3001}
-      GF_PLUGINS_PREINSTALL_SYNC: victoriametrics-logs-datasource@0.33.1
       GF_USERS_ALLOW_SIGN_UP: 'false'
       GF_AUTH_ANONYMOUS_ENABLED: 'false'
       GF_ANALYTICS_REPORTING_ENABLED: 'false'
@@ -76,7 +74,7 @@ services:
       - grafana-data:/var/lib/grafana
     depends_on:
       - victoriametrics
-      - victorialogs
+      - loki
       - tempo
       - pyroscope
     healthcheck:
@@ -92,7 +90,7 @@ networks:
 
 volumes:
   vm-data:
-  vl-data:
+  loki-data:
   tempo-data:
   pyroscope-data:
   grafana-data:

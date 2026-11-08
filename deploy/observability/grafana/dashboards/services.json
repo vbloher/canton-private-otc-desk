@@ -555,8 +555,8 @@
       "title": "Errors",
       "description": "Error lines of the selected services. Open a line and use View trace to jump to its trace.",
       "datasource": {
-        "type": "victoriametrics-logs-datasource",
-        "uid": "victorialogs"
+        "type": "loki",
+        "uid": "loki"
       },
       "options": {
         "showTime": true,
@@ -568,11 +568,11 @@
         {
           "refId": "A",
           "datasource": {
-            "type": "victoriametrics-logs-datasource",
-            "uid": "victorialogs"
+            "type": "loki",
+            "uid": "loki"
           },
-          "queryType": "instant",
-          "expr": "env:=\"$env\" service.name:~\"^(${service:regex})$\" severity_text:=error"
+          "queryType": "range",
+          "expr": "{env=\"$env\", service_name=~\"${service:regex}\"} | severity_text=\"error\""
         }
       ],
       "id": 15,

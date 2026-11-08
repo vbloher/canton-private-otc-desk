@@ -219,7 +219,7 @@ nothing; compose sets `otel-collector:4317`), `OTEL_SERVICE_NAME`, `OTEL_RATIO` 
 ## Observability
 
 Logs, metrics, traces and profiles of gateway, identity, trading and ledger go to a Grafana stack
-of their own — VictoriaMetrics, VictoriaLogs, Tempo, Pyroscope and Grafana — in
+of their own — VictoriaMetrics, Loki, Tempo, Pyroscope and Grafana — in
 [`deploy/observability/`](deploy/observability).
 
 - The services keep Prometheus metrics on `/metrics` and send traces and logs over OTLP to
