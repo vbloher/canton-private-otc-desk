@@ -171,7 +171,7 @@ services:
 
   otel-collector:
     <<: *logging
-    image: otel/opentelemetry-collector:0.164.0
+    image: otel/opentelemetry-collector:0.165.0
     restart: unless-stopped
     command: ['--config=/etc/otelcol/config.yml']
     environment:
