@@ -161,7 +161,7 @@ func Test_Run_ServesProxyAndEvents(t *testing.T) {
 			HTTP:      httpserver.Config{Port: port},
 			Redis:     redis.Config{Addr: redisAddr},
 			Identity:  identity.Config{Addr: idp.Addr().String()},
-			Upstreams: controller.Config{IdentityURL: service.URL, TradingURL: service.URL, LedgerURL: service.URL},
+			Upstreams: controller.Config{IdentityURL: service.URL, TradingURL: service.URL, LedgerURL: service.URL, NotificationURL: service.URL},
 		})
 	}()
 

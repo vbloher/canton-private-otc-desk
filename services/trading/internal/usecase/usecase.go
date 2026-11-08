@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/events"
+	"github.com/vbloher/canton-private-otc-desk/pkg/outbox"
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/domain"
 )
 
@@ -91,6 +92,10 @@ type Events interface {
 	Publish(ctx context.Context, ev events.Event, partyIDs ...string) error
 }
 
+type Outbox interface {
+	Add(ctx context.Context, m outbox.Message) error
+}
+
 type UseCase struct {
 	config   Config
 	tx       Transactor
@@ -99,12 +104,14 @@ type UseCase struct {
 	identity Identity
 	redis    Redis
 	events   Events
+	outbox   Outbox
 
 	background sync.WaitGroup
 }
 
 func New(
 	c Config, tx Transactor, postgres Postgres, ledger Ledger, identity Identity, redis Redis, publisher Events,
+	messages Outbox,
 ) *UseCase {
 	return &UseCase{
 		config:   c,
@@ -114,6 +121,7 @@ func New(
 		identity: identity,
 		redis:    redis,
 		events:   publisher,
+		outbox:   messages,
 	}
 }
 

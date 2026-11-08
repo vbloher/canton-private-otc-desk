@@ -1,7 +1,16 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { queryKeys } from "@/application/query-keys";
-import type { Instrument, Me, NewQuote, NewRfq, SignAction, Withdrawal } from "@/domain/types";
+import type {
+  Instrument,
+  Me,
+  NewQuote,
+  NewRfq,
+  NotificationPreferences,
+  Profile,
+  SignAction,
+  Withdrawal,
+} from "@/domain/types";
 import { useServices } from "@/presentation/providers/services";
 import { useSession } from "@/presentation/providers/session";
 import { useSigner } from "@/presentation/providers/signer";
@@ -149,6 +158,29 @@ export function useSetMakerMode() {
       await qc.invalidateQueries({ queryKey: queryKeys.rfqs });
     },
   });
+}
+
+export function useProfile() {
+  const { profile } = useServices();
+  return useQuery({ queryKey: queryKeys.profile, queryFn: () => profile.get(), enabled: useSignedIn() });
+}
+
+function useProfileMutation<T>(run: (input: T) => Promise<Profile>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: run,
+    onSuccess: (updated) => qc.setQueryData(queryKeys.profile, updated),
+  });
+}
+
+export function useSetEmail() {
+  const { profile } = useServices();
+  return useProfileMutation((email: string) => profile.setEmail(email));
+}
+
+export function useSetNotifications() {
+  const { profile } = useServices();
+  return useProfileMutation((preferences: NotificationPreferences) => profile.setNotifications(preferences));
 }
 
 function useLedgerMutation<T>(run: (input: T) => Promise<SignAction[]>) {

@@ -8,8 +8,10 @@ import (
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/events"
 	"github.com/vbloher/canton-private-otc-desk/pkg/httpserver"
+	"github.com/vbloher/canton-private-otc-desk/pkg/kafka"
 	"github.com/vbloher/canton-private-otc-desk/pkg/metrics"
 	"github.com/vbloher/canton-private-otc-desk/pkg/migrate"
+	"github.com/vbloher/canton-private-otc-desk/pkg/outbox"
 	pgpool "github.com/vbloher/canton-private-otc-desk/pkg/postgres"
 	redislib "github.com/vbloher/canton-private-otc-desk/pkg/redis"
 	"github.com/vbloher/canton-private-otc-desk/pkg/router"
@@ -65,8 +67,15 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 		identityClient,
 		redis.New(redisClient),
 		events.NewPublisher(redisClient),
+		outbox.NewWriter(tx),
 	)
 	defer uc.Close()
+
+	stopRelay, err := startRelay(c, tx)
+	if err != nil {
+		return fmt.Errorf("startRelay: %w", err)
+	}
+	defer stopRelay()
 
 	settlementWorker, err := worker.New(c.Worker, uc)
 	if err != nil {
@@ -94,4 +103,23 @@ func Run(ctx context.Context, c config.Config) error { //nolint:funlen
 	log.Info().Msg("app: got signal to stop")
 
 	return nil
+}
+
+func startRelay(c config.Config, tx *transaction.Manager) (func(), error) {
+	producer, err := kafka.NewProducer(c.Kafka)
+	if err != nil {
+		return nil, fmt.Errorf("kafka.NewProducer: %w", err)
+	}
+
+	relay, err := outbox.NewRelay(c.Outbox, tx, producer)
+	if err != nil {
+		producer.Close()
+
+		return nil, fmt.Errorf("outbox.NewRelay: %w", err)
+	}
+
+	return func() {
+		relay.Close()
+		producer.Close()
+	}, nil
 }

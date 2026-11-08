@@ -55,6 +55,53 @@ services:
       timeout: 5s
       retries: 15
 
+  kafka:
+    <<: *logging
+    image: apache/kafka:4.4.0
+    restart: unless-stopped
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: -Xms128m -Xmx256m
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 9092']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  kafka-ui:
+    <<: *logging
+    image: ghcr.io/kafbat/kafka-ui:v1.5.0
+    restart: unless-stopped
+    profiles: [kafka-ui]
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ${DEPLOY_ENV}
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_READONLY: 'true'
+      JAVA_OPTS: -Xmx256m
+    ports:
+      - '127.0.0.1:${KAFKA_UI_PORT:-8090}:8080'
+    healthcheck:
+      disable: true
+    depends_on:
+      kafka:
+        condition: service_healthy
+
   ledger:
     <<: *go-service
     image: ${IMAGE_PREFIX}/ledger:${IMAGE_TAG}
@@ -121,6 +168,7 @@ services:
       POSTGRES_DB_NAME: trading
       LEDGER_GRPC_ADDR: ledger:9083
       IDENTITY_GRPC_ADDR: identity:9081
+      KAFKA_BROKERS: kafka:9092
       FEE_BPS: ${FEE_BPS:-}
       WORKER_INTERVAL: ${WORKER_INTERVAL:-}
       SETTLE_TIMEOUT: ${SETTLE_TIMEOUT:-}
@@ -133,6 +181,32 @@ services:
     healthcheck:
       <<: *ready
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8082/ready']
+
+  notification:
+    <<: *go-service
+    image: ${IMAGE_PREFIX}/notification:${IMAGE_TAG}
+    environment:
+      <<: *db-env
+      OTEL_SERVICE_NAME: notification
+      HTTP_PORT: '8084'
+      POSTGRES_DB_NAME: notification
+      KAFKA_BROKERS: kafka:9092
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_SEGMENT_ID: ${RESEND_SEGMENT_ID:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      EMAIL_INCLUDE_UPDATE_ID: ${EMAIL_INCLUDE_UPDATE_ID:-false}
+      EMAIL_CONFIRMATIONS_DAILY_LIMIT: ${EMAIL_CONFIRMATIONS_DAILY_LIMIT:-}
+    stop_grace_period: 45s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      <<: *ready
+      test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:8084/ready']
 
   gateway:
     <<: *go-service
@@ -147,6 +221,7 @@ services:
       IDENTITY_URL: http://identity:8081
       TRADING_URL: http://trading:8082
       LEDGER_URL: http://ledger:8083
+      NOTIFICATION_URL: http://notification:8084
     depends_on:
       redis:
         condition: service_healthy
@@ -195,3 +270,4 @@ networks:
 volumes:
   pg-data:
   redis-data:
+  kafka-data:

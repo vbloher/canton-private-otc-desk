@@ -15,4 +15,5 @@ export const queryKeys = {
   balances: ["wallet", "balances"],
   incomingTransfers: ["wallet", "incoming"],
   pendingActions: ["tx", "pending"],
+  profile: ["profile"],
 } as const satisfies Record<string, QueryKey>;

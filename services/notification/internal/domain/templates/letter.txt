@@ -1,0 +1,9 @@
+{{.Heading}}
+
+{{range .Lines}}{{.}}
+
+{{end}}{{.Action}}: {{.ActionURL}}
+{{if .Footer}}
+{{.Footer}}
+Manage notifications: {{.ManageURL}}
+{{end}}

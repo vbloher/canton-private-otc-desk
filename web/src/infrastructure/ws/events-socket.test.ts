@@ -60,6 +60,7 @@ describe("parseEvent", () => {
       data: { rfqId: "r1" },
     });
     expect(parseEvent('{"type":"wallet.updated","data":{}}')).toEqual({ type: "wallet.updated", data: {} });
+    expect(parseEvent('{"type":"profile.updated","data":{}}')).toEqual({ type: "profile.updated", data: {} });
     expect(parseEvent('{"type":"trade.updated","data":{"tradeId":"t1","rfqId":"r1","status":"settled"}}')?.type).toBe(
       "trade.updated",
     );

@@ -9,11 +9,11 @@ PROTOC_ARCH := $(shell uname -m | sed 's/arm64/aarch_64/;s/aarch64/aarch_64/')
 
 PROTOS := identity_v1 ledger_v1
 
-SERVICES := gateway identity trading ledger
+SERVICES := gateway identity trading ledger notification
 
 OBS := GRAFANA_ADMIN_PASSWORD=$${GRAFANA_ADMIN_PASSWORD:-admin} docker compose -f deploy/observability/docker-compose.yml
 
-.PHONY: lint test integration-test vuln env network up up-all down clean obs-up obs-down web-dev maker-bot generate grpc-gen \
+.PHONY: lint test integration-test vuln env network up up-all down clean obs-up obs-down kafka-ui web-dev maker-bot generate grpc-gen \
 	bin-deps protoc-install lint-install
 
 run-%:
@@ -32,7 +32,7 @@ test:
 	cd maker-bot && go test -race -shuffle=on -cover ./...
 
 integration-test:
-	go test -count=1 -tags=integration ./services/...
+	go test -count=1 -tags=integration ./services/... ./pkg/...
 
 vuln:
 	go tool govulncheck ./...
@@ -42,7 +42,7 @@ network:
 	@docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
 
 up:
-	docker compose up -d --wait postgres redis
+	docker compose up -d --wait postgres redis kafka
 
 up-all: env network
 	docker compose up -d --build --wait
@@ -58,6 +58,9 @@ obs-up: network
 
 obs-down:
 	$(OBS) down
+
+kafka-ui:
+	docker compose up -d --wait kafka kafka-ui
 
 web-dev:
 	pnpm --dir web dev

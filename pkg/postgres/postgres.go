@@ -2,12 +2,20 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/url"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
+)
+
+const (
+	maintenanceDatabase = "postgres"
+	duplicateDatabase   = "42P04"
 )
 
 type Config struct {
@@ -32,6 +40,44 @@ func (c Config) URL() string {
 
 type Pool struct {
 	*pgxpool.Pool
+}
+
+func EnsureDatabase(ctx context.Context, c Config) (err error) {
+	admin := c
+	admin.DBName = maintenanceDatabase
+
+	conn, err := pgx.Connect(ctx, admin.URL())
+	if err != nil {
+		return fmt.Errorf("pgx.Connect: %w", err)
+	}
+
+	defer func() {
+		err = errors.Join(err, conn.Close(ctx))
+	}()
+
+	var exists bool
+
+	err = conn.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)`, c.DBName).Scan(&exists)
+	if err != nil {
+		return fmt.Errorf("row.Scan: %w", err)
+	}
+
+	if exists {
+		return nil
+	}
+
+	_, err = conn.Exec(ctx, "CREATE DATABASE "+pgx.Identifier{c.DBName}.Sanitize())
+
+	var failed *pgconn.PgError
+	if errors.As(err, &failed) && failed.Code == duplicateDatabase {
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("conn.Exec: %w", err)
+	}
+
+	return nil
 }
 
 func New(ctx context.Context, c Config) (*Pool, error) {

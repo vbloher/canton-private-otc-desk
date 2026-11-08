@@ -62,7 +62,7 @@ func newServer(t *testing.T) (deps, *httptest.Server) {
 	}).Maybe()
 
 	uc := usecase.New(usecase.Config{FeeBps: 10, SettleTimeout: 10 * time.Minute},
-		tx, d.postgres, d.ledger, d.identity, d.redis, d.events)
+		tx, d.postgres, d.ledger, d.identity, d.redis, d.events, mocks.NewOutbox(t))
 
 	r := router.New()
 	require.NoError(t, http.TradingRouter(r, uc, httpMetrics))

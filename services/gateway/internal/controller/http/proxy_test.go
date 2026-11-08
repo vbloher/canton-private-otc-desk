@@ -33,6 +33,8 @@ const (
 	identityName = "identity"
 	tradingName  = "trading"
 	ledgerName   = "ledger"
+
+	notificationName = "notification"
 )
 
 func TestMain(m *testing.M) {
@@ -89,8 +91,8 @@ func startUpstream(t *testing.T, name string) *upstream {
 type gateway struct {
 	http.Handler
 
-	identity, trading, ledger *upstream
-	hub                       *ws.Hub
+	identity, trading, ledger, notification *upstream
+	hub                                     *ws.Hub
 }
 
 func newGateway(t *testing.T, idp *mocks.Identity) *gateway {
@@ -100,12 +102,15 @@ func newGateway(t *testing.T, idp *mocks.Identity) *gateway {
 		identity: startUpstream(t, identityName),
 		trading:  startUpstream(t, tradingName),
 		ledger:   startUpstream(t, ledgerName),
+
+		notification: startUpstream(t, notificationName),
 	}
 
 	g.Handler, g.hub = newRouter(t, idp, controller.Config{
-		IdentityURL: g.identity.URL,
-		TradingURL:  g.trading.URL,
-		LedgerURL:   g.ledger.URL,
+		IdentityURL:     g.identity.URL,
+		TradingURL:      g.trading.URL,
+		LedgerURL:       g.ledger.URL,
+		NotificationURL: g.notification.URL,
 	})
 
 	return g
@@ -132,7 +137,7 @@ func newRouter(t *testing.T, idp *mocks.Identity, cfg controller.Config) (http.H
 }
 
 func (g *gateway) totalHits() int64 {
-	return g.identity.hits.Load() + g.trading.hits.Load() + g.ledger.hits.Load()
+	return g.identity.hits.Load() + g.trading.hits.Load() + g.ledger.hits.Load() + g.notification.hits.Load()
 }
 
 func identityKnowsAlice(t *testing.T) *mocks.Identity {
@@ -213,6 +218,10 @@ func Test_Proxy_RoutesByPrefix(t *testing.T) {
 		{http.MethodPost, "/api/v1/wallet/faucet", ledgerName},
 		{http.MethodGet, "/api/v1/tx/pending", ledgerName},
 		{http.MethodPost, "/api/v1/tx/3c4d/execute", ledgerName},
+
+		{http.MethodGet, "/api/v1/profile", notificationName},
+		{http.MethodPut, "/api/v1/profile/email", notificationName},
+		{http.MethodPut, "/api/v1/profile/notifications", notificationName},
 	}
 
 	for _, tt := range tests {
@@ -281,6 +290,46 @@ func Test_Proxy_PublicAuthRoutes(t *testing.T) {
 	require.Empty(t, got.Header.Values(principal.HeaderPartyHint))
 }
 
+func Test_Proxy_ConfirmingAnEmailNeedsNoSession(t *testing.T) {
+	g := newGateway(t, mocks.NewIdentity(t))
+
+	got := echo(t, do(t, g, http.MethodPost, "/api/v1/email-confirmations", `{"token":"t"}`,
+		withHeader(principal.HeaderPartyID, "evil"),
+	))
+
+	require.Equal(t, notificationName, got.Upstream)
+	require.JSONEq(t, `{"token":"t"}`, got.Body)
+	require.Empty(t, got.Header.Values(principal.HeaderPartyID), "nobody is vouched for on a public route")
+}
+
+func Test_Proxy_TheResendWebhookKeepsItsSignatureHeaders(t *testing.T) {
+	g := newGateway(t, mocks.NewIdentity(t))
+
+	got := echo(t, do(t, g, http.MethodPost, "/api/v1/webhooks/resend", `{"type":"contact.updated"}`,
+		withHeader("Svix-Id", "msg_1"),
+		withHeader("Svix-Timestamp", "1700000000"),
+		withHeader("Svix-Signature", "v1,abc"),
+	))
+
+	require.Equal(t, notificationName, got.Upstream)
+	require.JSONEq(t, `{"type":"contact.updated"}`, got.Body)
+	require.Equal(t, []string{"msg_1"}, got.Header.Values("Svix-Id"))
+	require.Equal(t, []string{"1700000000"}, got.Header.Values("Svix-Timestamp"))
+	require.Equal(t, []string{"v1,abc"}, got.Header.Values("Svix-Signature"))
+}
+
+func Test_Proxy_OnlyThePublicNotificationRoutesSkipTheSession(t *testing.T) {
+	g := newGateway(t, mocks.NewIdentity(t))
+
+	for _, path := range []string{"/api/v1/email-confirmations/other", "/api/v1/webhooks/other", "/api/v1/webhooks"} {
+		rec := do(t, g, http.MethodPost, path, `{}`)
+
+		require.Equal(t, http.StatusNotFound, rec.Code, path)
+	}
+
+	require.Zero(t, g.notification.hits.Load())
+}
+
 func Test_Proxy_IdentityKeepsCookieForLogout(t *testing.T) {
 	g := newGateway(t, mocks.NewIdentity(t))
 
@@ -301,6 +350,8 @@ func Test_Proxy_TradingAndLedgerNeverSeeCredentials(t *testing.T) {
 	targets := map[string]struct{ path, upstream string }{
 		"trading": {"/api/v1/rfqs/mine", tradingName},
 		"ledger":  {"/api/v1/wallet/balances", ledgerName},
+
+		"notification": {"/api/v1/profile", notificationName},
 	}
 
 	for callerName, mutate := range callers {
@@ -331,7 +382,7 @@ func Test_Proxy_Unauthorized(t *testing.T) {
 
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
-			for _, path := range []string{"/api/v1/me", "/api/v1/rfqs", "/api/v1/wallet/balances", "/api/v1/ws"} {
+			for _, path := range []string{"/api/v1/me", "/api/v1/rfqs", "/api/v1/wallet/balances", "/api/v1/profile", "/api/v1/profile/email", "/api/v1/ws"} {
 				rec := do(t, g, http.MethodGet, path, "", mutate...)
 
 				require.Equal(t, http.StatusUnauthorized, rec.Code, path)
@@ -407,6 +458,7 @@ func Test_Proxy_PassesResponsesThrough(t *testing.T) {
 
 	h, _ := newRouter(t, identityKnowsAlice(t), controller.Config{
 		IdentityURL: "http://127.0.0.1:1", TradingURL: trading.URL, LedgerURL: "http://127.0.0.1:1",
+		NotificationURL: "http://127.0.0.1:1",
 	})
 
 	rec := do(t, h, http.MethodPost, "/api/v1/quotes/7a2b/accept", "", withSession("alice-session"))
@@ -458,13 +510,19 @@ func Test_Router_ServesProbesAndMetrics(t *testing.T) {
 }
 
 func Test_Router_RejectsInvalidUpstreamURL(t *testing.T) {
-	valid := controller.Config{IdentityURL: "http://identity:8081", TradingURL: "http://trading:8082", LedgerURL: "http://ledger:8083"}
+	valid := controller.Config{
+		IdentityURL:     "http://identity:8081",
+		TradingURL:      "http://trading:8082",
+		LedgerURL:       "http://ledger:8083",
+		NotificationURL: "http://notification:8084",
+	}
 
 	tests := map[string]func(c *controller.Config){
 		"identity without scheme": func(c *controller.Config) { c.IdentityURL = "identity:8081" },
 		"trading empty":           func(c *controller.Config) { c.TradingURL = "" },
 		"ledger not http":         func(c *controller.Config) { c.LedgerURL = "ftp://ledger:8083" },
 		"ledger without host":     func(c *controller.Config) { c.LedgerURL = "http://" },
+		"notification empty":      func(c *controller.Config) { c.NotificationURL = "" },
 	}
 
 	for name, damage := range tests {

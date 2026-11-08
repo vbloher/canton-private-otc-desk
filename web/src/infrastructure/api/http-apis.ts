@@ -1,6 +1,6 @@
 import createClient from "openapi-fetch";
 import { isApiFailure } from "@/application/errors";
-import type { AuthApi, DeskApi, WalletApi } from "@/application/ports";
+import type { AuthApi, DeskApi, ProfileApi, WalletApi } from "@/application/ports";
 import { toBase64 } from "../encoding";
 import { apiErrorFrom, isNetworkFailure, unreachable } from "./api-error";
 import {
@@ -12,6 +12,7 @@ import {
   toMaker,
   toMe,
   toNetwork,
+  toProfile,
   toQuote,
   toRegistration,
   toRfq,
@@ -20,6 +21,7 @@ import {
   toTrade,
 } from "./mappers";
 import type { paths as IdentityPaths } from "./schema/identity";
+import type { paths as NotificationPaths } from "./schema/notification";
 import type { paths as TradingPaths } from "./schema/trading";
 import type { paths as WalletPaths } from "./schema/wallet";
 
@@ -32,6 +34,7 @@ export interface HttpApis {
   auth: AuthApi;
   desk: DeskApi;
   wallet: WalletApi;
+  profile: ProfileApi;
 }
 
 interface Answer<D> {
@@ -60,6 +63,7 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
   const identity = createClient<IdentityPaths>(init);
   const trading = createClient<TradingPaths>(init);
   const wallet = createClient<WalletPaths>(init);
+  const notification = createClient<NotificationPaths>(init);
 
   const auth: AuthApi = {
     registerStart: async ({ displayName, publicKey }) =>
@@ -150,5 +154,12 @@ export function createHttpApis(options: HttpApiOptions): HttpApis {
       done(wallet.POST("/tx/{id}/execute", { params: { path: { id } }, body: { signature: toBase64(signature) } })),
   };
 
-  return { auth, desk, wallet: walletApi };
+  const profile: ProfileApi = {
+    get: async () => toProfile(await unwrap(notification.GET("/profile"))),
+    setEmail: async (email) => toProfile(await unwrap(notification.PUT("/profile/email", { body: { email } }))),
+    setNotifications: async (body) => toProfile(await unwrap(notification.PUT("/profile/notifications", { body }))),
+    confirmEmail: (token) => done(notification.POST("/email-confirmations", { body: { token } })),
+  };
+
+  return { auth, desk, wallet: walletApi, profile };
 }

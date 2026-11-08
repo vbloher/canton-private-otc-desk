@@ -14,6 +14,7 @@ const TITLES: Record<string, string> = {
   "/trade": "Trade",
   "/wallet": "Wallet",
   "/activity": "Activity",
+  "/profile": "Profile",
 };
 
 const SETTLED_TOAST_MS = 8_000;

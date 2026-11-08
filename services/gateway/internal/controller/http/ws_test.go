@@ -21,6 +21,7 @@ func serveSocketGateway(t *testing.T, idp *mocks.Identity) (url string, hubDeliv
 
 	h, hub := newRouter(t, idp, controller.Config{
 		IdentityURL: "http://127.0.0.1:1", TradingURL: "http://127.0.0.1:1", LedgerURL: "http://127.0.0.1:1",
+		NotificationURL: "http://127.0.0.1:1",
 	})
 
 	srv := httptest.NewServer(h)

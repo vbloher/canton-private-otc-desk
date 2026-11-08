@@ -23,6 +23,7 @@ const FIELDS: Record<DeskEventType, readonly string[]> = {
   "sign.requested": ["actionId"],
   "sign.completed": ["actionId"],
   "wallet.updated": [],
+  "profile.updated": [],
 };
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>

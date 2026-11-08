@@ -8,6 +8,8 @@ const (
 	SignRequested = "sign.requested"
 	SignCompleted = "sign.completed"
 	WalletUpdated = "wallet.updated"
+
+	ProfileUpdated = "profile.updated"
 )
 
 const channelPrefix = "events:"

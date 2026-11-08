@@ -59,7 +59,7 @@ jobs:
         run: go tool cover -func=coverage.out | tail -1
 
   integration:
-    name: Service integration tests (Postgres, Redis)
+    name: Integration tests (Postgres, Redis, Kafka)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -69,7 +69,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Start infrastructure
-        run: docker compose up -d --wait postgres redis
+        run: docker compose up -d --wait postgres redis kafka
 
       - name: Test
         run: make integration-test
@@ -181,7 +181,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, identity, trading, ledger, maker-bot, web]
+        image: [gateway, identity, trading, ledger, notification, maker-bot, web]
     steps:
       - uses: actions/checkout@v7
 

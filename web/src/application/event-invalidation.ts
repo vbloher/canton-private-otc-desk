@@ -9,6 +9,7 @@ const STALE: Record<DeskEventType, readonly QueryKey[]> = {
   "sign.requested": [queryKeys.pendingActions],
   "sign.completed": [queryKeys.pendingActions, queryKeys.wallet],
   "wallet.updated": [queryKeys.wallet],
+  "profile.updated": [queryKeys.profile],
 };
 
 const STALE_LATER: Partial<Record<DeskEventType, readonly QueryKey[]>> = {

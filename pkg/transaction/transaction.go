@@ -26,6 +26,12 @@ func New(p *postgres.Pool) *Manager {
 	return &Manager{pool: p.Pool}
 }
 
+func (m *Manager) InTransaction(ctx context.Context) bool {
+	_, ok := ctx.Value(ctxKey{}).(pgx.Tx)
+
+	return ok
+}
+
 func (m *Manager) TryExtractTX(ctx context.Context) Executor { //nolint:ireturn
 	tx, ok := ctx.Value(ctxKey{}).(pgx.Tx)
 	if !ok {

@@ -1,0 +1,204 @@
+openapi: 3.0.3
+info:
+  title: Private OTC Desk — notification API
+  version: 1.0.0
+  description: |
+    The profile of a wallet: an email address, its confirmation and what the user wants to receive.
+    Authenticated routes rely on the gateway: it resolves the `otc_session` cookie and forwards the
+    caller in `X-User-Id`, `X-Party-Id` and `X-Party-Hint`. Confirming an address needs no session,
+    because the link is often opened on a device that holds no wallet.
+servers:
+  - url: /api/v1
+tags:
+  - name: Profile
+paths:
+  /profile:
+    get:
+      tags: [Profile]
+      operationId: getProfile
+      summary: The caller's profile
+      responses:
+        '200':
+          description: The profile; empty for a wallet that has not set anything yet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /profile/email:
+    put:
+      tags: [Profile]
+      operationId: setEmail
+      summary: Set the address and send a confirmation link; repeat to send a fresh link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmailInput'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '503':
+          $ref: '#/components/responses/EmailDisabled'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /profile/notifications:
+    put:
+      tags: [Profile]
+      operationId: setNotifications
+      summary: Choose what to receive by email; needs a confirmed address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationsInput'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '503':
+          $ref: '#/components/responses/EmailDisabled'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /email-confirmations:
+    post:
+      tags: [Profile]
+      operationId: confirmEmail
+      summary: Confirm an address with the token from the link; repeating it succeeds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmEmailInput'
+      responses:
+        '204':
+          description: The address is confirmed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/InternalError'
+components:
+  responses:
+    BadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: The address is not confirmed yet
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Gone:
+      description: The link is invalid or has expired
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    TooManyRequests:
+      description: Too many confirmation emails requested
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    EmailDisabled:
+      description: Email is not set up on this desk
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Profile:
+      type: object
+      required: [emailStatus, news, trades, emailEnabled]
+      properties:
+        email:
+          type: string
+          example: alice@example.com
+        emailStatus:
+          type: string
+          enum: [none, unconfirmed, confirmed]
+        news:
+          type: boolean
+          description: Project news, sent from the Resend dashboard
+        trades:
+          type: boolean
+          description: An email when a trade settles
+        emailEnabled:
+          type: boolean
+          description: False when this desk has no email provider configured
+    EmailInput:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          type: string
+          minLength: 1
+          maxLength: 320
+          example: alice@example.com
+    NotificationsInput:
+      type: object
+      additionalProperties: false
+      required: [news, trades]
+      properties:
+        news:
+          type: boolean
+        trades:
+          type: boolean
+    ConfirmEmailInput:
+      type: object
+      additionalProperties: false
+      required: [token]
+      properties:
+        token:
+          type: string
+          minLength: 1
+          maxLength: 128
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string

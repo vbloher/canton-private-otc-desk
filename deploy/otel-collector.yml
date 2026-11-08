@@ -21,6 +21,9 @@ receivers:
         - job_name: ledger
           static_configs:
             - targets: ['ledger:8083']
+        - job_name: notification
+          static_configs:
+            - targets: ['notification:8084']
 
 processors:
   memory_limiter:

@@ -240,3 +240,60 @@ describe("auth api", () => {
     await expect(apis.auth.createChallenge("-_8BAg")).rejects.toThrow("wrapped key");
   });
 });
+
+const PROFILE = { email: "a@b.co", emailStatus: "confirmed", news: true, trades: false, emailEnabled: true };
+
+describe("profile api", () => {
+  it("reads the profile", async () => {
+    const { apis } = desk({ "GET /api/v1/profile": () => json(200, PROFILE) });
+
+    expect(await apis.profile.get()).toEqual(PROFILE);
+  });
+
+  it("leaves the address out of a profile that has none", async () => {
+    const { apis } = desk({
+      "GET /api/v1/profile": () => json(200, { emailStatus: "none", news: false, trades: false, emailEnabled: true }),
+    });
+
+    const profile = await apis.profile.get();
+
+    expect(profile.emailStatus).toBe("none");
+    expect("email" in profile).toBe(false);
+  });
+
+  it("sends the address", async () => {
+    const { apis, seen } = desk({ "PUT /api/v1/profile/email": () => json(200, PROFILE) });
+
+    expect(await apis.profile.setEmail("a@b.co")).toEqual(PROFILE);
+    expect(seen).toEqual([{ method: "PUT", path: "/api/v1/profile/email", body: { email: "a@b.co" } }]);
+  });
+
+  it("sends the preferences", async () => {
+    const { apis, seen } = desk({ "PUT /api/v1/profile/notifications": () => json(200, PROFILE) });
+
+    await apis.profile.setNotifications({ news: true, trades: false });
+
+    expect(seen[0]?.body).toEqual({ news: true, trades: false });
+  });
+
+  it("confirms with the token", async () => {
+    const { apis, seen } = desk({ "POST /api/v1/email-confirmations": () => new Response(null, { status: 204 }) });
+
+    await apis.profile.confirmEmail("tok");
+
+    expect(seen).toEqual([{ method: "POST", path: "/api/v1/email-confirmations", body: { token: "tok" } }]);
+  });
+
+  it("passes on what the limiter says", async () => {
+    const message = "Too many confirmation emails requested. Try again later.";
+    const { apis } = desk({ "PUT /api/v1/profile/email": () => json(429, { error: message }) });
+
+    await expect(apis.profile.setEmail("a@b.co")).rejects.toMatchObject({ status: 429, message });
+  });
+
+  it("reports a link that no longer works", async () => {
+    const { apis } = desk({ "POST /api/v1/email-confirmations": () => json(410, { error: "gone" }) });
+
+    await expect(apis.profile.confirmEmail("tok")).rejects.toMatchObject({ status: 410 });
+  });
+});

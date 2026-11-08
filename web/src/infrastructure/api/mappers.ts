@@ -7,6 +7,7 @@ import type {
   Network,
   Maker,
   Me,
+  Profile,
   Quote,
   Rfq,
   RfqWithQuotes,
@@ -15,12 +16,14 @@ import type {
 } from "@/domain/types";
 import { fromBase64 } from "../encoding";
 import type { components as IdentitySchema } from "./schema/identity";
+import type { components as NotificationSchema } from "./schema/notification";
 import type { components as TradingSchema } from "./schema/trading";
 import type { components as WalletSchema } from "./schema/wallet";
 
 type IdentityDto = IdentitySchema["schemas"];
 type TradingDto = TradingSchema["schemas"];
 type WalletDto = WalletSchema["schemas"];
+type NotificationDto = NotificationSchema["schemas"];
 
 export function parseTime(iso: string): number {
   const ms = Date.parse(iso.replace(/(\.\d{3})\d+/, "$1"));
@@ -36,6 +39,17 @@ export const toMe = (d: IdentityDto["Me"]): Me => ({
   kind: d.kind,
   makerMode: d.makerMode,
 });
+
+export function toProfile(d: NotificationDto["Profile"]): Profile {
+  const profile: Profile = {
+    emailStatus: d.emailStatus,
+    news: d.news,
+    trades: d.trades,
+    emailEnabled: d.emailEnabled,
+  };
+  if (d.email !== undefined) profile.email = d.email;
+  return profile;
+}
 
 export const toMaker = (d: IdentityDto["Maker"]): Maker => ({ hint: d.hint, displayName: d.displayName });
 

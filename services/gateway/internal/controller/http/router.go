@@ -19,6 +19,8 @@ type Config struct {
 	IdentityURL string `env:"IDENTITY_URL" envDefault:"http://localhost:8081"`
 	TradingURL  string `env:"TRADING_URL"  envDefault:"http://localhost:8082"`
 	LedgerURL   string `env:"LEDGER_URL"   envDefault:"http://localhost:8083"`
+
+	NotificationURL string `env:"NOTIFICATION_URL" envDefault:"http://localhost:8084"`
 }
 
 func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *metrics.HTTPServer) error {
@@ -39,6 +41,11 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 		return fmt.Errorf("ledger newProxy: %w", err)
 	}
 
+	notification, err := newProxy(c.NotificationURL, transport, dropCookie)
+	if err != nil {
+		return fmt.Errorf("notification newProxy: %w", err)
+	}
+
 	auth := authenticate(uc)
 
 	r.Handle("/metrics", promhttp.Handler())
@@ -51,6 +58,8 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 		r.Use(metrics.NewMiddleware(m))
 
 		r.Handle("/api/v1/auth/*", identity)
+		r.Method(http.MethodPost, "/api/v1/email-confirmations", notification)
+		r.Method(http.MethodPost, "/api/v1/webhooks/resend", notification)
 
 		r.Group(func(r chi.Router) {
 			r.Use(auth)
@@ -66,6 +75,8 @@ func GatewayRouter(r *chi.Mux, uc *usecase.UseCase, hub *ws.Hub, c Config, m *me
 			for _, prefix := range []string{"/api/v1/instruments", "/api/v1/wallet", "/api/v1/tx"} {
 				mount(r, prefix, ledger)
 			}
+
+			mount(r, "/api/v1/profile", notification)
 		})
 
 		r.HandleFunc("/api", notFound)

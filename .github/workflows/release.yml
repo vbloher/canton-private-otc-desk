@@ -47,7 +47,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [gateway, identity, trading, ledger, maker-bot, web]
+        image: [gateway, identity, trading, ledger, notification, maker-bot, web]
     steps:
       - uses: actions/checkout@v7
 

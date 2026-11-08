@@ -9,8 +9,10 @@ import (
 	"github.com/joho/godotenv"
 
 	"github.com/vbloher/canton-private-otc-desk/pkg/httpserver"
+	"github.com/vbloher/canton-private-otc-desk/pkg/kafka"
 	"github.com/vbloher/canton-private-otc-desk/pkg/logger"
 	"github.com/vbloher/canton-private-otc-desk/pkg/otel"
+	"github.com/vbloher/canton-private-otc-desk/pkg/outbox"
 	"github.com/vbloher/canton-private-otc-desk/pkg/postgres"
 	"github.com/vbloher/canton-private-otc-desk/pkg/redis"
 	"github.com/vbloher/canton-private-otc-desk/services/trading/internal/adapter/identity"
@@ -25,6 +27,8 @@ type Config struct {
 	OTEL     otel.Config
 	Postgres postgres.Config
 	Redis    redis.Config
+	Kafka    kafka.Config
+	Outbox   outbox.Config
 	Ledger   ledger.Config
 	Identity identity.Config
 	UseCase  usecase.Config

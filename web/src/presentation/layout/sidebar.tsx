@@ -1,4 +1,4 @@
-import { Activity, ArrowLeftRight, Wallet } from "lucide-react";
+import { Activity, ArrowLeftRight, UserRound, Wallet } from "lucide-react";
 import { NavLink } from "react-router";
 import type { SocketStatus } from "@/application/ports";
 import type { NetworkName } from "@/domain/types";
@@ -14,6 +14,7 @@ const NAV = [
   { to: "/trade", label: "Trade", icon: ArrowLeftRight },
   { to: "/wallet", label: "Wallet", icon: Wallet },
   { to: "/activity", label: "Activity", icon: Activity },
+  { to: "/profile", label: "Profile", icon: UserRound },
 ] as const;
 
 const NETWORK: Record<NetworkName, string> = {

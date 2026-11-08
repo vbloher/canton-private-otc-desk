@@ -36,6 +36,17 @@ type Trade struct {
 	SettledAt *time.Time
 }
 
+type Amount struct {
+	Instrument string
+	Value      decimal.Decimal
+}
+
+type Exchange struct {
+	Party    string
+	Gave     Amount
+	Received Amount
+}
+
 func NewTrade(rfq RFQ, quote Quote, now time.Time) Trade {
 	t := termsOf(rfq, quote, "")
 
@@ -69,6 +80,23 @@ func (t Trade) Legs(operator string) ([]Leg, error) {
 		notional:  t.Notional,
 		fee:       t.Fee,
 	}.legs()
+}
+
+func (t Trade) Exchanges() (taker, maker Exchange) {
+	base := Amount{Instrument: t.Base, Value: t.Qty}
+	quote := Amount{Instrument: t.Quote, Value: t.Notional}
+
+	if t.Direction.TakerBuys() {
+		net := Amount{Instrument: t.Quote, Value: t.Notional.Sub(t.Fee)}
+
+		return Exchange{Party: t.Taker.ID, Gave: quote, Received: base},
+			Exchange{Party: t.Maker.ID, Gave: base, Received: net}
+	}
+
+	gross := Amount{Instrument: t.Quote, Value: t.Notional.Add(t.Fee)}
+
+	return Exchange{Party: t.Taker.ID, Gave: base, Received: quote},
+		Exchange{Party: t.Maker.ID, Gave: gross, Received: base}
 }
 
 func (t Trade) Settled(updateID string, at time.Time) Trade {

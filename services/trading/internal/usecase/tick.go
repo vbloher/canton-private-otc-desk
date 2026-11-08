@@ -383,6 +383,11 @@ func (u *UseCase) recordSettlement(ctx context.Context, trade domain.Trade, now 
 			return fmt.Errorf("u.closeRFQ: %w", err)
 		}
 
+		err = u.announceSettled(ctx, trade)
+		if err != nil {
+			return fmt.Errorf("u.announceSettled: %w", err)
+		}
+
 		s.done = true
 
 		return nil

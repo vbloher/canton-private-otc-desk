@@ -19,6 +19,7 @@ func setRequired(t *testing.T) {
 	t.Setenv("POSTGRES_HOST", "localhost")
 	t.Setenv("POSTGRES_DB_NAME", "trading")
 	t.Setenv("REDIS_ADDR", "localhost:6379")
+	t.Setenv("KAFKA_BROKERS", "kafka-1:9092,kafka-2:9092")
 }
 
 func Test_New_Defaults(t *testing.T) {
@@ -63,4 +64,17 @@ func Test_New_RejectsANonPositiveSettleTimeout(t *testing.T) {
 
 	_, err := config.New()
 	require.ErrorContains(t, err, "SETTLE_TIMEOUT must be positive")
+}
+
+func Test_New_ReadsKafkaAndOutbox(t *testing.T) {
+	t.Chdir(t.TempDir())
+	setRequired(t)
+
+	c, err := config.New()
+	require.NoError(t, err)
+
+	require.Equal(t, []string{"kafka-1:9092", "kafka-2:9092"}, c.Kafka.Brokers)
+	require.Equal(t, time.Second, c.Outbox.Interval)
+	require.Equal(t, 100, c.Outbox.BatchSize)
+	require.Equal(t, 168*time.Hour, c.Outbox.Retention)
 }

@@ -11,7 +11,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "gen:api": "openapi-typescript ../api/http/identity_v1.yaml -o src/infrastructure/api/schema/identity.d.ts && openapi-typescript ../api/http/trading_v1.yaml -o src/infrastructure/api/schema/trading.d.ts && openapi-typescript ../api/http/wallet_v1.yaml -o src/infrastructure/api/schema/wallet.d.ts",
+    "gen:api": "openapi-typescript ../api/http/identity_v1.yaml -o src/infrastructure/api/schema/identity.d.ts && openapi-typescript ../api/http/trading_v1.yaml -o src/infrastructure/api/schema/trading.d.ts && openapi-typescript ../api/http/wallet_v1.yaml -o src/infrastructure/api/schema/wallet.d.ts && openapi-typescript ../api/http/notification_v1.yaml -o src/infrastructure/api/schema/notification.d.ts",
     "lint": "eslint .",
     "typecheck": "tsc -b",
     "test": "vitest run"

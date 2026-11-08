@@ -3,6 +3,8 @@ import type { Services } from "@/application/ports";
 import { Toaster } from "@/presentation/components/ui/sonner";
 import { DeskLayout } from "@/presentation/layout/desk-layout";
 import { ActivityPage } from "@/presentation/pages/activity";
+import { ConfirmEmailPage } from "@/presentation/pages/confirm-email";
+import { ProfilePage } from "@/presentation/pages/profile";
 import { SignInPage } from "@/presentation/pages/signin";
 import { TradePage } from "@/presentation/pages/trade";
 import { WalletPage } from "@/presentation/pages/wallet";
@@ -24,10 +26,12 @@ export function App({ services }: { services: Services }) {
                 <BrowserRouter>
                   <Routes>
                     <Route path="/signin" element={<SignInPage />} />
+                    <Route path="/confirm-email" element={<ConfirmEmailPage />} />
                     <Route element={<DeskLayout />}>
                       <Route path="/trade" element={<TradePage />} />
                       <Route path="/wallet" element={<WalletPage />} />
                       <Route path="/activity" element={<ActivityPage />} />
+                      <Route path="/profile" element={<ProfilePage />} />
                     </Route>
                     <Route path="/" element={<Navigate to="/trade" replace />} />
                     <Route path="*" element={<Navigate to="/" replace />} />

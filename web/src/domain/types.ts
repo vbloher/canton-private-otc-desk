@@ -11,6 +11,19 @@ export interface Me {
   makerMode: boolean;
 }
 
+export type EmailStatus = "none" | "unconfirmed" | "confirmed";
+
+export interface NotificationPreferences {
+  news: boolean;
+  trades: boolean;
+}
+
+export interface Profile extends NotificationPreferences {
+  email?: string;
+  emailStatus: EmailStatus;
+  emailEnabled: boolean;
+}
+
 export interface Maker {
   hint: string;
   displayName: string;

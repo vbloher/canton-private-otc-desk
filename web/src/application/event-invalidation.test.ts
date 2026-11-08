@@ -22,6 +22,7 @@ describe("invalidationsFor", () => {
     ["sign.requested", [["tx", "pending"]]],
     ["sign.completed", [["tx", "pending"], ["wallet"]]],
     ["wallet.updated", [["wallet"]]],
+    ["profile.updated", [["profile"]]],
   ])("%s refreshes %j", (type, keys) => {
     expect(invalidationsFor(type)).toEqual(keys);
   });

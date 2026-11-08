@@ -9,6 +9,8 @@ import type {
   Me,
   NewQuote,
   NewRfq,
+  NotificationPreferences,
+  Profile,
   Quote,
   QuoteStatus,
   Rfq,
@@ -72,6 +74,13 @@ export interface WalletApi {
   executeAction(actionId: string, signature: Uint8Array): Promise<void>;
 }
 
+export interface ProfileApi {
+  get(): Promise<Profile>;
+  setEmail(email: string): Promise<Profile>;
+  setNotifications(preferences: NotificationPreferences): Promise<Profile>;
+  confirmEmail(token: string): Promise<void>;
+}
+
 export interface UnlockedPasskey {
   credentialId: string;
   wrap(seed: Uint8Array): Promise<string>;
@@ -108,7 +117,8 @@ export type DeskEvent =
   | { type: "trade.updated"; data: { tradeId: string; rfqId: string; status: TradeStatus } }
   | { type: "sign.requested"; data: { actionId: string } }
   | { type: "sign.completed"; data: { actionId: string } }
-  | { type: "wallet.updated"; data: Record<string, never> };
+  | { type: "wallet.updated"; data: Record<string, never> }
+  | { type: "profile.updated"; data: Record<string, never> };
 
 export type DeskEventType = DeskEvent["type"];
 
@@ -128,6 +138,7 @@ export interface Services {
   auth: AuthApi;
   desk: DeskApi;
   wallet: WalletApi;
+  profile: ProfileApi;
   vault: KeyVault;
   keys: PartyKeys;
   credentials: CredentialStore;

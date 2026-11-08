@@ -21,7 +21,7 @@ validator's JSON Ledger API and the instruments' token-standard registries.
 ## Features
 
 - **Passkey wallet** — create a wallet (an external Canton party) with a passkey; connect it
-  again later with the same passkey. No passwords, no e-mail.
+  again later with the same passkey. No passwords, and no e-mail needed to trade.
 - **RFQ trading** — buy or sell any instrument pair, ask several makers at once, see quotes
   appear live, accept the best one.
 - **Atomic settlement** — a quote is the maker's committed token-standard v2 allocation; the
@@ -34,6 +34,8 @@ validator's JSON Ledger API and the instruments' token-standard registries.
 - **Wallet** — balances (available and locked), deposits (accept incoming transfers),
   withdrawals to any Canton party, and on DevNet a test-token faucet.
 - **Live updates** — a WebSocket pushes RFQ, quote, trade and signing events.
+- **Email notifications** — a profile where a user confirms an address and chooses what to get:
+  their settled trades (instruments and amounts, never the counterparty) and project news.
 
 ## Architecture
 
@@ -45,19 +47,26 @@ graph LR
   G -->|HTTP| I[identity]
   G -->|HTTP| T[trading]
   G -->|HTTP| L[ledger]
+  G -->|HTTP| N[notification]
   G -->|gRPC auth| I
   T -->|gRPC| L
   T -->|gRPC| I
   I -->|gRPC| L
   L -->|JSON Ledger API v2 + OAuth2| C[(Canton validator)]
   L -->|token-standard HTTP API| REG[(Token registries)]
+  T -->|outbox relay| K[(Kafka)]
+  K --> N
+  N -->|email, contacts| RS[(Resend)]
+  RS -->|contact webhook| G
   I --- PG[(Postgres)]
   T --- PG
   L --- PG
+  N --- PG
   I --- R[(Redis)]
   T --- R
   L --- R
   G --- R
+  N --- R
 ```
 
 | Service | Responsibility | Ports |
@@ -66,6 +75,7 @@ graph LR
 | `identity` | passkey wallets, key accounts, sessions, challenges, maker mode and the makers online | HTTP 8081 · gRPC 9081 |
 | `trading` | RFQs, quotes, trades and the settlement worker | HTTP 8082 |
 | `ledger` | everything Canton: parties, holdings, transfers, allocations, settlement, the sign queue | HTTP 8083 · gRPC 9083 |
+| `notification` | profiles (email, its confirmation, what to receive), trade emails consumed from Kafka, sending through Resend | HTTP 8084 |
 | `web` | the SPA behind nginx, which also proxies `/api` | 3000 |
 
 The demo maker in [`maker-bot/`](maker-bot) is not part of the stack: it is a separate Go module
@@ -75,9 +85,14 @@ The demo maker in [`maker-bot/`](maker-bot) is not part of the stack: it is a se
 Each service follows the template's layout — `cmd/app`, `config`, `internal/{app,domain,dto,
 usecase,adapter,controller}`, `migration` — with ports declared by the use cases and implemented
 by adapters. Postgres holds one database per service; Redis is the cache (sessions, desk facts,
-the synchronizer id), the store for one-shot challenges and faucet cooldowns, and the event bus. HTTP contracts are
+the synchronizer id), the store for one-shot challenges and rate limits, and the event bus. HTTP contracts are
 OpenAPI (`api/http`, servers and clients generated with oapi-codegen); internal contracts are
 protobuf (`api/grpc`).
+
+Kafka carries events between services. A producer never writes to it directly: it adds the event
+to an `outbox` table in the same transaction as the change that caused it, and a relay
+([`pkg/outbox`](pkg/outbox)) publishes the rows. Kafka being down delays an email and nothing else;
+a redelivered event is dropped by the consumer.
 
 ### How a trade settles
 
@@ -155,20 +170,21 @@ pnpm's version is pinned in `web/package.json`), plus the quick-start requiremen
 
 ```bash
 make bin-deps            # protoc and golangci-lint into ./bin
-make up                  # Postgres and Redis only (127.0.0.1)
+make up                  # Postgres, Redis and Kafka only (127.0.0.1)
 make run-ledger          # each in its own terminal: run-ledger, run-identity, run-trading,
-make run-identity        # run-gateway (each creates services/<name>/.env from the example)
+make run-identity        # run-notification, run-gateway (each creates services/<name>/.env from the example)
 make web-dev             # Vite on :3000, proxying /api to the gateway on :8080
 ```
 
 | Command | Description |
 |---|---|
 | `make test` | Go unit tests of the desk and the maker bot (race detector, shuffled like CI) |
-| `make integration-test` | service tests against real Postgres and Redis (`make up`) |
+| `make integration-test` | tests against real Postgres, Redis and Kafka (`make up`) |
 | `make lint` | golangci-lint, the desk and the maker bot |
 | `make generate` | regenerate protobuf, OpenAPI servers/clients (the maker bot's too) and mocks |
 | `make vuln` | govulncheck (pinned as a Go tool), the desk and the maker bot |
 | `make maker-bot` | run the demo maker against the desk on :8080 |
+| `make kafka-ui` | Kafka and a read-only web UI for its topics at <http://localhost:8090> |
 | `make clean` | stop the stack and drop its databases |
 | `pnpm --dir web test` | web unit tests (`lint`, `typecheck`, `build`, `gen:api` likewise) |
 
@@ -195,7 +211,8 @@ curl -s -b cookies localhost:8080/api/v1/rfqs/incoming
 | wallets, sessions, makers | [`api/http/identity_v1.yaml`](api/http/identity_v1.yaml) |
 | RFQs, quotes, trades | [`api/http/trading_v1.yaml`](api/http/trading_v1.yaml) |
 | balances, transfers, signing | [`api/http/wallet_v1.yaml`](api/http/wallet_v1.yaml) |
-| WebSocket `/api/v1/ws` | `{"type": "rfq.created" \| "rfq.updated" \| "quote.updated" \| "trade.updated" \| "sign.requested" \| "sign.completed" \| "wallet.updated", "data": {...}}` |
+| profile, email confirmation | [`api/http/notification_v1.yaml`](api/http/notification_v1.yaml) |
+| WebSocket `/api/v1/ws` | `{"type": "rfq.created" \| "rfq.updated" \| "quote.updated" \| "trade.updated" \| "sign.requested" \| "sign.completed" \| "wallet.updated" \| "profile.updated", "data": {...}}` |
 
 ## Configuration
 
@@ -213,12 +230,13 @@ nothing; compose sets `otel-collector:4317`), `OTEL_SERVICE_NAME`, `OTEL_RATIO` 
 |---|---|
 | identity | `GRPC_PORT` (9081), `LEDGER_GRPC_ADDR` (localhost:9083), `SESSION_TTL` (168h), `COOKIE_SECURE` (false) |
 | ledger | `GRPC_PORT` (9083), `CANTON_NETWORK` (devnet; testnet, mainnet), `CANTON_URL` (required), `CANTON_USER_ID` (the token's `sub`), `CANTON_AUTH_TOKEN_URL`, `CANTON_AUTH_CLIENT_ID`, `CANTON_AUTH_CLIENT_SECRET`, `CANTON_AUTH_AUDIENCE`, `CANTON_AUTH_SCOPE` (no auth without a token URL), `OPERATOR_PARTY` (required), `INSTRUMENTS` (required), `FAUCET_PARTY` (none — faucet off), `FAUCET_AMOUNTS` (none — `SYMBOL:amount`), `FAUCET_COOLDOWN` (1h), `ACTION_TTL` (10m) |
-| trading | `LEDGER_GRPC_ADDR` (localhost:9083), `IDENTITY_GRPC_ADDR` (localhost:9081), `FEE_BPS` (10), `WORKER_INTERVAL` (1s), `SETTLE_TIMEOUT` (10m) |
-| gateway | `IDENTITY_GRPC_ADDR` (localhost:9081), `IDENTITY_URL`, `TRADING_URL`, `LEDGER_URL` (localhost:8081–8083) |
+| trading | `LEDGER_GRPC_ADDR` (localhost:9083), `IDENTITY_GRPC_ADDR` (localhost:9081), `KAFKA_BROKERS` (required), `FEE_BPS` (10), `WORKER_INTERVAL` (1s), `SETTLE_TIMEOUT` (10m), `OUTBOX_INTERVAL` (1s), `OUTBOX_BATCH_SIZE` (100), `OUTBOX_RETENTION` (168h) |
+| gateway | `IDENTITY_GRPC_ADDR` (localhost:9081), `IDENTITY_URL`, `TRADING_URL`, `LEDGER_URL` (localhost:8081–8083), `NOTIFICATION_URL` (localhost:8084) |
+| notification | `KAFKA_BROKERS` (required), `KAFKA_CONSUMER_GROUP` (notification), `WORKER_INTERVAL` (1s), `PUBLIC_URL` (the desk's address, required with email on), `RESEND_API_KEY` (none — email off), `EMAIL_FROM` (required with the key), `RESEND_SEGMENT_ID` (none), `RESEND_WEBHOOK_SECRET` (none — webhooks refused), `EMAIL_CONFIRMATION_TTL` (24h), `EMAIL_CONFIRMATIONS_DAILY_LIMIT` (1000, for the whole desk), `EMAIL_INCLUDE_UPDATE_ID` (false), `EMAIL_LOG` (false — write emails to the log instead, for local runs) |
 
 ## Observability
 
-Logs, metrics, traces and profiles of gateway, identity, trading and ledger go to a Grafana stack
+Logs, metrics, traces and profiles of gateway, identity, trading, ledger and notification go to a Grafana stack
 of their own — VictoriaMetrics, Loki, Tempo, Pyroscope and Grafana — in
 [`deploy/observability/`](deploy/observability).
 
@@ -261,7 +279,7 @@ Two environments, each on a VPS that runs the whole stack with Docker Compose:
 | push to `dev` | `dev`, `sha-<short>` | `dev` | DevNet |
 | tag `v1.2.3` | `1.2.3`, `1.2`, `latest`, `sha-<short>` | `prod` | MainNet |
 
-[`release.yml`](.github/workflows/release.yml) runs CI, publishes the six images (multi-arch, public
+[`release.yml`](.github/workflows/release.yml) runs CI, publishes the seven images (multi-arch, public
 like the repository) and deploys over SSH: it copies the rendered
 [`deploy/docker-compose.yml`](deploy/docker-compose.yml), `postgres/init.sql` and the network's
 template as `.env.example` and `otel-collector.yml` to `~/otc-desk-<environment>/` on the server,
@@ -346,6 +364,37 @@ $EDITOR .env   # GRAFANA_ADMIN_PASSWORD, GRAFANA_ROOT_URL=https://grafana.<domai
 
 A failure there never stops the app deploy.
 
+### Kafka UI
+
+[Kafbat UI](https://github.com/kafbat/kafka-ui) shows topics, consumer groups and messages. It is
+read-only and runs only with `COMPOSE_PROFILES=kafka-ui` in `.env`, which the DevNet template sets
+and the MainNet one does not. Messages hold trade amounts and party ids, so it is published on the
+server's loopback only, on `KAFKA_UI_PORT` (8090):
+
+```bash
+ssh -L 8090:127.0.0.1:8090 <server>   # then open http://localhost:8090
+```
+
+### Email
+
+Email is optional. Without `RESEND_API_KEY` the desk runs as usual and the profile says email is
+not set up. The `notification` service creates its own database on first start, so an existing
+deployment needs no manual step for it. To turn email on:
+
+1. In [Resend](https://resend.com) verify a sending domain and create an API key.
+2. Create a segment for news, and a webhook to `https://<domain>/api/v1/webhooks/resend` with the
+   `contact.updated` event.
+3. In `.env` set `PUBLIC_URL`, `RESEND_API_KEY`, `EMAIL_FROM`, `RESEND_SEGMENT_ID` and
+   `RESEND_WEBHOOK_SECRET`.
+
+News is written and sent as a broadcast to that segment from the Resend dashboard, with
+`{{{RESEND_UNSUBSCRIBE_URL}}}` in its footer. The desk only keeps the segment in step with the
+profile: ticking **News** subscribes the address, and unsubscribing from a broadcast clears the box.
+
+`EMAIL_INCLUDE_UPDATE_ID=true` adds the Canton update id to trade emails. It is off because a
+reader of the email may be able to find the trade's parties through Scan by that id on a Canton
+Coin leg; Activity shows the id to the signed-in user either way.
+
 ### Rollback
 
 Run the workflow by hand on the tag to go back to (**Actions → Release → Run workflow**, pick the
@@ -357,9 +406,9 @@ tag): it tests, rebuilds from cache and deploys that version. On the server
 ```
 api/            OpenAPI and protobuf contracts
 gen/            generated servers, clients and gRPC stubs
-pkg/            shared infrastructure (logger, metrics, otel, postgres, redis, transactions,
-                decimal money math, events, principal headers, gRPC helpers, migrations)
-services/       gateway, identity, trading, ledger
+pkg/            shared infrastructure (logger, metrics, otel, postgres, redis, kafka, outbox,
+                transactions, decimal money math, events, principal headers, gRPC helpers, migrations)
+services/       gateway, identity, trading, ledger, notification
 maker-bot/      the demo maker: a separate Go module (MIT) that uses only the public API
 web/            React SPA: domain / application / infrastructure / presentation
 deploy/         the stack for a VPS (docker-compose.yml, .env.<network>.example, otel-collector.yml),
@@ -379,7 +428,10 @@ This is a reference implementation, kept small on purpose:
   should show the user what it signs. A prepared transaction waits for its signature for up to
   `ACTION_TTL` (10 min); a network may enforce a shorter window.
 - Losing your passkey loses the wallet: there is no backup phrase or recovery.
-- No invites, rate limiting beyond the faucet cooldown, e-mail or KYC.
+- No invites or KYC, and no rate limiting beyond the faucet cooldown and the limits on confirmation
+  emails.
+- Kafka is a single broker: losing its disk loses events not yet consumed, so their emails are not
+  sent. Settlement does not depend on it.
 
 ## License
 

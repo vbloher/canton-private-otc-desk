@@ -39,6 +39,7 @@ type deps struct {
 	identity *mocks.Identity
 	redis    *mocks.Redis
 	events   *mocks.Events
+	outbox   *recordingOutbox
 }
 
 func newDeps(t *testing.T) deps {
@@ -52,6 +53,7 @@ func newDeps(t *testing.T) deps {
 		identity: mocks.NewIdentity(t),
 		redis:    mocks.NewRedis(t),
 		events:   mocks.NewEvents(t),
+		outbox:   &recordingOutbox{},
 	}
 }
 
@@ -64,10 +66,10 @@ func (d deps) useCase(t *testing.T) *usecase.UseCase {
 			return ctx.Err()
 		}
 
-		return fn(ctx)
+		return fn(context.WithValue(ctx, inTransaction{}, true))
 	}).Maybe()
 
-	return usecase.New(config, tx, d.postgres, d.ledger, d.identity, d.redis, d.events)
+	return usecase.New(config, tx, d.postgres, d.ledger, d.identity, d.redis, d.events, d.outbox)
 }
 
 func (d deps) useCaseLeftAfterCommit(t *testing.T, leave context.CancelFunc) *usecase.UseCase {
@@ -79,13 +81,13 @@ func (d deps) useCaseLeftAfterCommit(t *testing.T, leave context.CancelFunc) *us
 			return ctx.Err()
 		}
 
-		err := fn(ctx)
+		err := fn(context.WithValue(ctx, inTransaction{}, true))
 		leave()
 
 		return err
 	}).Maybe()
 
-	return usecase.New(config, tx, d.postgres, d.ledger, d.identity, d.redis, d.events)
+	return usecase.New(config, tx, d.postgres, d.ledger, d.identity, d.redis, d.events, d.outbox)
 }
 
 func (d deps) cachedDesk() {
