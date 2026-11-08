@@ -11,6 +11,8 @@ x-common-env: &common-env
   POSTGRES_PASSWORD: otc
   REDIS_ADDR: redis:6379
   OTEL_ENDPOINT: otel-collector:4317
+  PYROSCOPE_ENDPOINT: http://pyroscope-proxy:4040
+  PYROSCOPE_ENV: local
 
 services:
   postgres:
@@ -132,6 +134,8 @@ services:
       HTTP_HOST: 0.0.0.0
       OTEL_SERVICE_NAME: gateway
       OTEL_ENDPOINT: otel-collector:4317
+      PYROSCOPE_ENDPOINT: http://pyroscope-proxy:4040
+      PYROSCOPE_ENV: local
       HTTP_PORT: '8080'
       REDIS_ADDR: redis:6379
       IDENTITY_GRPC_ADDR: identity:9081
@@ -170,6 +174,13 @@ services:
       ENV: local
     volumes:
       - ./deploy/otel-collector.yml:/etc/otelcol/config.yml:ro
+    networks: [default, observability]
+
+  pyroscope-proxy:
+    image: nginx:1.30-alpine
+    restart: unless-stopped
+    volumes:
+      - ./deploy/pyroscope-proxy.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [default, observability]
 
 networks:

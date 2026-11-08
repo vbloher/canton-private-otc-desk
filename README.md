@@ -203,6 +203,8 @@ Every service reads environment variables (and `.env` in its directory when pres
 Common: `HTTP_HOST` (empty = every interface) and `HTTP_PORT`, `LOGGER_LEVEL` (info),
 `LOGGER_PRETTY_CONSOLE`, `OTEL_ENDPOINT` (OTLP/gRPC address of the collector, empty = export
 nothing; compose sets `otel-collector:4317`), `OTEL_SERVICE_NAME`, `OTEL_RATIO` (1.0),
+`PYROSCOPE_ENDPOINT` (profiles receiver, empty = profiler off; takes effect together with
+`OTEL_ENDPOINT`; compose sets `http://pyroscope-proxy:4040`), `PYROSCOPE_ENV` (the `env` label),
 `POSTGRES_HOST/PORT/USER/PASSWORD/DB_NAME`, `REDIS_ADDR`; services with gRPC also take
 `GRPC_HOST` and `GRPC_PORT`. The web image takes `NGINX_HOST`, `NGINX_PORT` (80) and
 `GATEWAY_UPSTREAM` (gateway:8080).
@@ -216,17 +218,21 @@ nothing; compose sets `otel-collector:4317`), `OTEL_SERVICE_NAME`, `OTEL_RATIO` 
 
 ## Observability
 
-Logs, metrics and traces of gateway, identity, trading and ledger go to a Grafana stack of their
-own — VictoriaMetrics, VictoriaLogs, Tempo and Grafana — in
+Logs, metrics, traces and profiles of gateway, identity, trading and ledger go to a Grafana stack
+of their own — VictoriaMetrics, VictoriaLogs, Tempo, Pyroscope and Grafana — in
 [`deploy/observability/`](deploy/observability).
 
 - The services keep Prometheus metrics on `/metrics` and send traces and logs over OTLP to
   `otel-collector`, which runs next to them in the app's compose project. The collector scrapes
   `/metrics` every 15 s, tags everything with `env` (`local`, `dev`, `prod`) and forwards it over
-  the Docker network `observability`. Only the collector joins that network, so two environments
-  on one server never resolve each other's services.
+  the Docker network `observability`. Only the collector and `pyroscope-proxy` join that network,
+  so two environments on one server never resolve each other's services.
+- The services push CPU, memory, goroutine and mutex profiles every 15 s through
+  `pyroscope-proxy`, an nginx that runs next to them and forwards only `/ingest`. Open them in
+  Grafana under **Drilldown → Profiles**; a span in Explore opens the CPU profile of its request.
 - The stack is a compose project of its own (`observability`), one per server. Only Grafana is
-  published, on `127.0.0.1:${GRAFANA_PORT:-3001}`. Retention: metrics 30 days, logs 14, traces 7.
+  published, on `127.0.0.1:${GRAFANA_PORT:-3001}`. Retention: metrics 30 days, logs 14, traces and
+  profiles 7.
 - Grafana starts provisioned from files: the datasources, the links between traces and logs and
   three dashboards in the **Desk** folder — Services (requests, errors and latency per route and
   gRPC method, calls to Canton and the token registries, error logs, a service map), Business and
@@ -243,7 +249,8 @@ make up-all     # the app with its collector
 make obs-down
 ```
 
-Services started with `make run-<name>` keep `OTEL_ENDPOINT` empty and export nothing.
+Services started with `make run-<name>` keep `OTEL_ENDPOINT` and `PYROSCOPE_ENDPOINT` empty and
+export nothing.
 
 ## Deployment
 

@@ -28,6 +28,9 @@ type Config struct {
 	Namespace   string  `env:"OTEL_NAMESPACE"`
 	InstanceID  string  `env:"OTEL_INSTANCE_ID"`
 	Ratio       float64 `env:"OTEL_RATIO"        envDefault:"1.0"`
+
+	ProfilerEndpoint string `env:"PYROSCOPE_ENDPOINT"`
+	ProfilerEnv      string `env:"PYROSCOPE_ENV"`
 }
 
 var shutdown func(ctx context.Context) error //nolint:gochecknoglobals
@@ -82,11 +85,16 @@ func Init(ctx context.Context, c Config) error {
 		sdklog.WithResource(res),
 	)
 
-	shutdown = func(ctx context.Context) error {
-		return errors.Join(traceProvider.Shutdown(ctx), logProvider.Shutdown(ctx))
+	spanProvider, stopProfiler, err := withProfiler(c, traceProvider)
+	if err != nil {
+		return fmt.Errorf("failed to start profiler: %w", err)
 	}
 
-	otel.SetTracerProvider(traceProvider)
+	shutdown = func(ctx context.Context) error {
+		return errors.Join(stopProfiler(), traceProvider.Shutdown(ctx), logProvider.Shutdown(ctx))
+	}
+
+	otel.SetTracerProvider(spanProvider)
 	otel.SetLoggerProvider(logProvider)
 	tracer.Init(otel.Tracer(""))
 

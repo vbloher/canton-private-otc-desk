@@ -42,6 +42,18 @@ services:
       - ./tempo.yml:/etc/tempo/tempo.yml:ro
       - tempo-data:/var/tempo
 
+  pyroscope:
+    <<: *logging
+    image: grafana/pyroscope:2.4.3
+    restart: unless-stopped
+    command:
+      - -architecture.storage=v2
+      - -retention-period=168h
+      - -self-profiling.disable-push=true
+      - -usage-stats.enabled=false
+    volumes:
+      - pyroscope-data:/data
+
   grafana:
     <<: *logging
     image: grafana/grafana:13.3.0
@@ -66,6 +78,7 @@ services:
       - victoriametrics
       - victorialogs
       - tempo
+      - pyroscope
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/api/health']
       interval: 5s
@@ -81,4 +94,5 @@ volumes:
   vm-data:
   vl-data:
   tempo-data:
+  pyroscope-data:
   grafana-data:

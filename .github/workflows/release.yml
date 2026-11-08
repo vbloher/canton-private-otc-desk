@@ -106,6 +106,7 @@ jobs:
           mkdir -p out/postgres
           envsubst '${IMAGE_PREFIX} ${IMAGE_TAG} ${DEPLOY_ENV}' < deploy/docker-compose.yml > out/docker-compose.yml
           cp deploy/otel-collector.yml out/otel-collector.yml
+          cp deploy/pyroscope-proxy.conf out/pyroscope-proxy.conf
           cp "deploy/.env.$NETWORK.example" out/.env.example
           cp deploy/postgres/init.sql out/postgres/init.sql
 
@@ -163,7 +164,7 @@ jobs:
           docker network inspect observability >/dev/null 2>&1 || docker network create observability >/dev/null
           docker compose pull --quiet
           docker compose up -d --wait --wait-timeout 600 --remove-orphans
-          docker compose up -d --wait --force-recreate --no-deps otel-collector
+          docker compose up -d --wait --force-recreate --no-deps otel-collector pyroscope-proxy
           docker compose ps
           EOF
 

@@ -13,6 +13,8 @@ x-common-env: &common-env
   LOGGER_LEVEL: ${LOGGER_LEVEL:-info}
   OTEL_NAMESPACE: ${OTEL_NAMESPACE:-}
   OTEL_RATIO: ${OTEL_RATIO:-}
+  PYROSCOPE_ENDPOINT: http://pyroscope-proxy:4040
+  PYROSCOPE_ENV: ${DEPLOY_ENV}
 
 x-db-env: &db-env
   <<: *common-env
@@ -176,6 +178,14 @@ services:
       ENV: ${DEPLOY_ENV}
     volumes:
       - ./otel-collector.yml:/etc/otelcol/config.yml:ro
+    networks: [default, observability]
+
+  pyroscope-proxy:
+    <<: *logging
+    image: nginx:1.30-alpine
+    restart: unless-stopped
+    volumes:
+      - ./pyroscope-proxy.conf:/etc/nginx/conf.d/default.conf:ro
     networks: [default, observability]
 
 networks:

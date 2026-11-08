@@ -37,7 +37,19 @@ datasources:
         filterByTraceID: true
         customQuery: true
         query: 'trace_id:="$${__trace.traceId}"'
+      tracesToProfiles:
+        datasourceUid: pyroscope
+        profileTypeId: process_cpu:cpu:nanoseconds:cpu:nanoseconds
+        tags:
+          - key: service.name
+            value: service_name
       serviceMap:
         datasourceUid: victoriametrics
       nodeGraph:
         enabled: true
+
+  - name: Pyroscope
+    uid: pyroscope
+    type: grafana-pyroscope-datasource
+    access: proxy
+    url: http://pyroscope:4040
